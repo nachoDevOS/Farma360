@@ -1,15 +1,15 @@
 /**
  * AVISOS FLOTANTES (abajo a la derecha).
- * Muestra los mensajes que Laravel manda con ->with('success', '...') o ->with('error', '...').
+ * Muestra los mensajes que Laravel manda con ->with('success' | 'error' | 'info', '...').
  */
 import { type SharedData } from '@/types';
 import { usePage } from '@inertiajs/react';
-import { CheckCircle2, X, XCircle } from 'lucide-react';
+import { CheckCircle2, Info, X, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface Toast {
     id: number;
-    type: 'success' | 'error';
+    type: 'success' | 'error' | 'info';
     message: string;
 }
 
@@ -22,6 +22,7 @@ export function FlashToast() {
         const incoming: Toast[] = [];
         if (flash?.success) incoming.push({ id: Date.now(), type: 'success', message: flash.success });
         if (flash?.error) incoming.push({ id: Date.now() + 1, type: 'error', message: flash.error });
+        if (flash?.info) incoming.push({ id: Date.now() + 2, type: 'info', message: flash.info });
         if (incoming.length === 0) return;
 
         setToasts((current) => [...current, ...incoming]);
@@ -43,11 +44,9 @@ export function FlashToast() {
                     role="status"
                     className="bg-background animate-in slide-in-from-bottom-4 fade-in pointer-events-auto flex items-start gap-3 rounded-lg border p-4 shadow-lg"
                 >
-                    {toast.type === 'success' ? (
-                        <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-500" />
-                    ) : (
-                        <XCircle className="mt-0.5 size-5 shrink-0 text-red-500" />
-                    )}
+                    {toast.type === 'success' && <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-500" />}
+                    {toast.type === 'error' && <XCircle className="mt-0.5 size-5 shrink-0 text-red-500" />}
+                    {toast.type === 'info' && <Info className="text-primary mt-0.5 size-5 shrink-0" />}
                     <p className="flex-1 text-sm">{toast.message}</p>
                     <button onClick={() => dismiss(toast.id)} className="text-muted-foreground hover:text-foreground" aria-label="Cerrar">
                         <X className="size-4" />

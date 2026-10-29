@@ -75,13 +75,34 @@ class RolesAndPermissionsTest extends TestCase
         $role = Role::findByName('Supervisor');
 
         $this->actingAs($admin)->get('/admin/roles')
-            ->assertInertia(fn ($page) => $page->component('admin/roles/index')->has('roles', count(config('roles.defaults')) + 1));
+            ->assertInertia(fn ($page) => $page->component('admin/roles/index')->has('roles.data', count(config('roles.defaults')) + 1));
 
         $this->actingAs($admin)->get('/admin/roles/create')
             ->assertInertia(fn ($page) => $page->component('admin/roles/form')->where('role', null)->has('catalog.modules', count(config('roles.modules'))));
 
         $this->actingAs($admin)->get("/admin/roles/{$role->id}/edit")
             ->assertInertia(fn ($page) => $page->component('admin/roles/form')->where('role.name', 'Supervisor')->has('role.permissions', 1));
+    }
+
+    public function test_roles_list_is_paginated_and_searchable_on_the_server()
+    {
+        $super = User::factory()->withRole('Super Admin')->create();
+        foreach (range(1, 12) as $n) {
+            Role::create(['name' => "Rol de prueba {$n}"]);
+        }
+        $total = count(config('roles.defaults')) + 1 + 12;
+
+        $this->actingAs($super)->get('/admin/roles?per_page=10')
+            ->assertInertia(fn ($page) => $page->component('admin/roles/index')
+                ->has('roles.data', 10)
+                ->where('roles.total', $total)
+                ->where('roles.data.0.is_super_admin', true));
+
+        $this->actingAs($super)->get('/admin/roles?per_page=10&page=2')
+            ->assertInertia(fn ($page) => $page->has('roles.data', $total - 10));
+
+        $this->actingAs($super)->get('/admin/roles?search=prueba 1')
+            ->assertInertia(fn ($page) => $page->where('roles.total', 4)->where('filters.search', 'prueba 1'));
     }
 
     public function test_permissions_outside_the_catalog_are_rejected()

@@ -57,6 +57,8 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
+                // Aviso informativo (no es un error): ej. "Abre tu caja antes de vender"
+                'info' => fn () => $request->session()->get('info'),
             ],
         ]);
     }

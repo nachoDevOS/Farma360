@@ -8,8 +8,8 @@
 
 /* Fuentes y colores que Tailwind convierte en clases (ej: font-display, bg-primary, text-muted-foreground) */
 @theme {
-    --font-sans: 'Roboto', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-    --font-display: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-display: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
     /* Colores de la marca (corporativo azul) */
     --color-brand-blue: #0d6efd;
     --color-brand-blue-light: #60a5fa;
@@ -206,7 +206,7 @@
 
 /* ===== CLASES PROPIAS DEL PANEL =====  Se usan como cualquier clase: className="surface" */
 @layer components {
-    /* Tipografía de títulos (Roboto, apenas más apretada) */
+    /* Tipografía de títulos (Instrument Sans, apenas más apretada) */
     .font-display {
         font-family: var(--font-display);
         letter-spacing: -0.01em;
@@ -226,70 +226,144 @@
     }
 }
 
-/* Botón principal fuera de @layer: así gana sobre las clases de Tailwind del componente Button */
+/* ===== BOTONES CON RELLENO (fuera de @layer: así ganan sobre las clases de Tailwind) =====
+   .btn-solid lo usa el componente Button (components/ui/button.tsx): el color viene de --btn-bg / --btn-fg.
+   .btn-brand = botón principal con el color de la marca (se usa en los botones más importantes de cada pantalla).
+   Estilo: compacto y plano, color sólido con sombra corta; al pasar el mouse se oscurece y al presionar se hunde apenas. */
 .btn-brand {
-    background-color: var(--primary);
-    color: var(--primary-foreground);
-    border-radius: calc(var(--radius) - 2px);
-    box-shadow:
-        0 1px 0 rgb(255 255 255 / 0.12) inset,
-        0 1px 2px rgb(0 0 0 / 0.12);
-    transition: background-color 150ms ease-out;
+    --btn-bg: var(--primary);
+    --btn-fg: var(--primary-foreground);
 }
 
+.btn-solid,
+.btn-brand {
+    background-color: var(--btn-bg);
+    color: var(--btn-fg);
+    border: 1px solid transparent;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+    transition:
+        background-color 150ms ease-out,
+        box-shadow 150ms ease-out,
+        transform 120ms ease-out;
+}
+
+.btn-solid:hover,
 .btn-brand:hover {
-    background-color: color-mix(in srgb, var(--primary) 85%, black);
+    background-color: color-mix(in oklab, var(--btn-bg) 88%, black);
 }
 
-.dark .btn-brand {
-    background-color: var(--primary);
+.btn-solid:active,
+.btn-brand:active {
+    transform: scale(0.98);
+    box-shadow: none;
 }
 
+.dark .btn-solid:hover,
 .dark .btn-brand:hover {
-    background-color: color-mix(in oklab, var(--primary) 88%, white);
+    background-color: color-mix(in oklab, var(--btn-bg) 88%, white);
+}
+
+/* ===== CONTADOR − [cantidad] + en una sola pieza (caja, punto de venta) =====
+   <div class="stepper"><button>−</button><input /><button>+</button></div> */
+.stepper {
+    display: inline-flex;
+    align-items: stretch;
+    height: 2.25rem;
+    overflow: hidden;
+    border: 1px solid var(--input);
+    border-radius: 0.6rem;
+    background-color: var(--card);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+    transition:
+        border-color 150ms ease-out,
+        box-shadow 150ms ease-out;
+}
+
+.stepper:focus-within {
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 20%, transparent);
+}
+
+.stepper[data-active='true'] {
+    border-color: color-mix(in oklab, var(--primary) 45%, transparent);
+}
+
+.stepper > button {
+    display: inline-flex;
+    width: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted-foreground);
+    transition:
+        background-color 120ms ease-out,
+        color 120ms ease-out;
+}
+
+.stepper > button:hover:not(:disabled) {
+    background-color: color-mix(in oklab, var(--primary) 10%, transparent);
+    color: var(--primary);
+}
+
+.stepper > button:active:not(:disabled) {
+    background-color: color-mix(in oklab, var(--primary) 18%, transparent);
+}
+
+.stepper > button:disabled {
+    opacity: 0.35;
+}
+
+.stepper > button:last-child {
+    color: var(--primary);
+}
+
+.stepper > input {
+    width: 3.5rem;
+    border-inline: 1px solid var(--border);
+    background: transparent;
+    text-align: center;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    outline: none;
+    appearance: textfield;
+}
+
+.stepper > input::-webkit-inner-spin-button,
+.stepper > input::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
 }
 
 /* ===== BOTONES DE ÍCONO (acciones de tablas, barras, etc.) =====
    Uso: <button className="btn-icon btn-icon-danger"><Trash2 /></button>
    Colores: btn-icon-primary (azul) · btn-icon-success (verde) · btn-icon-warning (naranja) · btn-icon-danger (rojo)
-   Efecto: al pasar el mouse, un fondo suave del color crece desde el centro. Sobrio, sin saltos ni giros. */
+   Estilo: cuadro de 32 px con fondo suave, borde y ícono del mismo color; el color dice qué hace el botón
+   antes de leerlo. Al pasar el mouse el fondo y el borde se intensifican. */
 .btn-icon {
     --tone: var(--muted-foreground);
-    position: relative;
-    isolation: isolate;
     display: inline-flex;
     width: 2rem;
     height: 2rem;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    border-radius: calc(var(--radius) - 2px);
+    border: 1px solid color-mix(in srgb, var(--tone) 30%, transparent);
+    border-radius: 6px;
+    background-color: color-mix(in srgb, var(--tone) 8%, var(--card));
     color: var(--tone);
-    transition: transform 120ms ease-out;
-}
-
-/* Fondo que crece desde el centro */
-.btn-icon::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    background-color: color-mix(in srgb, var(--tone) 12%, transparent);
-    opacity: 0;
-    transform: scale(0.6);
     transition:
-        opacity 160ms ease-out,
-        transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        background-color 150ms ease-out,
+        border-color 150ms ease-out,
+        transform 120ms ease-out;
 }
 
 .btn-icon > svg {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
 }
 
-.btn-icon:hover::before {
-    opacity: 1;
-    transform: scale(1);
+.btn-icon:hover {
+    border-color: color-mix(in srgb, var(--tone) 55%, transparent);
+    background-color: color-mix(in srgb, var(--tone) 16%, var(--card));
 }
 
 .btn-icon:active {
@@ -302,7 +376,8 @@
 }
 
 .btn-icon:disabled {
-    --tone: color-mix(in srgb, var(--muted-foreground) 40%, transparent);
+    --tone: color-mix(in srgb, var(--muted-foreground) 50%, transparent);
+    opacity: 0.6;
     pointer-events: none;
 }
 
@@ -453,8 +528,7 @@
     .nav-item::before,
     .nav-item > svg,
     .nav-item > span,
-    .btn-icon,
-    .btn-icon::before {
+    .btn-icon {
         transition: none;
     }
 

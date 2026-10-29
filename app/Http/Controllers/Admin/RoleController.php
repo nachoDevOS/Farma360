@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\RoleRequest;
 use App\Models\Role;
 use App\Support\PermissionCatalog;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,29 +23,34 @@ class RoleController extends Controller
 {
     /**
      * GET /admin/roles — Lista de roles con cuántos usuarios y permisos tiene cada uno.
+     * PAGINACIÓN DEL LADO DEL SERVIDOR con buscador (?search=…&per_page=…), igual que Usuarios.
      * Abre resources/js/pages/admin/roles/index.tsx
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $total = count(PermissionCatalog::all());
+        $filters = $request->only(['search', 'per_page']);
+        $search = trim((string) ($filters['search'] ?? ''));
 
         $roles = Role::withCount(['users', 'permissions'])
+            ->when($search !== '', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"))
+            // Super Admin siempre primero
+            ->orderByRaw('name = ? desc', [PermissionCatalog::superAdmin()])
             ->orderBy('name')
-            ->get()
-            ->map(fn (Role $role) => [
+            ->paginate($this->perPage($request))
+            ->withQueryString()
+            ->through(fn (Role $role) => [
                 'id' => $role->id,
                 'name' => $role->name,
                 'users_count' => $role->users_count,
                 // El Super Admin tiene todos aunque no estén marcados en la base de datos
                 'permissions_count' => $this->isSuperAdmin($role) ? $total : $role->permissions_count,
                 'is_super_admin' => $this->isSuperAdmin($role),
-            ])
-            // Super Admin siempre primero
-            ->sortByDesc('is_super_admin')
-            ->values();
+            ]);
 
         return Inertia::render('admin/roles/index', [
             'roles' => $roles,
+            'filters' => $filters,
             'totalPermissions' => $total,
         ]);
     }

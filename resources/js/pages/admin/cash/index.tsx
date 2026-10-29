@@ -7,8 +7,9 @@
  * Cada cajero abre y cierra SU caja y rinde cuenta de su efectivo.
  * Datos y acciones: app/Http/Controllers/Admin/CashController.php
  */
-import { BillCounter, cleanCounts, CountSummary, countTotal, type Counts } from '@/components/admin/cash/bill-counter';
+import { BillCounter, cleanCounts, countTotal, type Counts } from '@/components/admin/cash/bill-counter';
 import { PageHeader } from '@/components/admin/common/page-header';
+import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import InputError from '@/components/shared/input-error';
@@ -20,23 +21,23 @@ import { useCan } from '@/hooks/use-can';
 import AdminLayout from '@/layouts/admin/admin-layout';
 import { formatDate, money, relativeTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { type SharedData } from '@/types';
 import { type CashSession, type CashSummary, type Denomination } from '@/types/admin/pharmacy';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import {
     ArrowDownLeft,
     ArrowUpRight,
     Banknote,
-    CheckCircle2,
     CreditCard,
     History,
     Inbox,
     LoaderCircle,
     Lock,
     LockOpen,
-    Monitor,
     PiggyBank,
     Receipt,
     ShoppingCart,
+    UserRound,
     Wallet,
     type LucideIcon,
 } from 'lucide-react';
@@ -78,6 +79,7 @@ export default function CashIndex(props: Props) {
 
 function OpenForm({ registers, denominations, lastClosed }: Props) {
     const can = useCan();
+    const { auth } = usePage<SharedData>().props;
     const { data, setData, transform, post, processing, errors } = useForm({
         cash_register_id: registers.length === 1 ? String(registers[0].id) : '',
         counts: {} as Counts,
@@ -86,7 +88,6 @@ function OpenForm({ registers, denominations, lastClosed }: Props) {
 
     const total = countTotal(denominations, data.counts);
     const pieces = Object.values(data.counts).reduce((sum, q) => sum + Number(q || 0), 0);
-    const selected = registers.find((r) => String(r.id) === data.cash_register_id);
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -98,7 +99,7 @@ function OpenForm({ registers, denominations, lastClosed }: Props) {
             <PageHeader
                 icon={Wallet}
                 title="Abrir caja"
-                description="Elige tu caja y cuenta el dinero con el que empiezas el turno. Al cerrar rendirás cuenta de este efectivo."
+                description="Cuenta el dinero con el que empiezas el turno. Al cerrar rendirás cuenta de este efectivo."
                 actions={
                     <Button asChild variant="outline" size="sm">
                         <Link href={route('admin.cash.sessions.index')}>
@@ -108,125 +109,91 @@ function OpenForm({ registers, denominations, lastClosed }: Props) {
                 }
             />
 
-            <form onSubmit={submit} className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-                <div className="grid gap-6">
-                    {/* Paso 1: caja. Con una sola caja libre basta una línea; con varias, tarjetas para elegir */}
-                    {registers.length === 1 ? (
-                        <Panel className="flex items-center gap-4 p-4">
-                            <div className="bg-primary text-primary-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
-                                <Monitor className="size-5" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="font-semibold">
-                                    {registers[0].name} <span className="text-muted-foreground font-normal">· {registers[0].branch.name}</span>
-                                </p>
-                                <p className="text-muted-foreground text-xs">Es la única caja libre de tu sucursal: queda elegida.</p>
-                            </div>
-                            <CheckCircle2 className="text-primary size-5 shrink-0" />
-                        </Panel>
-                    ) : (
-                        <Panel>
-                            <PanelHeader icon={Monitor} title="1. Elige tu caja" description="Solo aparecen las cajas libres de tu sucursal." />
-                            <div className="p-5">
-                                {registers.length === 0 ? (
-                                    <div className="text-muted-foreground flex flex-col items-center gap-2 rounded-lg border border-dashed py-8 text-center text-sm">
-                                        <Inbox className="size-6" />
-                                        Todas las cajas de tu sucursal están en uso o no hay cajas creadas.
+            <form onSubmit={submit}>
+                <Panel className="grid lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+                    {/* Izquierda: desglose de billetes y monedas */}
+                    <section className="grid content-start gap-4 p-5 lg:border-r lg:p-6">
+                        <div>
+                            <h2 className="font-display text-base font-semibold">Desglose de billetes y monedas</h2>
+                            <p className="text-muted-foreground text-xs">
+                                Escribe cuántos tienes de cada uno (Enter pasa al siguiente) o toca la foto para sumar uno.
+                            </p>
+                        </div>
+                        <BillCounter denominations={denominations} counts={data.counts} onChange={(counts) => setData('counts', counts)} />
+                    </section>
+
+                    {/* Derecha: datos de la caja, total y botón */}
+                    <section className="grid content-start gap-5 p-5 lg:p-6">
+                        <h2 className="font-display text-base font-semibold">Datos de la caja</h2>
+
+                        <div className="grid gap-2">
+                            <Label>Caja</Label>
+                            {registers.length === 0 ? (
+                                <div className="text-muted-foreground flex items-start gap-3 rounded-lg border border-dashed p-4 text-sm">
+                                    <Inbox className="mt-0.5 size-5 shrink-0" />
+                                    <span>
+                                        Todas las cajas de tu sucursal están en uso o no hay cajas creadas.{' '}
                                         {can('caja.editar') && (
                                             <Link href={route('admin.cash-registers.index')} className="text-primary font-medium hover:underline">
                                                 Configurar cajas
                                             </Link>
                                         )}
-                                    </div>
-                                ) : (
-                                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                        {registers.map((register) => {
-                                            const active = String(register.id) === data.cash_register_id;
-                                            return (
-                                                <button
-                                                    type="button"
-                                                    key={register.id}
-                                                    onClick={() => setData('cash_register_id', String(register.id))}
-                                                    className={cn(
-                                                        'flex items-center gap-3 rounded-xl border p-4 text-left transition-[border-color,box-shadow]',
-                                                        active ? 'border-primary ring-primary/20 bg-primary/5 ring-2' : 'hover:border-foreground/25',
-                                                    )}
-                                                >
-                                                    <div
-                                                        className={cn(
-                                                            'flex size-10 shrink-0 items-center justify-center rounded-lg',
-                                                            active ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground/70',
-                                                        )}
-                                                    >
-                                                        <Monitor className="size-5" />
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="font-semibold">{register.name}</p>
-                                                        <p className="text-muted-foreground truncate text-xs">{register.branch.name}</p>
-                                                    </div>
-                                                    {active && <CheckCircle2 className="text-primary size-5 shrink-0" />}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                                <InputError message={errors.cash_register_id} className="mt-2" />
-                            </div>
-                        </Panel>
-                    )}
-
-                    {/* Paso 2: fondo */}
-                    <Panel>
-                        <PanelHeader
-                            icon={Banknote}
-                            title={registers.length === 1 ? 'Cuenta tu fondo inicial' : '2. Cuenta tu fondo inicial'}
-                            description="El dinero con el que empiezas el turno. El total se suma solo."
-                        />
-                        <div className="p-5">
-                            <BillCounter denominations={denominations} counts={data.counts} onChange={(counts) => setData('counts', counts)} />
+                                    </span>
+                                </div>
+                            ) : (
+                                <SimpleSelect
+                                    options={registers.map((r) => ({ id: r.id, name: `${r.name} · ${r.branch.name}` }))}
+                                    value={data.cash_register_id}
+                                    onChange={(v) => setData('cash_register_id', v)}
+                                    placeholder="Selecciona una caja"
+                                    className="h-11"
+                                />
+                            )}
+                            <InputError message={errors.cash_register_id} />
                         </div>
-                    </Panel>
-                </div>
 
-                {/* Resumen fijo a la derecha */}
-                <div className="grid gap-4 lg:sticky lg:top-20">
-                    <Panel className="overflow-hidden">
-                        <div className="from-primary to-primary/80 text-primary-foreground bg-gradient-to-br p-5">
-                            <p className="text-sm opacity-80">Fondo inicial</p>
-                            <p className="font-display num mt-1 text-4xl font-semibold">{money(total)}</p>
-                            <p className="mt-1 text-xs opacity-80">{pieces === 0 ? 'Todavía no contaste nada' : `${pieces} billetes y monedas`}</p>
+                        <div className="grid gap-2">
+                            <Label>Cajero</Label>
+                            <div className="bg-muted/50 flex h-11 items-center gap-2 rounded-lg border px-3 text-sm">
+                                <UserRound className="text-muted-foreground size-4" />
+                                {auth.user.name}
+                                <span className="text-muted-foreground ml-auto text-xs">rinde cuenta de esta caja</span>
+                            </div>
                         </div>
-                        <div className="grid gap-3 p-5 text-sm">
-                            <CountSummary denominations={denominations} counts={data.counts} />
-                            <div className="border-t" />
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Caja</span>
-                                <span className="font-medium">{selected ? selected.name : '—'}</span>
+
+                        <div className="grid gap-2">
+                            <Label>Total de apertura</Label>
+                            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4">
+                                <p className="font-display num text-3xl font-bold text-emerald-700 dark:text-emerald-400">{money(total)}</p>
+                                <p className="text-xs text-emerald-800/70 dark:text-emerald-300/70">
+                                    {pieces === 0
+                                        ? 'Todavía no contaste nada'
+                                        : `${pieces} ${pieces === 1 ? 'billete o moneda' : 'billetes y monedas'}`}
+                                </p>
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Sucursal</span>
-                                <span className="font-medium">{selected?.branch.name ?? '—'}</span>
-                            </div>
-                            <Button
-                                type="submit"
-                                size="lg"
-                                className="btn-brand mt-2 w-full"
-                                disabled={processing || !data.cash_register_id || !can('caja.operar')}
-                            >
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">
+                            {lastClosed ? (
+                                <p className="text-muted-foreground text-xs">
+                                    Último turno: {relativeTime(lastClosed.closed_at)}.{' '}
+                                    <Link
+                                        href={route('admin.cash.sessions.show', lastClosed.id)}
+                                        className="text-foreground font-medium hover:underline"
+                                    >
+                                        Ver detalle
+                                    </Link>
+                                </p>
+                            ) : (
+                                <span />
+                            )}
+                            <Button type="submit" className="btn-brand" disabled={processing || !data.cash_register_id || !can('caja.operar')}>
                                 {processing ? <LoaderCircle className="size-4 animate-spin" /> : <LockOpen />}
                                 Abrir caja
                             </Button>
                         </div>
-                    </Panel>
-                    {lastClosed && (
-                        <p className="text-muted-foreground px-1 text-xs">
-                            Tu último turno se cerró {relativeTime(lastClosed.closed_at)}.{' '}
-                            <Link href={route('admin.cash.sessions.show', lastClosed.id)} className="text-foreground font-medium hover:underline">
-                                Ver detalle
-                            </Link>
-                        </p>
-                    )}
-                </div>
+                    </section>
+                </Panel>
             </form>
         </>
     );

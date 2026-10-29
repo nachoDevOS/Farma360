@@ -13,6 +13,13 @@ export interface RoleSummary {
     is_super_admin: boolean;
 }
 
+/** Filtros de la lista de roles (viajan en la URL). */
+export interface RoleFilters {
+    search?: string;
+    /** Registros por página ("Mostrar N registros"): 10, 15, 25, 50 o 100 */
+    per_page?: string;
+}
+
 /** Rol que se está editando (null en el formulario de "Nuevo rol"). */
 export interface RoleDetail {
     id: number;

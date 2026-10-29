@@ -125,6 +125,30 @@ class PromotionTest extends TestCase
 
         $this->actingAs($this->userWithRole('Administrador'))->get('/admin/promotions')
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('admin/promotions/index')->has('candidates', 1)->has('rules', 3));
+            ->assertInertia(fn ($page) => $page->component('admin/promotions/index')->has('candidates.data', 1)->where('candidates.total', 1)->has('rules', 3));
+    }
+
+    public function test_promotion_lists_are_paginated_on_the_server_with_separate_pages()
+    {
+        $admin = $this->userWithRole('Administrador');
+        $product = $this->product();
+        $branch = $this->branch();
+        foreach (range(1, 12) as $n) {
+            $this->batch($product, $branch, 10, "+{$n} days", 0.5, "C-{$n}");
+        }
+        foreach (range(1, 11) as $n) {
+            $this->promotions->apply($this->batch($product, $branch, 10, '+1 year', 0.5, "A-{$n}"), 5, $admin);
+        }
+
+        $this->actingAs($admin)->get('/admin/promotions?per_page=10&candidates_page=2')
+            ->assertInertia(fn ($page) => $page
+                ->where('candidates.total', 12)
+                ->has('candidates.data', 2)
+                ->where('active.total', 11)
+                ->has('active.data', 10)
+                ->where('active.current_page', 1));
+
+        $this->actingAs($admin)->get('/admin/promotions?per_page=10&active_page=2')
+            ->assertInertia(fn ($page) => $page->has('candidates.data', 10)->has('active.data', 1));
     }
 }

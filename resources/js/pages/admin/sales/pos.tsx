@@ -163,34 +163,28 @@ export default function Pos({ session, paymentMethods }: Props) {
                                                     {overStock && <span className="font-semibold text-red-600">stock insuficiente</span>}
                                                 </p>
                                             </div>
-                                            <div className="flex items-center gap-1">
-                                                <Button
+                                            {/* − cantidad + en una sola pieza (clase .stepper de app.css) */}
+                                            <div className="stepper" data-active="true">
+                                                <button
                                                     type="button"
-                                                    variant="outline"
-                                                    size="icon"
-                                                    className="size-8"
                                                     onClick={() => setQuantity(i, line.quantity - 1)}
+                                                    disabled={line.quantity <= 1}
                                                     aria-label="Menos"
                                                 >
                                                     <Minus className="size-3.5" />
-                                                </Button>
-                                                <Input
+                                                </button>
+                                                <input
                                                     type="number"
                                                     min={1}
-                                                    className="num h-8 w-16 text-center"
+                                                    className="text-sm"
                                                     value={line.quantity}
                                                     onChange={(e) => setQuantity(i, Number(e.target.value))}
+                                                    onFocus={(e) => e.target.select()}
+                                                    aria-label="Cantidad"
                                                 />
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="icon"
-                                                    className="size-8"
-                                                    onClick={() => setQuantity(i, line.quantity + 1)}
-                                                    aria-label="Más"
-                                                >
+                                                <button type="button" onClick={() => setQuantity(i, line.quantity + 1)} aria-label="Más">
                                                     <Plus className="size-3.5" />
-                                                </Button>
+                                                </button>
                                             </div>
                                             <span className="num text-right font-semibold">{money(lineTotal(line))}</span>
                                             <Button

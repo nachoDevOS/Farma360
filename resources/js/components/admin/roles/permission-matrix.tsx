@@ -53,8 +53,8 @@ export function PermissionMatrix({ catalog, value, onChange }: PermissionMatrixP
 
     return (
         <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-                <thead className="text-muted-foreground bg-muted/40 border-b text-xs font-medium">
+            <table className="w-full text-[13px]">
+                <thead className="text-muted-foreground bg-muted/60 border-b text-[11px] font-semibold tracking-wider uppercase">
                     <tr>
                         <th className="px-4 py-2.5 text-left">Módulo</th>
                         {actionKeys.map((action) => (

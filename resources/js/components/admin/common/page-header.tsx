@@ -24,7 +24,7 @@ export function PageHeader({ title, description, actions, icon: Icon, className 
                     </div>
                 )}
                 <div className="min-w-0 space-y-1">
-                    <h1 className="font-display text-2xl font-semibold text-balance">{title}</h1>
+                    <h1 className="font-display text-2xl leading-tight font-bold text-balance">{title}</h1>
                     {description && <div className="text-muted-foreground text-sm">{description}</div>}
                 </div>
             </div>

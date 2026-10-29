@@ -57,7 +57,7 @@ class SaleController extends Controller
     {
         $session = $this->cash->currentSession($request->user());
         if (! $session) {
-            return to_route('admin.cash.index')->with('error', 'Abre tu caja antes de vender.');
+            return to_route('admin.cash.index')->with('info', 'Para vender, primero abre tu caja.');
         }
 
         return Inertia::render('admin/sales/pos', [
@@ -139,7 +139,7 @@ class SaleController extends Controller
 
         $session = $this->cash->currentSession($request->user());
         if (! $session) {
-            return to_route('admin.cash.index')->with('error', 'Abre tu caja antes de vender.');
+            return to_route('admin.cash.index')->with('info', 'Para vender, primero abre tu caja.');
         }
 
         $sale = $this->sales->create($session, $request->user(), $data);

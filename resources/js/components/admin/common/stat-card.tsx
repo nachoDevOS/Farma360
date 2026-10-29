@@ -53,7 +53,7 @@ export function StatCard({ icon: Icon, label, value, hint, tone = 'blue', colorV
             </div>
             <div className="min-w-0 flex-1">
                 <p className="text-muted-foreground text-sm">{label}</p>
-                <p className={cn('font-display num mt-1 truncate text-2xl leading-tight font-semibold', colorValue && tones[tone].value)}>{value}</p>
+                <p className={cn('font-display num mt-1 truncate text-2xl leading-tight font-bold', colorValue && tones[tone].value)}>{value}</p>
                 {hint && <p className="text-muted-foreground mt-1 truncate text-xs">{hint}</p>}
             </div>
         </Tag>

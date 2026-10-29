@@ -33,6 +33,8 @@ export interface NavItem {
 export interface Flash {
     success?: string | null;
     error?: string | null;
+    /** Aviso informativo (azul verdoso), no es un error */
+    info?: string | null;
 }
 
 /** Datos que reciben TODAS las páginas. Uso: const { auth } = usePage<SharedData>().props; */

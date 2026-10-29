@@ -36,8 +36,8 @@ export function UsersTable({ users, filters, onSort, onEdit, onToggle, onDelete 
 
     return (
         <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-                <thead className="text-muted-foreground bg-muted/40 border-b text-left text-xs font-medium [&_th]:py-2.5">
+            <table className="w-full text-[13px]">
+                <thead className="text-muted-foreground bg-muted/60 border-b text-left text-[11px] font-semibold tracking-wider uppercase [&_th]:py-2.5">
                     <tr>
                         <th className="px-4 py-3">
                             <SortHeader label="Usuario" column="name" filters={filters} onSort={onSort} />

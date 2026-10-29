@@ -117,7 +117,7 @@ class SaleTest extends TestCase
     {
         $cashier = $this->userWithRole('Cajero', $this->branch());
 
-        $this->actingAs($cashier)->get('/admin/pos')->assertRedirect('/admin/cash');
+        $this->actingAs($cashier)->get('/admin/pos')->assertRedirect('/admin/cash')->assertSessionHas('info');
     }
 
     public function test_cancelling_a_sale_returns_the_stock_to_the_same_batches()

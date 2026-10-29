@@ -28,22 +28,25 @@ class PromotionController extends Controller
         $branchId = $request->integer('branch') ?: null;
         abort_if($branchId && ! in_array($branchId, $allowed), 403);
 
+        // Los candidatos se calculan en PHP (reglas de vencimiento): se pagina la lista ya calculada.
+        // Cada tabla tiene su propio número de página (?candidates_page=… y ?active_page=…).
         $candidates = $this->promotions->candidates($branchId)->whereIn('branch_id', $allowed)->values();
 
         $active = BatchPromotion::with('batch.product.presentations', 'batch.branch:id,name', 'registeredBy:id,name')
             ->where('is_active', true)
             ->whereHas('batch', fn ($q) => $q->where('quantity', '>', 0)->whereIn('branch_id', $branchId ? [$branchId] : $allowed))
-            ->get()
-            ->sortBy('batch.expires_at')
-            ->values();
+            // Primero lo que vence antes
+            ->orderBy(Batch::select('expires_at')->whereColumn('batches.id', 'batch_promotions.batch_id'))
+            ->paginate($this->perPage($request), ['*'], 'active_page')
+            ->withQueryString();
 
         return Inertia::render('admin/promotions/index', [
-            'candidates' => $candidates->map(fn (Batch $b) => $this->batchRow($b) + [
+            'candidates' => $this->paginateCollection($candidates, $request, 'candidates_page')->through(fn (Batch $b) => $this->batchRow($b) + [
                 'suggested_discount' => $b->suggested_discount,
                 'suggested_below_cost' => $b->suggested_below_cost,
                 'current_discount' => $b->activePromotion?->discount_percent,
             ]),
-            'active' => $active->map(fn (BatchPromotion $p) => $this->batchRow($p->batch) + [
+            'active' => $active->through(fn (BatchPromotion $p) => $this->batchRow($p->batch) + [
                 'promotion_id' => $p->id,
                 'discount_percent' => $p->discount_percent,
                 'source' => $p->source,

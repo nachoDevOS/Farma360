@@ -4,6 +4,7 @@
  * 1. Sugeridas: lotes por vencer sin promoción (o con una automática más baja). Se aplican una por una o todas juntas.
  * 2. Vigentes: lotes que hoy se venden con descuento. El punto de venta cobra ese precio solo.
  * 3. Reglas: "si faltan X días o menos → Y% de descuento".
+ * Sugeridas y Vigentes vienen PAGINADAS DEL LADO DEL SERVIDOR (cada una con su propio número de página).
  * Datos: app/Http/Controllers/Admin/PromotionController.php
  */
 import { ConfirmDialog } from '@/components/admin/common/confirm-dialog';
@@ -14,6 +15,7 @@ import { ActionButton, RowActions } from '@/components/admin/common/row-actions'
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import InputError from '@/components/shared/input-error';
+import { Pagination } from '@/components/shared/pagination';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -21,6 +23,7 @@ import { Label } from '@/components/ui/label';
 import { useCan } from '@/hooks/use-can';
 import AdminLayout from '@/layouts/admin/admin-layout';
 import { money } from '@/lib/format';
+import { type Paginated } from '@/types';
 import { type Option } from '@/types/admin/pharmacy';
 import { Head, router, useForm } from '@inertiajs/react';
 import { AlertTriangle, BadgePercent, LoaderCircle, Plus, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react';
@@ -60,8 +63,8 @@ interface Rule {
 }
 
 interface Props {
-    candidates: Candidate[];
-    active: ActivePromo[];
+    candidates: Paginated<Candidate>;
+    active: Paginated<ActivePromo>;
     rules: Rule[];
     branches: Option[];
     branch: number | null;
@@ -96,9 +99,9 @@ export default function PromotionsIndex({ candidates, active, rules, branches, b
                                     }
                                 />
                             )}
-                            {can('promociones.crear') && candidates.length > 0 && (
+                            {can('promociones.crear') && candidates.total > 0 && (
                                 <Button size="sm" className="btn-brand" onClick={() => setApplyAll(true)}>
-                                    <Sparkles /> Aplicar sugeridas ({candidates.length})
+                                    <Sparkles /> Aplicar sugeridas ({candidates.total})
                                 </Button>
                             )}
                         </>
@@ -125,7 +128,7 @@ export default function PromotionsIndex({ candidates, active, rules, branches, b
                             </>
                         }
                     >
-                        {candidates.map((c) => {
+                        {candidates.data.map((c) => {
                             const final = discounted(c.unit_price, c.suggested_discount);
                             return (
                                 <tr key={c.batch_id}>
@@ -150,8 +153,9 @@ export default function PromotionsIndex({ candidates, active, rules, branches, b
                                 </tr>
                             );
                         })}
-                        {candidates.length === 0 && <EmptyRow colSpan={9} text="No hay lotes por vencer sin promoción." />}
+                        {candidates.data.length === 0 && <EmptyRow colSpan={9} text="No hay lotes por vencer sin promoción." />}
                     </DataTable>
+                    <Pagination paginator={candidates} itemName="lotes" />
                 </Panel>
 
                 <Panel className="overflow-hidden">
@@ -170,7 +174,7 @@ export default function PromotionsIndex({ candidates, active, rules, branches, b
                             </>
                         }
                     >
-                        {active.map((p) => (
+                        {active.data.map((p) => (
                             <tr key={p.promotion_id}>
                                 <BatchCells row={p} />
                                 <Td align="right">
@@ -203,8 +207,9 @@ export default function PromotionsIndex({ candidates, active, rules, branches, b
                                 )}
                             </tr>
                         ))}
-                        {active.length === 0 && <EmptyRow colSpan={9} text="No hay promociones vigentes." />}
+                        {active.data.length === 0 && <EmptyRow colSpan={9} text="No hay promociones vigentes." />}
                     </DataTable>
+                    <Pagination paginator={active} itemName="promociones" />
                 </Panel>
 
                 <RulesPanel rules={rules} editable={can('promociones.crear')} />
