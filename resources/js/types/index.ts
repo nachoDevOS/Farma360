@@ -6,7 +6,7 @@ import { LucideIcon } from 'lucide-react';
 
 /**
  * Usuario logueado + sus permisos (lo envía HandleInertiaRequests.php).
- * permissions = lista del catálogo config/roles.php, ej: ['usuarios.ver', 'auditoria.ver'].
+ * permissions = lista del catálogo config/roles.php, ej: ['usuarios.ver', 'roles.ver'].
  * Para consultarlos usa el hook useCan() (hooks/use-can.ts), no esta lista directo.
  */
 export interface Auth {

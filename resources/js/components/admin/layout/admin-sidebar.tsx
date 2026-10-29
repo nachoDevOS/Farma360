@@ -11,7 +11,7 @@ import AppLogo from '@/components/shared/app-logo';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { History, LayoutGrid, Palette, Settings, ShieldCheck, Users } from 'lucide-react';
+import { LayoutGrid, Palette, Settings, ShieldCheck, Users } from 'lucide-react';
 
 // Grupo "Plataforma": lo ve todo usuario logueado
 const mainNavItems: NavItem[] = [
@@ -35,12 +35,6 @@ const adminNavItems: NavItem[] = [
         url: '/admin/roles',
         icon: ShieldCheck,
         permission: 'roles.ver',
-    },
-    {
-        title: 'Auditoría',
-        url: '/admin/activity',
-        icon: History,
-        permission: 'auditoria.ver',
     },
 ];
 

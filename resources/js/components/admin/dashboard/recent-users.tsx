@@ -41,7 +41,7 @@ export function RecentUsers({ users }: { users: RecentUser[] }) {
 }
 
 /** Enlace chico "Ver todo →" del encabezado de un panel. */
-export function PanelLink({ href, children }: { href: string; children: React.ReactNode }) {
+function PanelLink({ href, children }: { href: string; children: React.ReactNode }) {
     return (
         <Link
             href={href}

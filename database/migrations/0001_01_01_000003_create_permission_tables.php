@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -28,6 +29,8 @@ return new class extends Migration
             $table->string('name');
             $table->string('guard_name');
             $table->timestamps();
+            // REGLA DEL SISTEMA: registerUser_id, registerRole, deleteUser_id, deleteRole y deleted_at
+            $table->auditable();
 
             $table->unique(['name', 'guard_name']);
         });
@@ -44,6 +47,8 @@ return new class extends Migration
             $table->string('name');
             $table->string('guard_name');
             $table->timestamps();
+            // REGLA DEL SISTEMA: registerUser_id, registerRole, deleteUser_id, deleteRole y deleted_at
+            $table->auditable();
             if ($teams || config('permission.testing')) {
                 $table->unique([$columnNames['team_foreign_key'], 'name', 'guard_name']);
             } else {
@@ -117,6 +122,10 @@ return new class extends Migration
         app('cache')
             ->store(config('permission.cache.store') != 'default' ? config('permission.cache.store') : null)
             ->forget(config('permission.cache.key'));
+
+        // Carga el catálogo de config/roles.php: permisos, Super Admin y roles iniciales.
+        // Así el sistema funciona apenas se migra (ej: el registro necesita el rol por defecto).
+        Artisan::call('permissions:sync');
     }
 
     /**

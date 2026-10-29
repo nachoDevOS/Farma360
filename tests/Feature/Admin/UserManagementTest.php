@@ -63,7 +63,9 @@ class UserManagementTest extends TestCase
         $this->assertFalse($user->fresh()->is_active);
 
         $this->actingAs($admin)->delete("/admin/users/{$user->id}");
-        $this->assertModelMissing($user);
+        // Eliminación lógica: sigue en la base de datos, marcado con deleted_at y quién lo eliminó
+        $this->assertSoftDeleted($user);
+        $this->assertSame($admin->id, $user->fresh()->deleteUser_id);
     }
 
     public function test_admins_cannot_delete_or_deactivate_themselves()

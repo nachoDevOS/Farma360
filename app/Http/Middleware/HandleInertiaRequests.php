@@ -47,7 +47,7 @@ class HandleInertiaRequests extends Middleware
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => $request->user(),
-                // Lista de permisos del usuario, ej: ['usuarios.ver', 'auditoria.ver'].
+                // Lista de permisos del usuario, ej: ['usuarios.ver', 'roles.ver'].
                 // El Super Admin recibe todos. En React se consultan con el hook useCan():
                 //   const can = useCan();   can('usuarios.crear') → true / false
                 'permissions' => fn () => $this->permissions($request->user()),

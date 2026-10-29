@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreUserRequest;
 use App\Http\Requests\Admin\UpdateUserRequest;
-use App\Models\ActivityLog;
+use App\Models\Role;
 use App\Models\User;
 use App\Support\PermissionCatalog;
 use Illuminate\Database\Eloquent\Builder;
@@ -14,7 +14,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
-use Spatie\Permission\Models\Role;
 
 /**
  * CRUD de usuarios del panel. Cada ruta pide su permiso (ver routes/admin.php):
@@ -23,7 +22,6 @@ use Spatie\Permission\Models\Role;
  * - La VALIDACIÓN está en app/Http/Requests/Admin/ (StoreUserRequest, UpdateUserRequest).
  * - Los PERMISOS están en app/Policies/UserPolicy.php.
  * - El ROL de cada usuario lo maneja spatie/laravel-permission ($user->syncRoles([...])).
- * - Cada acción queda registrada en la AUDITORÍA (ActivityLog::record).
  */
 class UserController extends Controller
 {
@@ -66,8 +64,6 @@ class UserController extends Controller
         // El rol se guarda en las tablas de Spatie (no es una columna de users)
         $user->assignRole($data['role']);
 
-        ActivityLog::record('user.created', "Creó al usuario {$user->name}", $user, ['role' => $user->role]);
-
         // back() = volver a la misma página. 'success' se muestra como aviso verde (components/shared/flash-toast.tsx)
         return back()->with('success', "Usuario {$user->name} creado correctamente.");
     }
@@ -85,25 +81,9 @@ class UserController extends Controller
             unset($data['password']);
         }
 
-        $previousRole = $user->role;
-
         $user->update(collect($data)->except('role')->all());
         // syncRoles reemplaza el rol anterior: cada usuario tiene uno solo
         $user->syncRoles([$data['role']]);
-
-        // getChanges() = solo los campos que realmente cambiaron (nunca guardamos la contraseña en la auditoría)
-        $changed = array_values(array_diff(array_keys($user->getChanges()), ['updated_at', 'password', 'remember_token']));
-        if (isset($data['password'])) {
-            $changed[] = 'contraseña';
-        }
-
-        $properties = ['changes' => $changed];
-        if ($previousRole !== $data['role']) {
-            $properties['changes'][] = 'rol';
-            $properties['role'] = ['from' => $previousRole, 'to' => $data['role']];
-        }
-
-        ActivityLog::record('user.updated', "Editó al usuario {$user->name}", $user, $properties);
 
         return back()->with('success', "Usuario {$user->name} actualizado.");
     }
@@ -111,7 +91,7 @@ class UserController extends Controller
     /**
      * PATCH /admin/users/{user}/toggle — Activa o desactiva una cuenta.
      */
-    public function toggle(Request $request, User $user): RedirectResponse
+    public function toggle(User $user): RedirectResponse
     {
         // Gate::inspect pregunta a UserPolicy@toggle y nos da el motivo si no está permitido
         $permission = Gate::inspect('toggle', $user);
@@ -122,29 +102,20 @@ class UserController extends Controller
         // Invierte el estado: activo → inactivo, inactivo → activo
         $user->update(['is_active' => ! $user->is_active]);
 
-        ActivityLog::record(
-            $user->is_active ? 'user.activated' : 'user.deactivated',
-            ($user->is_active ? 'Activó' : 'Desactivó')." la cuenta de {$user->name}",
-            $user,
-        );
-
         return back()->with('success', $user->is_active ? "{$user->name} fue activado." : "{$user->name} fue desactivado.");
     }
 
     /**
      * DELETE /admin/users/{user} — Elimina un usuario.
      */
-    public function destroy(Request $request, User $user): RedirectResponse
+    public function destroy(User $user): RedirectResponse
     {
         $permission = Gate::inspect('delete', $user);
         if ($permission->denied()) {
             return back()->with('error', $permission->message());
         }
 
-        // Guardamos los datos ANTES de borrar, para que la auditoría sepa a quién se eliminó
-        ActivityLog::record('user.deleted', "Eliminó al usuario {$user->name}", properties: ['email' => $user->email]);
-
-        // Borra el registro de la base de datos (definitivo)
+        // Eliminación LÓGICA (regla del sistema): no se borra, se marca deleted_at y quién lo eliminó
         $user->delete();
 
         return back()->with('success', "Usuario {$user->name} eliminado.");

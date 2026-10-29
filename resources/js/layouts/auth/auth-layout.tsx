@@ -15,7 +15,7 @@ interface AuthLayoutProps {
 // Lo que trae el sistema (lado izquierdo). Cámbialo por lo que ofrece el sistema de cada cliente.
 const features = [
     { icon: Users, title: 'Usuarios y roles', text: 'Crea roles a medida y decide qué puede ver y hacer cada uno.' },
-    { icon: ShieldCheck, title: 'Auditoría', text: 'Cada acceso y cada cambio queda registrado con fecha, usuario e IP.' },
+    { icon: ShieldCheck, title: 'Nada se pierde', text: 'Lo eliminado no se borra: queda guardado quién lo registró y quién lo eliminó.' },
     { icon: BarChart3, title: 'Indicadores', text: 'Registros, cuentas activas y verificación, de un vistazo.' },
 ];
 
@@ -31,7 +31,7 @@ export default function AuthLayout({ children, title, description }: AuthLayoutP
 
                 <div className="max-w-md space-y-10">
                     <h2 className="font-display text-[2rem] leading-[1.15] font-semibold text-balance text-white">
-                        Gestión de usuarios, permisos y auditoría en un solo lugar.
+                        Gestión de usuarios, roles y permisos en un solo lugar.
                     </h2>
                     <ul className="space-y-6">
                         {features.map(({ icon: Icon, title, text }) => (

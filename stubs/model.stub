@@ -1,0 +1,15 @@
+<?php
+
+namespace {{ namespace }};
+
+{{ factoryImport }}
+use App\Models\Concerns\Auditable;
+use Illuminate\Database\Eloquent\Model;
+
+class {{ class }} extends Model
+{
+    // REGLA DEL SISTEMA: eliminación lógica + quién registró / quién eliminó
+    use Auditable;
+
+    {{ factory }}
+}

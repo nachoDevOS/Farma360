@@ -1,6 +1,5 @@
 import { PageHeader } from '@/components/admin/common/page-header';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
-import { RecentActivity } from '@/components/admin/dashboard/recent-activity';
 import { RecentUsers } from '@/components/admin/dashboard/recent-users';
 import { RegistrationsChart } from '@/components/admin/dashboard/registrations-chart';
 import { RolesDonut } from '@/components/admin/dashboard/roles-donut';
@@ -10,10 +9,9 @@ import { useCan } from '@/hooks/use-can';
 import AdminLayout from '@/layouts/admin/admin-layout';
 import { greeting } from '@/lib/format';
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import { type ActivityLog } from '@/types/admin/activity';
 import { type DashboardStats, type MonthlyRegistration, type RecentUser, type RoleCount } from '@/types/admin/dashboard';
 import { Head, Link, usePage } from '@inertiajs/react';
-import { History, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 
 /*
  * PÁGINA: Dashboard  (ruta /dashboard)
@@ -33,11 +31,9 @@ interface DashboardProps {
     monthly: MonthlyRegistration[];
     roles: RoleCount[];
     recentUsers: RecentUser[];
-    /** Últimas acciones de la auditoría (vacío si no eres admin) */
-    recentActivity: ActivityLog[];
 }
 
-export default function Dashboard({ stats, monthly, roles, recentUsers, recentActivity }: DashboardProps) {
+export default function Dashboard({ stats, monthly, roles, recentUsers }: DashboardProps) {
     const { auth } = usePage<SharedData>().props;
     const can = useCan();
     // Totales y porcentajes calculados en el navegador a partir de los datos
@@ -60,23 +56,12 @@ export default function Dashboard({ stats, monthly, roles, recentUsers, recentAc
                         </>
                     }
                     actions={
-                        (can('auditoria.ver') || can('usuarios.ver')) && (
-                            <>
-                                {can('auditoria.ver') && (
-                                    <Button asChild variant="outline" size="sm">
-                                        <Link href={route('admin.activity.index')}>
-                                            <History /> Auditoría
-                                        </Link>
-                                    </Button>
-                                )}
-                                {can('usuarios.ver') && (
-                                    <Button asChild size="sm" className="btn-brand">
-                                        <Link href={route('admin.users.index')}>
-                                            <Users /> Gestionar usuarios
-                                        </Link>
-                                    </Button>
-                                )}
-                            </>
+                        can('usuarios.ver') && (
+                            <Button asChild size="sm" className="btn-brand">
+                                <Link href={route('admin.users.index')}>
+                                    <Users /> Gestionar usuarios
+                                </Link>
+                            </Button>
                         )
                     }
                 />
@@ -115,11 +100,8 @@ export default function Dashboard({ stats, monthly, roles, recentUsers, recentAc
                     </Panel>
                 </div>
 
-                {/* 4. Últimos usuarios registrados + actividad reciente (esta última solo para admins) */}
-                <div className={recentActivity.length > 0 ? 'grid gap-6 xl:grid-cols-2' : ''}>
-                    <RecentUsers users={recentUsers} />
-                    {recentActivity.length > 0 && <RecentActivity logs={recentActivity} />}
-                </div>
+                {/* 4. Últimos usuarios registrados */}
+                <RecentUsers users={recentUsers} />
             </div>
         </AdminLayout>
     );

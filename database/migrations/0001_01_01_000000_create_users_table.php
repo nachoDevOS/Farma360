@@ -11,14 +11,21 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Usuarios del sistema. El rol NO es una columna: lo guarda spatie/laravel-permission (tabla model_has_roles).
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            // false = no puede iniciar sesión
+            $table->boolean('is_active')->default(true);
+            // Último inicio de sesión (null = nunca entró)
+            $table->timestamp('last_login_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
+            // REGLA DEL SISTEMA: registerUser_id, registerRole, deleteUser_id, deleteRole y deleted_at
+            $table->auditable();
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

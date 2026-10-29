@@ -4,7 +4,7 @@
 | CATÁLOGO DE ROLES Y PERMISOS
 |
 | Aquí se declaran los MÓDULOS del sistema y qué ACCIONES tiene cada uno.
-| Cada combinación es un permiso: "usuarios.ver", "usuarios.crear", "auditoria.ver"...
+| Cada combinación es un permiso: "usuarios.ver", "usuarios.crear", "roles.ver"...
 |
 | Al agregar un módulo nuevo (ej: ventas):
 |   1. Súmalo en 'modules' con sus acciones.
@@ -42,18 +42,13 @@ return [
             'description' => 'Qué puede hacer cada rol.',
             'actions' => ['ver', 'crear', 'editar', 'eliminar'],
         ],
-        'auditoria' => [
-            'label' => 'Auditoría',
-            'description' => 'Historial de accesos y cambios.',
-            'actions' => ['ver'],
-        ],
     ],
 
     // Roles que se crean la primera vez (php artisan permissions:sync). Después se editan desde el panel.
     // '*' = todos los permisos.
     'defaults' => [
         'Administrador' => ['*'],
-        'Supervisor' => ['usuarios.ver', 'auditoria.ver'],
+        'Supervisor' => ['usuarios.ver'],
         'Operador' => [],
     ],
 

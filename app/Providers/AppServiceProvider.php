@@ -2,12 +2,8 @@
 
 namespace App\Providers;
 
-use App\Models\ActivityLog;
 use App\Models\User;
-use Illuminate\Auth\Events\Failed;
-use Illuminate\Auth\Events\Logout;
-use Illuminate\Auth\Events\Registered;
-use Illuminate\Support\Facades\Event;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -26,29 +22,40 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->registerAuditableColumns();
+
         // SUPER ADMIN: tiene TODOS los permisos del catálogo sin necesidad de marcarlos.
         // Gate::before se ejecuta antes que cualquier otra revisión:
         //   true = permitido · null = "sigue revisando normal".
         // Solo aplica a permisos del catálogo (los que tienen punto, ej: "usuarios.eliminar").
         // Las reglas de las Policies (ej: "no puedes eliminarte a ti mismo") se revisan siempre, también para él.
         Gate::before(fn (User $user, string $ability) => $user->isSuperAdmin() && str_contains($ability, '.') ? true : null);
+    }
 
-        // AUDITORÍA de accesos: Laravel dispara estos "eventos" solo; aquí los escuchamos y los guardamos.
-        // (El inicio de sesión exitoso se registra en LoginRequest, después de revisar que la cuenta esté activa.)
-        Event::listen(Failed::class, function (Failed $event) {
-            ActivityLog::record('auth.failed', 'Intento de inicio de sesión fallido ('.($event->credentials['email'] ?? '?').')', causer: $event->user);
+    /**
+     * REGLA DEL SISTEMA: toda tabla nueva lleva las columnas de auditoría y borrado lógico.
+     * En la migración:   $table->auditable();       (al crear la tabla)
+     *                    $table->dropAuditable();   (en el down() de una migración que las agregó)
+     * El modelo debe usar el trait App\Models\Concerns\Auditable, que las llena solo.
+     */
+    private function registerAuditableColumns(): void
+    {
+        Blueprint::macro('auditable', function () {
+            /** @var Blueprint $this */
+            // Sin onDelete: la base de datos impide borrar físicamente a un usuario que registró o eliminó datos
+            $this->foreignId('registerUser_id')->nullable()->constrained('users');
+            $this->string('registerRole')->nullable();
+            $this->foreignId('deleteUser_id')->nullable()->constrained('users');
+            $this->string('deleteRole')->nullable();
+            $this->softDeletes();
         });
 
-        Event::listen(Logout::class, function (Logout $event) {
-            if ($event->user instanceof User) {
-                ActivityLog::record('auth.logout', 'Cerró sesión', causer: $event->user);
-            }
-        });
-
-        Event::listen(Registered::class, function (Registered $event) {
-            if ($event->user instanceof User) {
-                ActivityLog::record('auth.registered', 'Se registró en el sistema', $event->user, causer: $event->user);
-            }
+        Blueprint::macro('dropAuditable', function () {
+            /** @var Blueprint $this */
+            $this->dropConstrainedForeignId('registerUser_id');
+            $this->dropConstrainedForeignId('deleteUser_id');
+            $this->dropColumn(['registerRole', 'deleteRole']);
+            $this->dropSoftDeletes();
         });
     }
 }

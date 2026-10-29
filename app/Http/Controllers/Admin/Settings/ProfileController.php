@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin\Settings;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Settings\ProfileUpdateRequest;
-use App\Models\ActivityLog;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,8 +35,6 @@ class ProfileController extends Controller
         }
 
         $request->user()->save();
-
-        ActivityLog::record('profile.updated', 'Actualizó su perfil', $request->user());
 
         return to_route('profile.edit');
     }

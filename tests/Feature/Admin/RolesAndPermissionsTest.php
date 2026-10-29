@@ -2,10 +2,9 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Models\ActivityLog;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
@@ -22,7 +21,6 @@ class RolesAndPermissionsTest extends TestCase
 
         $this->actingAs($operator)->get('/admin/users')->assertForbidden();
         $this->actingAs($operator)->get('/admin/roles')->assertForbidden();
-        $this->actingAs($operator)->get('/admin/activity')->assertForbidden();
         // El dashboard y los ajustes propios los ve cualquiera
         $this->actingAs($operator)->get('/dashboard')->assertOk();
     }
@@ -55,7 +53,7 @@ class RolesAndPermissionsTest extends TestCase
             ->get('/dashboard')
             ->assertInertia(fn ($page) => $page
                 ->where('auth.user.role', 'Supervisor')
-                ->where('auth.permissions', fn ($permissions) => collect($permissions)->sort()->values()->all() === ['auditoria.ver', 'usuarios.ver']));
+                ->where('auth.permissions', fn ($permissions) => collect($permissions)->sort()->values()->all() === ['usuarios.ver']));
     }
 
     public function test_roles_can_be_created_with_permissions()
@@ -69,7 +67,6 @@ class RolesAndPermissionsTest extends TestCase
         $role = Role::findByName('Cajero');
         $this->assertTrue($role->hasPermissionTo('usuarios.ver'));
         $this->assertFalse($role->hasPermissionTo('usuarios.crear'));
-        $this->assertDatabaseHas('activity_logs', ['action' => 'role.created']);
     }
 
     public function test_role_screens_render_with_the_permission_catalog()
@@ -81,10 +78,10 @@ class RolesAndPermissionsTest extends TestCase
             ->assertInertia(fn ($page) => $page->component('admin/roles/index')->has('roles', 4));
 
         $this->actingAs($admin)->get('/admin/roles/create')
-            ->assertInertia(fn ($page) => $page->component('admin/roles/form')->where('role', null)->has('catalog.modules', 3));
+            ->assertInertia(fn ($page) => $page->component('admin/roles/form')->where('role', null)->has('catalog.modules', 2));
 
         $this->actingAs($admin)->get("/admin/roles/{$role->id}/edit")
-            ->assertInertia(fn ($page) => $page->component('admin/roles/form')->where('role.name', 'Supervisor')->has('role.permissions', 2));
+            ->assertInertia(fn ($page) => $page->component('admin/roles/form')->where('role.name', 'Supervisor')->has('role.permissions', 1));
     }
 
     public function test_permissions_outside_the_catalog_are_rejected()
@@ -96,7 +93,7 @@ class RolesAndPermissionsTest extends TestCase
             ->assertSessionHasErrors('permissions.0');
     }
 
-    public function test_role_permissions_can_be_changed_and_are_audited()
+    public function test_role_permissions_can_be_changed()
     {
         $admin = User::factory()->withRole('Administrador')->create();
         $role = Role::findByName('Supervisor');
@@ -106,10 +103,7 @@ class RolesAndPermissionsTest extends TestCase
             ->assertRedirect('/admin/roles');
 
         $this->assertTrue($role->fresh()->hasPermissionTo('usuarios.crear'));
-        $this->assertFalse($role->fresh()->hasPermissionTo('auditoria.ver'));
-
-        $log = ActivityLog::where('action', 'role.updated')->first();
-        $this->assertEquals(['usuarios.crear'], $log->properties['added']);
+        $this->assertFalse($role->fresh()->hasPermissionTo('usuarios.eliminar'));
     }
 
     public function test_super_admin_role_cannot_be_edited_or_deleted()
@@ -136,7 +130,8 @@ class RolesAndPermissionsTest extends TestCase
 
         $empty = Role::create(['name' => 'Temporal', 'guard_name' => 'web']);
         $this->actingAs($admin)->delete("/admin/roles/{$empty->id}")->assertSessionHas('success');
-        $this->assertNull($empty->fresh());
+        // Eliminación lógica: el rol sigue en la base de datos, marcado con deleted_at
+        $this->assertSoftDeleted($empty);
     }
 
     public function test_only_a_super_admin_can_touch_another_super_admin()

@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\ActivityLog;
 use App\Models\User;
 use App\Support\PermissionCatalog;
 use Illuminate\Database\Seeder;
@@ -19,16 +18,15 @@ class DatabaseSeeder extends Seeder
         // Permisos y roles iniciales (config/roles.php)
         Artisan::call('permissions:sync');
 
-        $admin = $this->createAdmin();
+        $this->createAdmin();
         $this->createDemoUsers();
-        $this->createDemoActivity($admin);
     }
 
     /**
      * Usuario principal: admin@admin.com / password, con rol Super Admin (acceso total).
      * firstOrCreate = lo crea solo si no existe (no se duplica).
      */
-    private function createAdmin(): User
+    private function createAdmin(): void
     {
         $admin = User::firstOrCreate(['email' => 'admin@admin.com'], [
             'name' => 'Administrador',
@@ -38,8 +36,6 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $admin->syncRoles([PermissionCatalog::superAdmin()]);
-
-        return $admin;
     }
 
     /**
@@ -66,46 +62,5 @@ class DatabaseSeeder extends Seeder
                 'updated_at' => $createdAt,
             ])->save();
         });
-    }
-
-    /**
-     * Historial de ejemplo para la pantalla de Auditoría (registros, accesos y acciones del admin).
-     */
-    private function createDemoActivity(User $admin): void
-    {
-        // Si ya hay historial, no lo duplicamos
-        if (ActivityLog::exists()) {
-            return;
-        }
-
-        $log = fn (string $action, string $description, ?User $causer, $at, ?User $subject = null) => ActivityLog::create([
-            'user_id' => $causer?->id,
-            'action' => $action,
-            'description' => $description,
-            'subject_type' => $subject?->getMorphClass(),
-            'subject_id' => $subject?->id,
-            'ip_address' => fake()->ipv4(),
-            'user_agent' => fake()->userAgent(),
-        ])->forceFill(['created_at' => $at])->save();
-
-        User::where('id', '!=', $admin->id)->get()->each(function (User $user) use ($log, $admin) {
-            $log('auth.registered', 'Se registró en el sistema', $user, $user->created_at, $user);
-
-            if ($user->last_login_at) {
-                $log('auth.login', 'Inició sesión', $user, $user->last_login_at);
-            }
-
-            if (! $user->is_active) {
-                $log('user.deactivated', "Desactivó la cuenta de {$user->name}", $admin, $user->created_at->copy()->addDays(2), $user);
-            }
-
-            if ($user->role !== 'Operador') {
-                $log('user.updated', "Editó al usuario {$user->name}", $admin, $user->created_at->copy()->addDay(), $user);
-            }
-        });
-
-        foreach (range(1, 4) as $i) {
-            $log('auth.failed', 'Intento de inicio de sesión fallido ('.fake()->safeEmail().')', null, now()->subHours($i * 7));
-        }
     }
 }

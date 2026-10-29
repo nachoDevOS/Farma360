@@ -4,12 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\RoleRequest;
-use App\Models\ActivityLog;
+use App\Models\Role;
 use App\Support\PermissionCatalog;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
-use Spatie\Permission\Models\Role;
 
 /**
  * ROLES Y PERMISOS: crear roles y elegir qué puede hacer cada uno.
@@ -17,7 +16,6 @@ use Spatie\Permission\Models\Role;
  * - Cada ruta pide su permiso (roles.ver, roles.crear, roles.editar, roles.eliminar) en routes/admin.php.
  * - Los permisos posibles salen del catálogo config/roles.php (PermissionCatalog).
  * - El rol Super Admin no se puede editar ni eliminar: siempre tiene todo.
- * - Cada cambio queda en la AUDITORÍA.
  */
 class RoleController extends Controller
 {
@@ -72,8 +70,6 @@ class RoleController extends Controller
         $role = Role::create(['name' => $data['name'], 'guard_name' => 'web']);
         $role->syncPermissions($data['permissions'] ?? []);
 
-        ActivityLog::record('role.created', "Creó el rol {$role->name}", properties: ['permissions' => $data['permissions'] ?? []]);
-
         return to_route('admin.roles.index')->with('success', "Rol {$role->name} creado.");
     }
 
@@ -99,7 +95,6 @@ class RoleController extends Controller
 
     /**
      * PUT /admin/roles/{role} — Cambia el nombre y los permisos.
-     * En la auditoría se guarda qué permisos se agregaron y cuáles se quitaron.
      */
     public function update(RoleRequest $request, Role $role): RedirectResponse
     {
@@ -108,16 +103,9 @@ class RoleController extends Controller
         }
 
         $data = $request->validated();
-        $before = $role->permissions->pluck('name');
-        $after = collect($data['permissions'] ?? []);
 
         $role->update(['name' => $data['name']]);
-        $role->syncPermissions($after->all());
-
-        ActivityLog::record('role.updated', "Editó el rol {$role->name}", properties: [
-            'added' => $after->diff($before)->values(),
-            'removed' => $before->diff($after)->values(),
-        ]);
+        $role->syncPermissions($data['permissions'] ?? []);
 
         return to_route('admin.roles.index')->with('success', "Rol {$role->name} actualizado.");
     }
@@ -136,7 +124,6 @@ class RoleController extends Controller
             return back()->with('error', "No se puede eliminar: {$users} ".($users === 1 ? 'usuario tiene' : 'usuarios tienen').' este rol. Cámbiales el rol primero.');
         }
 
-        ActivityLog::record('role.deleted', "Eliminó el rol {$role->name}");
         $role->delete();
 
         return back()->with('success', "Rol {$role->name} eliminado.");

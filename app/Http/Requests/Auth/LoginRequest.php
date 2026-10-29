@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Auth;
 
-use App\Models\ActivityLog;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -53,9 +52,7 @@ class LoginRequest extends FormRequest
 
         // Si un admin desactivó esta cuenta: cerramos la sesión y mostramos un error
         if (! Auth::user()->is_active) {
-            $blocked = Auth::user();
             Auth::guard('web')->logout();
-            ActivityLog::record('auth.blocked', 'Intentó entrar con una cuenta desactivada', causer: $blocked);
 
             throw ValidationException::withMessages([
                 'email' => 'Tu cuenta está desactivada. Contacta a un administrador.',
@@ -64,7 +61,6 @@ class LoginRequest extends FormRequest
 
         // Guardamos la fecha del último acceso (se ve en la tabla de usuarios). saveQuietly() = guardar sin disparar eventos
         Auth::user()->forceFill(['last_login_at' => now()])->saveQuietly();
-        ActivityLog::record('auth.login', 'Inició sesión');
 
         RateLimiter::clear($this->throttleKey());
     }

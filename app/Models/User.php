@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Concerns\Auditable;
 use App\Support\PermissionCatalog;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -21,11 +22,14 @@ use Spatie\Permission\Traits\HasRoles;
  *   $user->can('usuarios.editar')       → ¿tiene ese permiso? (el Super Admin siempre sí)
  *   $user->role                         → nombre de su rol, ej: "Supervisor" (se envía a React)
  * El catálogo de permisos está en config/roles.php.
+ *
+ * ELIMINACIÓN LÓGICA (trait Auditable): $user->delete() no lo borra, solo lo marca con deleted_at.
+ * Un usuario eliminado no puede iniciar sesión y su email sigue ocupado (no se puede volver a registrar).
  */
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasRoles, Notifiable;
+    use Auditable, HasFactory, HasRoles, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -36,7 +40,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        // Campos agregados para el panel (ver migración add_admin_fields_to_users_table)
+        // Campos del panel (ver migración create_users_table)
         'is_active',
         'last_login_at',
     ];

@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\Settings\PasswordController;
@@ -48,8 +47,5 @@ Route::middleware('auth')->group(function () {
         Route::get('roles/{role}/edit', [RoleController::class, 'edit'])->name('roles.edit')->middleware('can:roles.editar');
         Route::put('roles/{role}', [RoleController::class, 'update'])->name('roles.update')->middleware('can:roles.editar');
         Route::delete('roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy')->middleware('can:roles.eliminar');
-
-        // Auditoría: historial de acciones del sistema
-        Route::get('activity', [ActivityLogController::class, 'index'])->name('activity.index')->middleware('can:auditoria.ver');
     });
 });

@@ -49,7 +49,7 @@ Cuando entras a `http://127.0.0.1:8000/dashboard` pasa esto:
 
 El proyecto está separado en **dos mundos**, en el backend y en el frontend:
 
-- **admin** → el panel interno (con login): dashboard, usuarios, auditoría, ajustes.
+- **admin** → el panel interno (con login): dashboard, usuarios, roles, ajustes.
 - **public** → el sitio público (sin login). **Todavía no existe**: sus carpetas están listas para cuando se implemente.
 - Lo que usan los dos (login, logo, avisos, botones…) va en carpetas **compartidas**, así nada se repite.
 
@@ -63,7 +63,6 @@ app/
 │   │   │   ├── DashboardController.php      → datos del dashboard
 │   │   │   ├── UserController.php           → listar / crear / editar / eliminar usuarios
 │   │   │   ├── RoleController.php           → roles y permisos (crear, editar permisos, eliminar)
-│   │   │   ├── ActivityLogController.php    → pantalla de Auditoría
 │   │   │   └── Settings/                    → perfil y contraseña del usuario logueado
 │   │   ├── Auth/                            → login, registro, recuperar contraseña (compartido)
 │   │   └── Public/                          → 🌐 SITIO PÚBLICO (crear cuando se implemente)
@@ -72,16 +71,17 @@ app/
 │   │   ├── Admin/UpdateUserRequest.php      → reglas de "Editar usuario" (+ no quitarte tu rol)
 │   │   ├── Admin/RoleRequest.php            → reglas del formulario de rol (solo permisos del catálogo)
 │   │   ├── Admin/Settings/ProfileUpdateRequest.php → reglas de "Mi perfil"
-│   │   └── Auth/LoginRequest.php            → login (bloquea inactivos y registra el acceso)
+│   │   └── Auth/LoginRequest.php            → login (bloquea inactivos y guarda el último acceso)
 │   └── Middleware/HandleInertiaRequests.php → datos que reciben TODAS las páginas (usuario, permisos, avisos)
 ├── Policies/UserPolicy.php             → reglas sobre usuarios: permiso del rol + "no te elimines a ti mismo",
 │                                         "solo un Super Admin toca a otro Super Admin"
 ├── Support/PermissionCatalog.php       → lee el catálogo de permisos de config/roles.php
 ├── Console/Commands/SyncPermissions.php → php artisan permissions:sync (catálogo → base de datos)
 ├── Models/
+│   ├── Concerns/Auditable.php          → ⭐ REGLA: eliminación lógica + quién registró / quién eliminó
 │   ├── User.php                        → usuario (rol con Spatie: $user->role, $user->can('usuarios.ver'))
-│   └── ActivityLog.php                 → un registro de auditoría (ActivityLog::record(...))
-└── Providers/AppServiceProvider.php    → Super Admin con acceso total (Gate::before) + escucha logins fallidos / logout / registros
+│   └── Role.php / Permission.php       → roles y permisos de Spatie con la regla de eliminación lógica
+└── Providers/AppServiceProvider.php    → Super Admin con acceso total (Gate::before) + $table->auditable()
 
 bootstrap/app.php  → páginas de error con diseño (403, 404, 500) y sesión expirada (419)
 config/inertia.php → dónde buscar las páginas de React (resources/js/pages)
@@ -91,16 +91,16 @@ lang/es/           → traducciones al español de Laravel (validación, login, 
 
 routes/
 ├── web.php        → 🌐 rutas del SITIO PÚBLICO (por ahora solo "/" → manda al panel) + carga las otras dos
-├── admin.php      → 🔒 rutas del PANEL (dashboard, ajustes, /admin/users, /admin/roles, /admin/activity)
+├── admin.php      → 🔒 rutas del PANEL (dashboard, ajustes, /admin/users, /admin/roles)
 │                     cada ruta pide su permiso: ->middleware('can:usuarios.ver')
 └── auth.php       → rutas de login / registro / recuperar contraseña
 
 database/
-├── migrations/    → estructura de las tablas (users, activity_logs…)
-└── seeders/DatabaseSeeder.php → admin@admin.com / password + 48 usuarios + historial de ejemplo
+├── migrations/    → estructura de las tablas: una migración create_* por tabla, con todas sus columnas
+└── seeders/DatabaseSeeder.php → admin@admin.com / password + 48 usuarios de ejemplo
 
 tests/Feature/
-├── Admin/         → pruebas del panel (usuarios, roles y permisos, auditoría, ajustes)
+├── Admin/         → pruebas del panel (usuarios, roles y permisos, ajustes)
 └── Auth/          → pruebas de login / registro
 ```
 
@@ -115,7 +115,6 @@ resources/js/
 │   │   ├── dashboard.tsx
 │   │   ├── users/index.tsx
 │   │   ├── roles/           (index = lista de roles · form = crear / editar con la tabla de permisos)
-│   │   ├── activity/index.tsx
 │   │   └── settings/        (profile, password, appearance)
 │   ├── auth/                → login, register, forgot-password… (compartido)
 │   ├── public/              → 🌐 SITIO PÚBLICO (vacío, listo para cuando se implemente)
@@ -130,10 +129,9 @@ resources/js/
 │   │   ├── common/          → título de página, barra de tablas (Mostrar N + buscador), insignias, avatar,
 │   │   │                      botones de acción de tablas,
 │   │   │                      color de cada rol en gráficos (role-colors.ts)
-│   │   ├── dashboard/       → indicadores, gráficos, últimos usuarios, actividad reciente
+│   │   ├── dashboard/       → indicadores, gráficos, últimos usuarios
 │   │   ├── users/           → tabla, buscador, modales de crear / editar / eliminar
 │   │   ├── roles/           → tabla de casillas de permisos, modal de eliminar rol
-│   │   ├── activity/        → tabla, buscador, íconos y nombres de cada acción (action-meta.ts)
 │   │   └── settings/        → selector de tema
 │   └── public/              → 🌐 piezas SOLO del sitio público (vacío por ahora)
 │
@@ -149,7 +147,7 @@ resources/js/
 │   └── format.ts            → formatDate(), relativeTime(), greeting()
 └── types/                   → 🏷️ "formas" de los datos (qué campos tiene un User, etc.)
     ├── index.ts             → tipos generales (User, Paginated, SharedData...)
-    └── admin/               → tipos del panel (dashboard, users, roles, activity)
+    └── admin/               → tipos del panel (dashboard, users, roles)
 ```
 
 **¿Dónde pongo un archivo nuevo?** Pregúntate:
@@ -326,7 +324,7 @@ php artisan make:request Admin/StoreProductoRequest
 ### Permisos → roles (Spatie) + Policies
 Hay dos niveles (todo explicado en la **sección 8**):
 
-1. **Permisos del rol** (`usuarios.editar`, `auditoria.ver`…): se marcan en la pantalla de Roles.
+1. **Permisos del rol** (`usuarios.editar`, `roles.ver`…): se marcan en la pantalla de Roles.
 2. **Reglas que valen para todos** en `app/Policies/`. Ej: nadie puede eliminarse a sí mismo.
 
 ```php
@@ -335,15 +333,51 @@ $request->user()->can('delete', $user);    // pregunta a UserPolicy (permiso + r
 Gate::inspect('delete', $user)->message(); // el motivo si no puede
 ```
 
-### Auditoría → `ActivityLog::record()`
-Cada acción importante queda guardada (quién, qué, cuándo, IP y navegador). Para registrar una acción nueva:
+### REGLA DEL SISTEMA: nada se borra → eliminación lógica + quién registró / quién eliminó
+En Farma360 **ningún dato se borra de la base de datos**. "Eliminar" solo marca el registro con `deleted_at`.
+Además, **toda tabla** tiene estas columnas, que se llenan solas:
+
+| Columna | Qué guarda |
+|---|---|
+| `registerUser_id` | id del usuario que registró el dato (null = sistema / seeder / autoregistro) |
+| `registerRole` | rol que tenía ese usuario al registrarlo |
+| `deleteUser_id` | id del usuario que lo eliminó |
+| `deleteRole` | rol que tenía ese usuario al eliminarlo |
+| `deleted_at` | fecha de eliminación (null = vigente) |
+
+Para una tabla nueva (ej: productos) solo hay que hacer dos cosas — `php artisan make:model Producto -m` ya las trae puestas (ver `stubs/`):
 
 ```php
-ActivityLog::record('producto.created', "Creó el producto {$producto->nombre}", $producto);
+// 1. En la migración
+Schema::create('productos', function (Blueprint $table) {
+    $table->id();
+    // ...columnas...
+    $table->timestamps();
+    $table->auditable(); // registerUser_id, registerRole, deleteUser_id, deleteRole, deleted_at
+});
+
+// 2. En el modelo
+class Producto extends Model
+{
+    use Auditable; // App\Models\Concerns\Auditable
+}
 ```
 
-y agrega su nombre, ícono y color en `resources/js/components/admin/activity/action-meta.ts`.
-Se ve en **Administración → Auditoría** y en el dashboard ("Actividad reciente").
+Y se usa normal:
+
+```php
+Producto::create([...]);      // guarda quién lo registró
+$producto->delete();          // NO borra: guarda deleted_at y quién lo eliminó
+$producto->restore();         // lo recupera
+Producto::all();              // solo los vigentes · withTrashed() = todos · onlyTrashed() = solo eliminados
+$producto->forceDelete();     // PROHIBIDO: lanza una excepción
+```
+
+**Prohibido:** `forceDelete()`, `DB::table(...)->delete()`, `truncate()` o SQL `DELETE`.
+Elimina siempre registro por registro (`$modelo->delete()`): el borrado masivo `Producto::where(...)->delete()`
+también es lógico pero **no** guarda quién lo eliminó.
+**Ojo con los `unique`** (ej: email): un registro eliminado sigue ocupando su valor, así que no se puede volver a crear igual.
+El test `tests/Feature/SoftDeleteRuleTest.php` falla si alguna tabla o modelo no cumple la regla.
 
 ### Tablas con paginación del servidor
 Las tablas **nunca traen todos los registros**: Laravel devuelve solo la página que se ve
@@ -374,7 +408,7 @@ Se usa el paquete [spatie/laravel-permission](https://spatie.be/docs/laravel-per
 
 ```
 USUARIO ──tiene UN──► ROL ──tiene VARIOS──► PERMISOS
-Ana                   Supervisor            usuarios.ver, auditoria.ver
+Ana                   Supervisor            usuarios.ver
 ```
 
 ### Los permisos salen de un catálogo: `config/roles.php`
@@ -385,14 +419,13 @@ Cada permiso es **módulo.acción**. El catálogo dice qué módulos existen y q
 |---|:-:|:-:|:-:|:-:|
 | `usuarios` | ✔ | ✔ | ✔ (incluye activar/desactivar) | ✔ |
 | `roles` | ✔ | ✔ | ✔ | ✔ |
-| `auditoria` | ✔ | — | — | — |
 
 El **Dashboard** y **Mis ajustes** no piden permiso: los ve cualquiera que inicie sesión.
 
 Después de cambiar el catálogo corre:
 
 ```bash
-php artisan permissions:sync   # crea los permisos nuevos y borra los que quitaste
+php artisan permissions:sync   # crea los permisos nuevos y elimina (lógicamente) los que quitaste
 ```
 
 ### Roles iniciales
@@ -401,7 +434,7 @@ php artisan permissions:sync   # crea los permisos nuevos y borra los que quitas
 |---|---|
 | **Super Admin** | TODO, siempre. No se puede editar ni eliminar. Solo otro Super Admin puede tocar su cuenta o dar este rol. |
 | **Administrador** | Todos los permisos (pero se pueden quitar desde la pantalla de Roles). |
-| **Supervisor** | Ver usuarios y la auditoría. |
+| **Supervisor** | Ver usuarios. |
 | **Operador** | Solo dashboard y sus ajustes. Es el rol de quien se registra solo (`default_role`). |
 
 Se crean una sola vez (`permissions:sync`). Después se cambian desde **Administración → Roles y permisos**:
@@ -440,11 +473,6 @@ $user->syncRoles(['Operador']);      // cambiarle el rol (cada usuario tiene uno
 $user->isSuperAdmin();               // true / false
 User::factory()->withRole('Supervisor')->create();   // en pruebas
 ```
-
-### Auditoría
-
-Quedan registrados: crear rol (`role.created`), cambiar permisos (`role.updated`, con qué se agregó y qué se quitó),
-eliminar rol (`role.deleted`) y cambiar el rol de un usuario (dentro de `user.updated`).
 
 ---
 

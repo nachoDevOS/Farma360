@@ -3,13 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\ActivityLog;
+use App\Models\Role;
 use App\Models\User;
-use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
-use Spatie\Permission\Models\Role;
 
 /**
  * Controlador del Dashboard.
@@ -21,7 +19,7 @@ class DashboardController extends Controller
      * GET /dashboard — Calcula las métricas de usuarios y abre la página del dashboard.
      * Cada clave del array de Inertia::render() llega como "prop" a resources/js/pages/admin/dashboard.tsx
      */
-    public function __invoke(Request $request): Response
+    public function __invoke(): Response
     {
         // 1. Usuarios nuevos este mes vs. el mes anterior (para calcular el % de crecimiento)
         $startOfMonth = now()->startOfMonth();
@@ -66,10 +64,6 @@ class DashboardController extends Controller
             // Solo pedimos las columnas necesarias: nunca enviar datos sensibles (como la contraseña) al navegador.
             // with('roles') trae el rol de cada uno en una sola consulta.
             'recentUsers' => User::with('roles')->latest()->take(6)->get(['id', 'name', 'email', 'is_active', 'created_at']),
-            // Últimas 6 acciones de la auditoría (solo quien tiene el permiso auditoria.ver; los demás reciben una lista vacía)
-            'recentActivity' => $request->user()->can('auditoria.ver')
-                ? ActivityLog::with('causer:id,name', 'causer.roles')->latest('created_at')->latest('id')->take(6)->get()
-                : [],
         ]);
     }
 }

@@ -12,6 +12,6 @@ use Illuminate\Support\Facades\Route;
 */
 Route::redirect('/', '/dashboard')->name('home');
 
-// Panel admin (dashboard, usuarios, auditoría, ajustes) y autenticación (login, registro…)
+// Panel admin (dashboard, usuarios, roles, ajustes) y autenticación (login, registro…)
 require __DIR__.'/admin.php';
 require __DIR__.'/auth.php';

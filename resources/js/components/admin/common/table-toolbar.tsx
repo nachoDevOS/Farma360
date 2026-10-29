@@ -1,6 +1,6 @@
 /**
  * BARRA DE ARRIBA DE LAS TABLAS: "Mostrar [10] registros" + filtros a la izquierda, buscador a la derecha.
- * La usan Usuarios y Auditoría; cualquier tabla nueva puede usarla igual.
+ * La usa Usuarios; cualquier tabla nueva puede usarla igual.
  *
  * Uso:
  *   <TableToolbar

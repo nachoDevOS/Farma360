@@ -10,7 +10,7 @@ namespace App\Support;
 class PermissionCatalog
 {
     /**
-     * Todos los permisos: ['usuarios.ver', 'usuarios.crear', ..., 'auditoria.ver'].
+     * Todos los permisos: ['usuarios.ver', 'usuarios.crear', ..., 'roles.eliminar'].
      *
      * @return list<string>
      */
