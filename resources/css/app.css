@@ -1,0 +1,465 @@
+@import 'tailwindcss';
+
+@plugin 'tailwindcss-animate';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Fuentes y colores que Tailwind convierte en clases (ej: font-display, bg-primary, text-muted-foreground) */
+@theme {
+    --font-sans: 'Roboto', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-display: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    /* Colores de la marca (corporativo azul) */
+    --color-brand-blue: #0d6efd;
+    --color-brand-blue-light: #60a5fa;
+    --color-brand-navy: #0b1b33;
+
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+
+    --color-sidebar: var(--sidebar-background);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/*
+  The default border color has changed to `currentColor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentColor);
+    }
+}
+
+/* ===== COLORES DEL MODO CLARO =====  (cambia aquí para personalizar el tema) */
+:root {
+    --background: #f4f6f9;
+    --foreground: hsl(222, 47%, 11%);
+    --card: hsl(0, 0%, 100%);
+    --card-foreground: hsl(222, 47%, 11%);
+    --popover: hsl(0, 0%, 100%);
+    --popover-foreground: hsl(222, 47%, 11%);
+    --primary: #0d6efd;
+    --primary-foreground: hsl(0, 0%, 100%);
+    --secondary: hsl(214, 32%, 94%);
+    --secondary-foreground: hsl(222, 47%, 11%);
+    --muted: hsl(216, 30%, 95%);
+    --muted-foreground: hsl(215, 16%, 42%);
+    --accent: hsl(214, 100%, 96%);
+    --accent-foreground: hsl(224, 76%, 40%);
+    --destructive: hsl(0, 72%, 51%);
+    --destructive-foreground: hsl(0, 0%, 98%);
+    --border: hsl(214, 28%, 88%);
+    --input: hsl(214, 25%, 82%);
+    --ring: #0d6efd;
+    --chart-1: #0d6efd;
+    --chart-2: hsl(199, 89%, 48%);
+    --chart-3: #10b77f;
+    --chart-4: #f59e0b;
+    --chart-5: hsl(243, 75%, 59%);
+    --radius: 0.5rem;
+    /* El menú lateral queda azul marino también en modo claro: así la marca siempre se ve. */
+    --sidebar-background: hsl(215, 65%, 12%);
+    --sidebar-foreground: hsl(214, 25%, 76%);
+    --sidebar-primary: hsl(213, 94%, 68%);
+    --sidebar-primary-foreground: hsl(215, 65%, 12%);
+    --sidebar-accent: hsl(215, 50%, 19%);
+    --sidebar-accent-foreground: hsl(0, 0%, 100%);
+    --sidebar-border: hsl(215, 45%, 19%);
+    --sidebar-ring: hsl(213, 94%, 68%);
+    --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 1px 3px rgb(15 23 42 / 0.04);
+}
+
+/* ===== COLORES DEL MODO OSCURO ===== */
+.dark {
+    /* Modo oscuro NEGRO neutro (sin tinte azul); el azul queda solo en botones, enlaces y opción activa */
+    --background: hsl(240, 6%, 4%);
+    --foreground: hsl(0, 0%, 96%);
+    --card: hsl(240, 5%, 7%);
+    --card-foreground: hsl(0, 0%, 96%);
+    --popover: hsl(240, 5%, 8%);
+    --popover-foreground: hsl(0, 0%, 96%);
+    --primary: hsl(217, 91%, 60%);
+    --primary-foreground: hsl(0, 0%, 100%);
+    --secondary: hsl(240, 4%, 13%);
+    --secondary-foreground: hsl(0, 0%, 96%);
+    --muted: hsl(240, 4%, 11%);
+    --muted-foreground: hsl(240, 5%, 64%);
+    --accent: hsl(240, 4%, 14%);
+    --accent-foreground: hsl(0, 0%, 98%);
+    --destructive: hsl(0, 72%, 55%);
+    --destructive-foreground: hsl(0, 0%, 98%);
+    --border: hsl(240, 4%, 15%);
+    --input: hsl(240, 4%, 19%);
+    --ring: hsl(217, 91%, 60%);
+    --chart-1: #3b82f6;
+    --chart-2: hsl(199, 89%, 55%);
+    --chart-3: #10a374;
+    --chart-4: #c97f0a;
+    --chart-5: hsl(243, 75%, 68%);
+    --sidebar-background: hsl(240, 8%, 3%);
+    --sidebar-foreground: hsl(240, 5%, 70%);
+    --sidebar-primary: hsl(213, 94%, 68%);
+    --sidebar-primary-foreground: hsl(240, 8%, 3%);
+    --sidebar-accent: hsl(240, 5%, 12%);
+    --sidebar-accent-foreground: hsl(0, 0%, 100%);
+    --sidebar-border: hsl(240, 4%, 12%);
+    --sidebar-ring: hsl(213, 94%, 68%);
+    --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset;
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    html {
+        color-scheme: light;
+    }
+
+    html.dark {
+        color-scheme: dark;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    /* Selección de texto con el color de la marca */
+    ::selection {
+        background-color: color-mix(in oklab, var(--primary) 28%, transparent);
+        color: var(--foreground);
+    }
+
+    /* Foco visible en todo lo que se maneja con teclado */
+    :focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
+    }
+
+    /* Barras de desplazamiento finas, del color del borde */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in oklab, var(--foreground) 18%, transparent) transparent;
+    }
+
+    a {
+        text-underline-offset: 3px;
+    }
+
+    option {
+        background-color: var(--card);
+        color: var(--foreground);
+    }
+}
+
+/* ===== CLASES PROPIAS DEL PANEL =====  Se usan como cualquier clase: className="surface" */
+@layer components {
+    /* Tipografía de títulos (Roboto, apenas más apretada) */
+    .font-display {
+        font-family: var(--font-display);
+        letter-spacing: -0.01em;
+    }
+
+    /* Superficie base de tarjetas, tablas y paneles: fondo sólido, borde fino y sombra suave */
+    .surface {
+        background-color: var(--card);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-card);
+    }
+
+    /* Números alineados en tablas y métricas */
+    .num {
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: 'tnum';
+    }
+}
+
+/* Botón principal fuera de @layer: así gana sobre las clases de Tailwind del componente Button */
+.btn-brand {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    border-radius: calc(var(--radius) - 2px);
+    box-shadow:
+        0 1px 0 rgb(255 255 255 / 0.12) inset,
+        0 1px 2px rgb(0 0 0 / 0.12);
+    transition: background-color 150ms ease-out;
+}
+
+.btn-brand:hover {
+    background-color: color-mix(in srgb, var(--primary) 85%, black);
+}
+
+.dark .btn-brand {
+    background-color: var(--primary);
+}
+
+.dark .btn-brand:hover {
+    background-color: color-mix(in oklab, var(--primary) 88%, white);
+}
+
+/* ===== BOTONES DE ÍCONO (acciones de tablas, barras, etc.) =====
+   Uso: <button className="btn-icon btn-icon-danger"><Trash2 /></button>
+   Colores: btn-icon-primary (azul) · btn-icon-success (verde) · btn-icon-warning (naranja) · btn-icon-danger (rojo)
+   Efecto: al pasar el mouse, un fondo suave del color crece desde el centro. Sobrio, sin saltos ni giros. */
+.btn-icon {
+    --tone: var(--muted-foreground);
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: calc(var(--radius) - 2px);
+    color: var(--tone);
+    transition: transform 120ms ease-out;
+}
+
+/* Fondo que crece desde el centro */
+.btn-icon::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background-color: color-mix(in srgb, var(--tone) 12%, transparent);
+    opacity: 0;
+    transform: scale(0.6);
+    transition:
+        opacity 160ms ease-out,
+        transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.btn-icon > svg {
+    width: 18px;
+    height: 18px;
+}
+
+.btn-icon:hover::before {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.btn-icon:active {
+    transform: scale(0.95);
+}
+
+.btn-icon:focus-visible {
+    outline: 2px solid var(--tone);
+    outline-offset: 1px;
+}
+
+.btn-icon:disabled {
+    --tone: color-mix(in srgb, var(--muted-foreground) 40%, transparent);
+    pointer-events: none;
+}
+
+.btn-icon-primary {
+    --tone: #2f6fd6;
+}
+.btn-icon-success {
+    --tone: #23915a;
+}
+.btn-icon-warning {
+    --tone: #e08a1e;
+}
+.btn-icon-danger {
+    --tone: #d6454f;
+}
+
+/* En modo oscuro, tonos un poco más claros para que no se pierdan sobre el negro */
+.dark .btn-icon-primary {
+    --tone: #5b93ea;
+}
+.dark .btn-icon-success {
+    --tone: #3fb47a;
+}
+.dark .btn-icon-warning {
+    --tone: #f0a040;
+}
+.dark .btn-icon-danger {
+    --tone: #ec6b74;
+}
+
+/* ===== MENÚ LATERAL: efectos ===== */
+
+/* Imagen de fondo del menú lateral.
+   - FOTO: guarda una foto en public/images/sidebar-bg.jpg (vertical, ej. 800×1600 px). Si existe, se usa la foto.
+   - Si no hay foto, se ve el dibujo public/images/sidebar-bg.svg (circuitos azules).
+   Encima va una capa oscura del color del menú para que el texto se lea bien:
+   sube los % para oscurecer más la foto, bájalos para que se vea más. */
+[data-sidebar='sidebar'] {
+    background-image:
+        linear-gradient(
+            to bottom,
+            color-mix(in oklab, var(--sidebar-background) 78%, transparent),
+            color-mix(in oklab, var(--sidebar-background) 70%, transparent) 50%,
+            color-mix(in oklab, var(--sidebar-background) 88%, transparent)
+        ),
+        url('/images/sidebar-bg.jpg'), url('/images/sidebar-bg.svg');
+    background-size: cover;
+    background-position: center;
+}
+
+/* Opción del menú. Al pasar el mouse: una franja azul se desliza de izquierda a derecha,
+   la barra lateral crece, el ícono se pinta de azul y se corre, y el texto se desplaza un poco. */
+.nav-item {
+    position: relative;
+    background-image: linear-gradient(
+        90deg,
+        color-mix(in oklab, var(--sidebar-primary) 45%, transparent),
+        color-mix(in oklab, var(--sidebar-primary) 12%, transparent)
+    );
+    background-repeat: no-repeat;
+    background-size: 0% 100%;
+    transition:
+        background-size 350ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        background-color 150ms ease-out,
+        box-shadow 250ms ease-out,
+        transform 150ms ease-out,
+        color 150ms ease-out;
+}
+
+.nav-item:hover {
+    background-color: transparent;
+    background-size: 100% 100%;
+    color: #fff;
+    box-shadow:
+        inset 0 0 0 1px color-mix(in oklab, var(--sidebar-primary) 35%, transparent),
+        0 4px 14px -6px color-mix(in oklab, var(--sidebar-primary) 70%, transparent);
+}
+
+/* Barra azul a la izquierda: crece al pasar el mouse y queda completa en la activa */
+.nav-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 15%;
+    bottom: 15%;
+    width: 4px;
+    border-radius: 0 3px 3px 0;
+    background: var(--sidebar-primary);
+    transform: scaleY(0);
+    opacity: 0;
+    transition:
+        transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        opacity 150ms ease-out;
+}
+
+.nav-item:hover::before {
+    transform: scaleY(1);
+    opacity: 1;
+    box-shadow: 0 0 10px var(--sidebar-primary);
+}
+
+.nav-item[data-active='true']::before {
+    transform: scaleY(1);
+    opacity: 1;
+}
+
+.nav-item > svg,
+.nav-item > span {
+    transition:
+        transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        color 150ms ease-out;
+}
+
+.nav-item:hover > svg {
+    color: var(--sidebar-primary);
+    transform: translateX(6px) scale(1.2);
+    filter: drop-shadow(0 0 6px color-mix(in oklab, var(--sidebar-primary) 80%, transparent));
+}
+
+.nav-item:hover > span {
+    transform: translateX(6px);
+    font-weight: 500;
+}
+
+/* Al hacer clic: se hunde un poquito */
+.nav-item:active {
+    transform: scale(0.97);
+}
+
+/* Activa: fondo azul suave, texto blanco e ícono azul claro */
+.nav-item[data-active='true'] {
+    background-color: var(--sidebar-accent);
+    color: #fff;
+}
+
+.nav-item[data-active='true'] > svg {
+    color: var(--sidebar-primary);
+}
+
+/* Logo por defecto (si no hay imagen): cuadrado azul de la marca */
+.logo-mark {
+    background: linear-gradient(160deg, var(--color-brand-blue-light), var(--color-brand-blue));
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.2) inset;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nav-item,
+    .nav-item::before,
+    .nav-item > svg,
+    .nav-item > span,
+    .btn-icon,
+    .btn-icon::before {
+        transition: none;
+    }
+
+    .nav-item:hover > svg,
+    .nav-item:hover > span {
+        transform: none;
+    }
+}
