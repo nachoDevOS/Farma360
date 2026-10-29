@@ -1,6 +1,8 @@
 /*
  * PÁGINA: Productos  (ruta /admin/products)
  * Datos: app/Http/Controllers/Admin/ProductController.php -> index()
+ * El buscador encuentra por nombre comercial, genérico, código de barras, uso / síntoma o detalle.
+ * Filtro "Todos los usos": productos para un síntoma (ej: Dolor de cabeza).
  */
 import { ConfirmDialog } from '@/components/admin/common/confirm-dialog';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
@@ -19,17 +21,18 @@ import { cn } from '@/lib/utils';
 import { type Paginated } from '@/types';
 import { type ListFilters, type Option, type Product } from '@/types/admin/pharmacy';
 import { Head, Link, router } from '@inertiajs/react';
-import { FlaskConical, Pencil, Pill, Plus, Tags, Trash2 } from 'lucide-react';
+import { FlaskConical, Pencil, Pill, Plus, Stethoscope, Tags, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface Props {
     products: Paginated<Product>;
-    filters: ListFilters & { category?: string; laboratory?: string };
+    filters: ListFilters & { category?: string; laboratory?: string; indication?: string };
     categories: Option[];
     laboratories: Option[];
+    indications: Option[];
 }
 
-export default function ProductsIndex({ products, filters, categories, laboratories }: Props) {
+export default function ProductsIndex({ products, filters, categories, laboratories, indications }: Props) {
     const can = useCan();
     const applyFilters = useFilters('admin.products.index', filters);
     const [deleting, setDeleting] = useState<Product | null>(null);
@@ -51,7 +54,12 @@ export default function ProductsIndex({ products, filters, categories, laborator
                             </Button>
                             <Button asChild variant="outline" size="sm">
                                 <Link href={route('admin.active-ingredients.index')}>
-                                    <FlaskConical /> Principios activos
+                                    <FlaskConical /> Genéricos
+                                </Link>
+                            </Button>
+                            <Button asChild variant="outline" size="sm">
+                                <Link href={route('admin.indications.index')}>
+                                    <Stethoscope /> Usos
                                 </Link>
                             </Button>
                             {can('productos.crear') && (
@@ -71,7 +79,7 @@ export default function ProductsIndex({ products, filters, categories, laborator
                         onPerPageChange={(n) => applyFilters({ per_page: String(n) })}
                         search={filters.search ?? ''}
                         onSearch={(search) => applyFilters({ search })}
-                        searchPlaceholder="Nombre, código o principio activo…"
+                        searchPlaceholder="Nombre, genérico, código o síntoma…"
                     >
                         <SimpleSelect
                             className="w-52"
@@ -86,6 +94,13 @@ export default function ProductsIndex({ products, filters, categories, laborator
                             value={filters.laboratory}
                             allLabel="Todos los laboratorios"
                             onChange={(laboratory) => applyFilters({ laboratory })}
+                        />
+                        <SimpleSelect
+                            className="w-52"
+                            options={indications}
+                            value={filters.indication}
+                            allLabel="Todos los usos"
+                            onChange={(indication) => applyFilters({ indication })}
                         />
                     </TableToolbar>
                     <DataTable
@@ -117,6 +132,19 @@ export default function ProductsIndex({ products, filters, categories, laborator
                                                 <span className="ml-2 font-medium text-amber-600">Con receta</span>
                                             )}
                                         </p>
+                                        {/* Para qué sirve */}
+                                        {!!product.indications?.length && (
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                                {product.indications.map((i) => (
+                                                    <span
+                                                        key={i.id}
+                                                        className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                                    >
+                                                        {i.name}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                     </Td>
                                     <Td className="text-muted-foreground">{product.laboratory?.name ?? '—'}</Td>
                                     <Td>

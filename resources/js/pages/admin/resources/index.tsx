@@ -35,6 +35,7 @@ import {
     Monitor,
     Pencil,
     Plus,
+    Stethoscope,
     Tags,
     Trash2,
     Truck,
@@ -51,6 +52,7 @@ const resourceIcons: Record<string, LucideIcon> = {
     'admin.categories': Tags,
     'admin.laboratories': FlaskRound,
     'admin.active-ingredients': FlaskConical,
+    'admin.indications': Stethoscope,
     'admin.cash-registers': Monitor,
     'admin.denominations': Coins,
 };

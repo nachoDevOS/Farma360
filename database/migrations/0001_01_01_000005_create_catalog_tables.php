@@ -43,6 +43,8 @@ return new class extends Migration
             $table->string('concentration', 60)->nullable();
             // Ej: Tableta, Jarabe, Cápsula, Inyectable
             $table->string('pharmaceutical_form', 60)->nullable();
+            // Para qué sirve, en palabras: "Alivia el dolor de cabeza y baja la fiebre." (también se busca por este texto)
+            $table->text('description')->nullable();
             $table->foreignId('laboratory_id')->nullable()->constrained();
             $table->foreignId('category_id')->nullable()->constrained();
             $table->string('barcode', 50)->nullable()->unique();
@@ -74,10 +76,28 @@ return new class extends Migration
             $table->timestamps();
             $table->auditable();
         });
+
+        // USOS / SÍNTOMAS: para qué sirve un producto ("Dolor de cabeza", "Fiebre", "Gripe"…).
+        // Un producto tiene varios usos y un uso varios productos: sirven para buscar y filtrar rápido.
+        Schema::create('indications', function (Blueprint $table) {
+            $table->id();
+            $table->string('name', 80)->unique();
+            $table->timestamps();
+            $table->auditable();
+        });
+
+        // Tabla pivote producto ↔ uso
+        Schema::create('indication_product', function (Blueprint $table) {
+            $table->foreignId('indication_id')->constrained();
+            $table->foreignId('product_id')->constrained();
+            $table->primary(['indication_id', 'product_id']);
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('indication_product');
+        Schema::dropIfExists('indications');
         Schema::dropIfExists('product_presentations');
         Schema::dropIfExists('products');
         Schema::dropIfExists('active_ingredients');

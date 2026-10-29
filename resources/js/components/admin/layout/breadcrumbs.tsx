@@ -2,6 +2,7 @@
  * Migas de pan del header: Administración > Usuarios.
  */
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
+import { cn } from '@/lib/utils';
 import { type BreadcrumbItem as BreadcrumbItemType } from '@/types';
 import { Fragment } from 'react';
 
@@ -15,14 +16,15 @@ export function Breadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbItemType[]
                             const isLast = index === breadcrumbs.length - 1;
                             return (
                                 <Fragment key={index}>
-                                    <BreadcrumbItem>
+                                    {/* En celular solo se ve la página actual */}
+                                    <BreadcrumbItem className={cn(!isLast && 'hidden md:inline-flex', 'min-w-0')}>
                                         {isLast ? (
-                                            <BreadcrumbPage>{item.title}</BreadcrumbPage>
+                                            <BreadcrumbPage className="truncate">{item.title}</BreadcrumbPage>
                                         ) : (
                                             <BreadcrumbLink href={item.href}>{item.title}</BreadcrumbLink>
                                         )}
                                     </BreadcrumbItem>
-                                    {!isLast && <BreadcrumbSeparator />}
+                                    {!isLast && <BreadcrumbSeparator className="hidden md:block" />}
                                 </Fragment>
                             );
                         })}

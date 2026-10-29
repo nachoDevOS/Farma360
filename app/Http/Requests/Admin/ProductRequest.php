@@ -33,9 +33,15 @@ class ProductRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'active_ingredient_id' => ['nullable', Rule::exists('active_ingredients', 'id')->whereNull('deleted_at')],
+            // Nombre genérico (principio activo). Se escribe; si no existe en el catálogo se crea al guardar.
+            'generic_name' => ['nullable', 'string', 'max:255'],
             'concentration' => ['nullable', 'string', 'max:60'],
             'pharmaceutical_form' => ['nullable', 'string', 'max:60'],
+            // Para qué sirve, en palabras (también se busca por este texto)
+            'description' => ['nullable', 'string', 'max:2000'],
+            // Usos / síntomas: "Dolor de cabeza", "Fiebre"… (los que no existen se crean al guardar)
+            'indications' => ['array', 'max:20'],
+            'indications.*' => ['string', 'max:80'],
             'laboratory_id' => ['nullable', Rule::exists('laboratories', 'id')->whereNull('deleted_at')],
             'category_id' => ['nullable', Rule::exists('categories', 'id')->whereNull('deleted_at')],
             'barcode' => ['nullable', 'string', 'max:50', Rule::unique('products')->ignore($productId)],
@@ -80,6 +86,10 @@ class ProductRequest extends FormRequest
     {
         return [
             'name' => 'nombre comercial',
+            'generic_name' => 'nombre genérico',
+            'description' => 'para qué sirve',
+            'indications' => 'usos',
+            'indications.*' => 'uso',
             'base_unit' => 'unidad base',
             'min_stock' => 'stock mínimo',
             'presentations' => 'presentaciones',

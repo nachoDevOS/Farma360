@@ -42,10 +42,7 @@ class InventoryController extends Controller
             ->withSum(['batches as stock' => fn ($q) => $q->where('branch_id', $branchId)], 'quantity')
             ->withSum(['batches as stock_value' => fn ($q) => $q->where('branch_id', $branchId)], DB::raw('quantity * unit_cost'))
             ->withMin(['batches as next_expiry' => fn ($q) => $q->where('branch_id', $branchId)->where('quantity', '>', 0)], 'expires_at')
-            ->when($search !== '', fn (Builder $q) => $q->where(fn (Builder $w) => $w
-                ->where('name', 'like', "%{$search}%")
-                ->orWhere('barcode', $search)
-                ->orWhereHas('activeIngredient', fn (Builder $a) => $a->where('name', 'like', "%{$search}%"))))
+            ->search($search)
             ->when(($filters['alert'] ?? null) === 'low', fn (Builder $q) => $q->whereRaw(
                 '(select coalesce(sum(quantity), 0) from batches where batches.product_id = products.id and batches.branch_id = ? and batches.deleted_at is null) <= products.min_stock',
                 [$branchId],

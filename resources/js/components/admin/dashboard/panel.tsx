@@ -5,7 +5,8 @@ import { cn } from '@/lib/utils';
 import { type LucideIcon } from 'lucide-react';
 
 export function Panel({ className, children }: { className?: string; children: React.ReactNode }) {
-    return <div className={cn('surface rounded-xl', className)}>{children}</div>;
+    // min-w-0: dentro de una grilla, el panel no se estira más que su columna (si no, en celular empuja la página de costado)
+    return <div className={cn('surface min-w-0 rounded-xl', className)}>{children}</div>;
 }
 
 /** Encabezado de un panel: ícono opcional, título, subtítulo y algo a la derecha (enlace, total, botones…). */

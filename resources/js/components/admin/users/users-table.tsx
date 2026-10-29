@@ -1,6 +1,7 @@
 /**
  * Pieza de Gestión de usuarios (se usa en pages/admin/users/index.tsx).
  */
+import { useStackedLabels } from '@/components/admin/common/data-table';
 import { SUPER_ADMIN } from '@/components/admin/common/role-colors';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
 import { RoleBadge, StatusBadge, UserAvatar } from '@/components/admin/common/user-badges';
@@ -12,6 +13,7 @@ import { type SharedData, type User } from '@/types';
 import { type UserFilters } from '@/types/admin/users';
 import { usePage } from '@inertiajs/react';
 import { Pencil, Power, Search, Trash2 } from 'lucide-react';
+import { useRef } from 'react';
 
 interface UsersTableProps {
     users: User[];
@@ -33,10 +35,13 @@ export function UsersTable({ users, filters, onSort, onEdit, onToggle, onDelete 
     const showActions = can('usuarios.editar') || can('usuarios.eliminar');
     // La cuenta de un Super Admin solo la puede tocar otro Super Admin (igual que UserPolicy en Laravel)
     const isProtected = (user: User) => user.role === SUPER_ADMIN && !iAmSuperAdmin;
+    // En celular cada fila se ve como tarjeta (app.css → .table-stack)
+    const tableRef = useRef<HTMLTableElement>(null);
+    useStackedLabels(tableRef);
 
     return (
         <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
+            <table ref={tableRef} className="table-stack w-full text-[13px]">
                 <thead className="text-muted-foreground bg-muted/60 border-b text-left text-[11px] font-semibold tracking-wider uppercase [&_th]:py-2.5">
                     <tr>
                         <th className="px-4 py-3">
@@ -135,7 +140,7 @@ export function UsersTable({ users, filters, onSort, onEdit, onToggle, onDelete 
                     {/* Mensaje cuando ningún usuario coincide con los filtros */}
                     {users.length === 0 && (
                         <tr>
-                            <td colSpan={showActions ? 6 : 5} className="px-4 py-16 text-center">
+                            <td colSpan={showActions ? 6 : 5} className="px-4 py-16 text-center" data-empty>
                                 <div className="mx-auto flex max-w-xs flex-col items-center gap-2">
                                     <div className="bg-muted flex size-12 items-center justify-center rounded-full">
                                         <Search className="text-muted-foreground size-5" />

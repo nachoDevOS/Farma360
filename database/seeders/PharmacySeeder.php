@@ -8,6 +8,7 @@ use App\Models\CashRegister;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Denomination;
+use App\Models\Indication;
 use App\Models\Laboratory;
 use App\Models\Product;
 use App\Models\Supplier;
@@ -101,6 +102,21 @@ class PharmacySeeder extends Seeder
             ->map(fn ($name) => Laboratory::create(['name' => $name, 'country' => 'Bolivia']));
         $ingredient = fn (string $name) => ActiveIngredient::firstOrCreate(['name' => $name]);
 
+        // Para qué sirve cada producto: [detalle, [usos / síntomas]] (se buscan en el catálogo y en el punto de venta)
+        $uses = [
+            'paracetamol' => ['Alivia el dolor leve a moderado y baja la fiebre.', ['Dolor de cabeza', 'Fiebre', 'Dolor muscular', 'Resfrío']],
+            'paracetamol_gen' => ['Alivia el dolor leve a moderado y baja la fiebre.', ['Dolor de cabeza', 'Fiebre', 'Dolor muscular']],
+            'ibuprofeno' => ['Antiinflamatorio: calma el dolor, la inflamación y baja la fiebre.', ['Dolor de cabeza', 'Dolor muscular', 'Inflamación', 'Fiebre', 'Dolor menstrual']],
+            'diclofenaco' => ['Antiinflamatorio para dolores de articulaciones, golpes y espalda.', ['Dolor muscular', 'Inflamación', 'Dolor de espalda']],
+            'amoxicilina' => ['Antibiótico para infecciones causadas por bacterias. Solo con receta.', ['Infección de garganta', 'Infección de oído', 'Infección urinaria']],
+            'loratadina' => ['Antialérgico: alivia estornudos, picazón y ojos llorosos.', ['Alergia', 'Rinitis', 'Picazón']],
+            'omeprazol' => ['Reduce el ácido del estómago.', ['Acidez', 'Gastritis', 'Reflujo']],
+            'vitamina_c' => ['Refuerza las defensas.', ['Defensas bajas', 'Resfrío']],
+            'salbutamol' => ['Abre los bronquios en crisis de asma.', ['Asma', 'Falta de aire']],
+            'jarabe_tos' => ['Calma la tos seca.', ['Tos seca', 'Resfrío']],
+            'clonazepam' => ['Ansiolítico. Medicamento controlado: venta con receta retenida.', ['Ansiedad', 'Insomnio']],
+        ];
+
         // [clave, nombre, principio activo, concentración, forma, categoría, unidad base, [presentación => [unidades, precio]], controlado]
         $rows = [
             ['paracetamol', 'Dolofen', 'Paracetamol', '500 mg', 'Tableta', 'Analgésicos', 'tableta', ['Unidad' => [1, 0.50], 'Blíster x10' => [10, 4.50], 'Caja x100' => [100, 40]], false],
@@ -123,6 +139,7 @@ class PharmacySeeder extends Seeder
                 'active_ingredient_id' => $ingredient($active)->id,
                 'concentration' => $concentration,
                 'pharmaceutical_form' => $form,
+                'description' => $uses[$key][0],
                 'laboratory_id' => $labs[$i % $labs->count()]->id,
                 'category_id' => $categories[$category]->id,
                 'barcode' => '7770000'.str_pad((string) ($i + 1), 6, '0', STR_PAD_LEFT),
@@ -134,6 +151,7 @@ class PharmacySeeder extends Seeder
             foreach ($presentations as $presentation => [$factor, $price]) {
                 $product->presentations()->create(['name' => $presentation, 'factor' => $factor, 'sale_price' => $price]);
             }
+            $product->indications()->sync(Indication::idsFor($uses[$key][1]));
             $products[$key] = $product->load('presentations');
         }
 

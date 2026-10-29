@@ -15,18 +15,18 @@ export interface Kpi {
     ratio?: number;
 }
 
-// Divisores entre celdas: 1 columna en móvil, 2 en tablet, 4 en escritorio
-const cellBorders = ['', 'border-t sm:border-t-0 sm:border-l', 'border-t xl:border-t-0 xl:border-l', 'border-t sm:border-l xl:border-t-0'];
+// Divisores entre celdas: 2 columnas en celular y tablet, 4 en escritorio
+const cellBorders = ['', 'border-l', 'border-t xl:border-t-0 xl:border-l', 'border-t border-l xl:border-t-0'];
 
 /** Franja de indicadores: una sola tarjeta dividida en celdas, una por métrica. */
 export function KpiStrip({ items }: { items: Kpi[] }) {
     return (
-        <div className="surface grid overflow-hidden rounded-xl sm:grid-cols-2 xl:grid-cols-4">
+        <div className="surface grid grid-cols-2 overflow-hidden rounded-xl xl:grid-cols-4">
             {items.map((kpi, i) => (
-                <div key={kpi.label} className={cn('flex flex-col gap-3 p-5', cellBorders[i])}>
-                    <p className="text-muted-foreground text-sm">{kpi.label}</p>
-                    <div className="flex items-baseline gap-2.5">
-                        <p className="font-display num text-3xl leading-none font-semibold">{kpi.value.toLocaleString('es')}</p>
+                <div key={kpi.label} className={cn('flex min-w-0 flex-col gap-3 p-4 sm:p-5', cellBorders[i])}>
+                    <p className="text-muted-foreground text-xs sm:text-sm">{kpi.label}</p>
+                    <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                        <p className="font-display num text-2xl leading-none font-semibold sm:text-3xl">{kpi.value.toLocaleString('es')}</p>
                         {kpi.trend !== undefined && kpi.trend !== null && <Trend value={kpi.trend} />}
                     </div>
                     {kpi.ratio !== undefined ? (

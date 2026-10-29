@@ -20,13 +20,19 @@ import {
     ClipboardList,
     Coins,
     Contact,
+    FlaskConical,
+    FlaskRound,
+    History,
     LayoutGrid,
+    Monitor,
     Palette,
     Pill,
     Receipt,
     Settings,
     ShieldCheck,
     ShoppingCart,
+    Stethoscope,
+    Tags,
     Truck,
     Users,
     Wallet,
@@ -45,6 +51,7 @@ const mainNavItems: NavItem[] = [
 const salesNavItems: NavItem[] = [
     { title: 'Punto de venta', url: '/admin/pos', icon: ShoppingCart, permission: 'ventas.crear' },
     { title: 'Mi caja', url: '/admin/cash', icon: Wallet, permission: 'caja.ver' },
+    { title: 'Turnos de caja', url: '/admin/cash/sessions', icon: History, permission: 'caja.ver' },
     { title: 'Ventas', url: '/admin/sales', icon: Receipt, permission: 'ventas.ver' },
     { title: 'Clientes', url: '/admin/customers', icon: Contact, permission: 'clientes.ver' },
 ];
@@ -59,11 +66,20 @@ const inventoryNavItems: NavItem[] = [
     { title: 'Proveedores', url: '/admin/suppliers', icon: Truck, permission: 'proveedores.ver' },
 ];
 
+// Grupo "Catálogo": las listas que usa el formulario de producto
+const catalogNavItems: NavItem[] = [
+    { title: 'Categorías', url: '/admin/categories', icon: Tags, permission: 'productos.ver' },
+    { title: 'Laboratorios', url: '/admin/laboratories', icon: FlaskRound, permission: 'productos.ver' },
+    { title: 'Genéricos', url: '/admin/active-ingredients', icon: FlaskConical, permission: 'productos.ver' },
+    { title: 'Usos y síntomas', url: '/admin/indications', icon: Stethoscope, permission: 'productos.ver' },
+];
+
 // Grupo "Administración": cada opción pide su permiso
 const adminNavItems: NavItem[] = [
     { title: 'Reportes', url: '/admin/reports', icon: BarChart3, permission: 'reportes.ver' },
     { title: 'Sucursales', url: '/admin/branches', icon: Building2, permission: 'sucursales.ver' },
-    { title: 'Cajas y billetes', url: '/admin/cash-registers', icon: Coins, permission: 'caja.editar' },
+    { title: 'Cajas', url: '/admin/cash-registers', icon: Monitor, permission: 'caja.editar' },
+    { title: 'Billetes y monedas', url: '/admin/denominations', icon: Coins, permission: 'caja.editar' },
     {
         title: 'Usuarios',
         url: '/admin/users',
@@ -115,6 +131,7 @@ export function AdminSidebar() {
                 <NavMain label="Plataforma" items={mainNavItems} />
                 <NavMain label="Ventas" items={salesNavItems} />
                 <NavMain label="Inventario" items={inventoryNavItems} />
+                <NavMain label="Catálogo" items={catalogNavItems} />
                 <NavMain label="Administración" items={adminNavItems} />
             </SidebarContent>
 

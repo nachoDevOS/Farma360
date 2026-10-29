@@ -22,7 +22,10 @@ export function SortHeader({
     // Ícono: ↕ si no está activa, ↑ ascendente, ↓ descendente
     const Icon = !active ? ArrowUpDown : (filters.direction ?? 'desc') === 'asc' ? ArrowUp : ArrowDown;
     return (
-        <button onClick={() => onSort(column)} className={cn('hover:text-foreground inline-flex items-center gap-1 uppercase', active && 'text-foreground')}>
+        <button
+            onClick={() => onSort(column)}
+            className={cn('hover:text-foreground inline-flex items-center gap-1 uppercase', active && 'text-foreground')}
+        >
             {label}
             <Icon className={cn('size-3.5', !active && 'opacity-50')} />
         </button>

@@ -118,7 +118,7 @@ export function RegistrationsChart({ data }: { data: MonthlyRegistration[] }) {
                     {data.map((d, i) => (
                         <span
                             key={d.month + i}
-                            className={`flex-1 text-center text-[11px] ${i === current ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}
+                            className={`min-w-0 flex-1 truncate text-center text-[10px] sm:text-[11px] ${i === current ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}
                         >
                             {d.month}
                         </span>

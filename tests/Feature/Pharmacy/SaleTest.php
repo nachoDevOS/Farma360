@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Pharmacy;
 
+use App\Models\Indication;
 use App\Models\Sale;
 use App\Services\CashService;
 use App\Services\InventoryService;
@@ -169,5 +170,20 @@ class SaleTest extends TestCase
             ->assertJsonCount(2)
             ->assertJsonPath('0.stock_units', 30)
             ->assertJsonPath('0.promo_discount', 30);
+    }
+
+    public function test_pos_search_finds_products_by_symptom()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0, ['name' => 'Cefalín']);
+        $product->indications()->sync(Indication::idsFor(['Dolor de cabeza', 'Fiebre']));
+        $this->product(1.0, ['name' => 'Otro']);
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+
+        $this->actingAs($cashier)->getJson('/admin/pos/search?q=dolor de cabeza')
+            ->assertOk()
+            ->assertJsonPath('0.product_id', $product->id)
+            ->assertJsonPath('0.indications', ['Dolor de cabeza', 'Fiebre']);
     }
 }

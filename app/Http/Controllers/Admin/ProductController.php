@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\ProductRequest;
 use App\Models\ActiveIngredient;
 use App\Models\Batch;
 use App\Models\Category;
+use App\Models\Indication;
 use App\Models\Laboratory;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,13 +28,15 @@ class ProductController extends Controller
     /** GET /admin/products — lista con búsqueda y filtros. */
     public function index(Request $request): Response
     {
-        $filters = $request->only(['search', 'category', 'laboratory', 'status', 'per_page']);
+        $filters = $request->only(['search', 'category', 'laboratory', 'indication', 'status', 'per_page']);
 
-        $products = $this->search(Product::query(), $filters['search'] ?? null)
-            ->with(['activeIngredient:id,name', 'laboratory:id,name', 'category:id,name', 'presentations'])
+        $products = Product::search($filters['search'] ?? null)
+            ->with(['activeIngredient:id,name', 'laboratory:id,name', 'category:id,name', 'presentations', 'indications:id,name'])
             ->withSum('batches as stock', 'quantity')
             ->when($filters['category'] ?? null, fn (Builder $q, $id) => $q->where('category_id', $id))
             ->when($filters['laboratory'] ?? null, fn (Builder $q, $id) => $q->where('laboratory_id', $id))
+            // Filtro por uso / síntoma (ej: todos los productos para "Dolor de cabeza")
+            ->when($filters['indication'] ?? null, fn (Builder $q, $id) => $q->whereHas('indications', fn (Builder $i) => $i->whereKey($id)))
             ->when($filters['status'] ?? null, fn (Builder $q, $s) => $q->where('is_active', $s === 'active'))
             ->orderBy('name')
             ->paginate($this->perPage($request))
@@ -54,8 +57,9 @@ class ProductController extends Controller
     public function store(ProductRequest $request): RedirectResponse
     {
         $product = DB::transaction(function () use ($request) {
-            $product = Product::create($request->safe()->except('presentations'));
+            $product = Product::create($this->productData($request));
             $this->syncPresentations($product, $request->validated('presentations'));
+            $product->indications()->sync(Indication::idsFor($request->validated('indications', [])));
 
             return $product;
         });
@@ -65,14 +69,25 @@ class ProductController extends Controller
 
     public function edit(Product $product): Response
     {
-        return Inertia::render('admin/products/form', ['product' => $product->load('presentations'), ...$this->options()]);
+        $product->load('presentations', 'activeIngredient:id,name', 'indications:id,name');
+
+        return Inertia::render('admin/products/form', [
+            'product' => [
+                ...$product->toArray(),
+                // El formulario escribe el genérico y los usos como texto
+                'generic_name' => $product->activeIngredient?->name,
+                'indication_names' => $product->indications->pluck('name'),
+            ],
+            ...$this->options(),
+        ]);
     }
 
     public function update(ProductRequest $request, Product $product): RedirectResponse
     {
         DB::transaction(function () use ($request, $product) {
-            $product->update($request->safe()->except('presentations'));
+            $product->update($this->productData($request));
             $this->syncPresentations($product, $request->validated('presentations'));
+            $product->indications()->sync(Indication::idsFor($request->validated('indications', [])));
         });
 
         return to_route('admin.products.index')->with('success', "Producto {$product->name} actualizado.");
@@ -97,7 +112,7 @@ class ProductController extends Controller
     {
         $branchId = $request->integer('branch_id') ?: null;
 
-        $products = $this->search(Product::where('is_active', true), $request->query('q'))
+        $products = Product::where('is_active', true)->search($request->query('q'))
             ->with('presentations', 'activeIngredient:id,name')
             ->when($branchId, fn (Builder $q) => $q->withSum(['batches as stock' => fn ($b) => $b->where('branch_id', $branchId)], 'quantity'))
             ->orderBy('name')
@@ -117,16 +132,18 @@ class ProductController extends Controller
         ]))->values());
     }
 
-    /** Búsqueda por nombre, código de barras (producto o presentación) o principio activo. */
-    private function search(Builder $query, ?string $search): Builder
+    /**
+     * Datos del producto para guardar. El nombre genérico llega como texto y se convierte en el principio activo
+     * (si no existe en el catálogo, se crea).
+     *
+     * @return array<string, mixed>
+     */
+    private function productData(ProductRequest $request): array
     {
-        $search = trim((string) $search);
-
-        return $query->when($search !== '', fn (Builder $q) => $q->where(fn (Builder $w) => $w
-            ->where('name', 'like', "%{$search}%")
-            ->orWhere('barcode', $search)
-            ->orWhereHas('presentations', fn (Builder $p) => $p->where('barcode', $search))
-            ->orWhereHas('activeIngredient', fn (Builder $a) => $a->where('name', 'like', "%{$search}%"))));
+        return [
+            ...$request->safe()->except(['presentations', 'indications', 'generic_name']),
+            'active_ingredient_id' => ActiveIngredient::idFor($request->validated('generic_name')),
+        ];
     }
 
     /**
@@ -160,6 +177,7 @@ class ProductController extends Controller
             'categories' => Category::orderBy('name')->get(['id', 'name']),
             'laboratories' => Laboratory::orderBy('name')->get(['id', 'name']),
             'activeIngredients' => ActiveIngredient::orderBy('name')->get(['id', 'name']),
+            'indications' => Indication::orderBy('name')->get(['id', 'name']),
         ];
     }
 }

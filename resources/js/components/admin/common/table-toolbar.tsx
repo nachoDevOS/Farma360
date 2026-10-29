@@ -91,7 +91,8 @@ export function TableToolbar({ perPage, onPerPageChange, search, onSearch, searc
                     </Select>
                     <span>registros</span>
                 </div>
-                {children}
+                {/* Filtros propios (en celular van de a dos por fila: app.css → .toolbar-filters) */}
+                {children && <div className="toolbar-filters flex flex-wrap items-center gap-2">{children}</div>}
             </div>
 
             {/* Derecha: buscador (busca con Enter o tras 3 s sin escribir) */}

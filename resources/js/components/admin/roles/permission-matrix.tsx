@@ -10,9 +10,11 @@
  *   - Al marcar Crear, Editar o Eliminar se marca "Ver" solo (sin ver no se puede usar el módulo).
  *   - Al desmarcar "Ver" se desmarca todo el módulo.
  */
+import { useStackedLabels } from '@/components/admin/common/data-table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { type PermissionCatalog, type PermissionModule } from '@/types/admin/roles';
+import { useRef } from 'react';
 
 interface PermissionMatrixProps {
     catalog: PermissionCatalog;
@@ -51,9 +53,13 @@ export function PermissionMatrix({ catalog, value, onChange }: PermissionMatrixP
         onChange([...next]);
     };
 
+    // En celular cada módulo se ve como tarjeta con sus casillas (app.css → .table-stack)
+    const tableRef = useRef<HTMLTableElement>(null);
+    useStackedLabels(tableRef);
+
     return (
         <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
+            <table ref={tableRef} className="table-stack w-full text-[13px]">
                 <thead className="text-muted-foreground bg-muted/60 border-b text-[11px] font-semibold tracking-wider uppercase">
                     <tr>
                         <th className="px-4 py-2.5 text-left">Módulo</th>

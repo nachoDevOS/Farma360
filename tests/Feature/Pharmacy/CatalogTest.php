@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Pharmacy;
 
+use App\Models\ActiveIngredient;
 use App\Models\Branch;
+use App\Models\Indication;
 use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -110,6 +112,65 @@ class CatalogTest extends TestCase
 
         $this->actingAs($admin)->getJson('/admin/products/search?q=ibupro')->assertOk()->assertJsonPath('0.product_id', $product->id);
         $this->actingAs($admin)->getJson('/admin/products/search?q=999111')->assertOk()->assertJsonCount(2);
+    }
+
+    public function test_products_save_generic_name_uses_and_description()
+    {
+        $admin = $this->userWithRole('Administrador');
+        Indication::create(['name' => 'Fiebre']);
+
+        $this->actingAs($admin)->post('/admin/products', [
+            'name' => 'Dolofen', 'generic_name' => 'paracetamol', 'base_unit' => 'tableta', 'min_stock' => 0,
+            'description' => 'Alivia el dolor y baja la fiebre.',
+            'indications' => ['Dolor de cabeza', 'fiebre', 'Dolor de cabeza'],
+            'presentations' => [['name' => 'Unidad', 'factor' => 1, 'sale_price' => 0.5]],
+        ])->assertRedirect('/admin/products');
+
+        $product = Product::with('activeIngredient', 'indications')->firstOrFail();
+        // El genérico escrito se crea en el catálogo; los usos existentes se reutilizan sin duplicarse
+        $this->assertSame('Paracetamol', $product->activeIngredient->name);
+        $this->assertSame(['Dolor de cabeza', 'Fiebre'], $product->indications->pluck('name')->all());
+        $this->assertSame(2, Indication::count());
+        $this->assertSame('Alivia el dolor y baja la fiebre.', $product->description);
+
+        // Un segundo producto con el mismo genérico usa el mismo principio activo
+        $this->actingAs($admin)->post('/admin/products', [
+            'name' => 'Panadol', 'generic_name' => 'PARACETAMOL', 'base_unit' => 'tableta', 'min_stock' => 0,
+            'presentations' => [['name' => 'Unidad', 'factor' => 1, 'sale_price' => 0.6]],
+        ]);
+        $this->assertSame(1, ActiveIngredient::count());
+
+        // Al editar llegan el genérico y los usos como texto
+        $this->actingAs($admin)->get("/admin/products/{$product->id}/edit")
+            ->assertInertia(fn ($page) => $page
+                ->where('product.generic_name', 'Paracetamol')
+                ->where('product.indication_names', ['Dolor de cabeza', 'Fiebre'])
+                ->has('indications', 2));
+
+        // Quitar los usos al editar los desvincula
+        $this->actingAs($admin)->put("/admin/products/{$product->id}", [
+            'name' => 'Dolofen', 'generic_name' => '', 'base_unit' => 'tableta', 'min_stock' => 0, 'indications' => [],
+            'presentations' => [['id' => $product->presentations()->first()->id, 'name' => 'Unidad', 'factor' => 1, 'sale_price' => 0.5]],
+        ])->assertRedirect('/admin/products');
+        $this->assertCount(0, $product->fresh()->indications);
+        $this->assertNull($product->fresh()->active_ingredient_id);
+    }
+
+    public function test_products_are_found_and_filtered_by_what_they_are_for()
+    {
+        $admin = $this->userWithRole('Administrador');
+        $headache = $this->product(1.0, ['name' => 'Cefalín']);
+        $headache->indications()->sync(Indication::idsFor(['Dolor de cabeza']));
+        $stomach = $this->product(1.0, ['name' => 'Gastrozol', 'description' => 'Reduce la acidez del estómago.']);
+        $this->product(1.0, ['name' => 'Otro']);
+
+        $this->actingAs($admin)->get('/admin/products?search=dolor de cabeza')
+            ->assertInertia(fn ($page) => $page->where('products.total', 1)->where('products.data.0.name', 'Cefalín'));
+        $this->actingAs($admin)->get('/admin/products?search=acidez')
+            ->assertInertia(fn ($page) => $page->where('products.total', 1)->where('products.data.0.id', $stomach->id));
+        $this->actingAs($admin)->get('/admin/products?indication='.$headache->indications->first()->id)
+            ->assertInertia(fn ($page) => $page->where('products.total', 1)->where('products.data.0.indications.0.name', 'Dolor de cabeza'));
+        $this->actingAs($admin)->getJson('/admin/products/search?q=cabeza')->assertOk()->assertJsonPath('0.product_id', $headache->id);
     }
 
     public function test_users_can_be_assigned_to_a_branch()

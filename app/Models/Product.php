@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -16,7 +18,7 @@ class Product extends Model
     use Auditable, HasFactory;
 
     protected $fillable = [
-        'name', 'active_ingredient_id', 'concentration', 'pharmaceutical_form', 'laboratory_id', 'category_id',
+        'name', 'active_ingredient_id', 'concentration', 'pharmaceutical_form', 'description', 'laboratory_id', 'category_id',
         'barcode', 'health_registry', 'base_unit', 'requires_prescription', 'is_controlled', 'min_stock', 'is_active',
     ];
 
@@ -33,6 +35,12 @@ class Product extends Model
     public function activeIngredient(): BelongsTo
     {
         return $this->belongsTo(ActiveIngredient::class);
+    }
+
+    /** Usos / síntomas: para qué sirve ("Dolor de cabeza", "Fiebre"…). */
+    public function indications(): BelongsToMany
+    {
+        return $this->belongsToMany(Indication::class)->orderBy('name');
     }
 
     public function laboratory(): BelongsTo
@@ -53,6 +61,28 @@ class Product extends Model
     public function batches(): HasMany
     {
         return $this->hasMany(Batch::class);
+    }
+
+    /**
+     * BUSCADOR DE PRODUCTOS (catálogo, punto de venta, inventario, compras…).
+     * Encuentra por nombre comercial, nombre genérico (principio activo), código de barras del producto o de una
+     * presentación, uso / síntoma ("dolor de cabeza") o el texto de para qué sirve.
+     * Uso: Product::search($texto)->get()
+     */
+    public function scopeSearch(Builder $query, ?string $term): void
+    {
+        $term = trim((string) $term);
+        if ($term === '') {
+            return;
+        }
+
+        $query->where(fn (Builder $w) => $w
+            ->where('name', 'like', "%{$term}%")
+            ->orWhere('barcode', $term)
+            ->orWhere('description', 'like', "%{$term}%")
+            ->orWhereHas('presentations', fn (Builder $p) => $p->where('barcode', $term))
+            ->orWhereHas('activeIngredient', fn (Builder $a) => $a->where('name', 'like', "%{$term}%"))
+            ->orWhereHas('indications', fn (Builder $i) => $i->where('name', 'like', "%{$term}%")));
     }
 
     /** Nombre para mostrar: "Panadol 500 mg Tableta". */

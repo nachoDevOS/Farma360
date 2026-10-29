@@ -116,7 +116,7 @@ export default function Pos({ session, paymentMethods }: Props) {
                         url={(q) => route('admin.pos.search', { q })}
                         onPick={addLine}
                         itemKey={(i) => i.presentation_id}
-                        placeholder="Buscar producto, principio activo o escanear código de barras…"
+                        placeholder="Buscar producto, genérico, síntoma (ej: dolor de cabeza) o escanear código…"
                         renderItem={(item) => {
                             const out = item.stock_units < item.factor;
                             return (
@@ -129,6 +129,9 @@ export default function Pos({ session, paymentMethods }: Props) {
                                         <p className="text-muted-foreground text-xs">
                                             {item.active_ingredient ?? '—'} · stock {item.stock_units}
                                         </p>
+                                        {item.indications.length > 0 && (
+                                            <p className="text-primary truncate text-xs">Sirve para: {item.indications.join(', ')}</p>
+                                        )}
                                     </div>
                                     <div className="flex shrink-0 items-center gap-2">
                                         {item.promo_discount && <PromoBadge percent={item.promo_discount} />}
@@ -152,9 +155,10 @@ export default function Pos({ session, paymentMethods }: Props) {
                                     return (
                                         <li
                                             key={line.presentation_id}
-                                            className="grid items-center gap-3 px-4 py-3 sm:grid-cols-[1fr_auto_7rem_auto]"
+                                            className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[1fr_auto_7rem_auto]"
                                         >
-                                            <div className="min-w-0">
+                                            {/* En celular: nombre arriba y abajo − cantidad + · total · quitar */}
+                                            <div className="col-span-3 min-w-0 sm:col-span-1">
                                                 <p className="truncate font-medium">{line.product_name}</p>
                                                 <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
                                                     {line.presentation_name} · {money(line.sale_price)}

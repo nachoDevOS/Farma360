@@ -34,7 +34,12 @@ export function CashThumb({ value, className }: { value: number | string; classN
     const [broken, setBroken] = useState(false);
     const isBill = Number(value) >= 10;
 
-    if (broken) return <span className={cn('bg-muted block shrink-0', isBill ? 'h-8 w-16 rounded' : 'size-8 rounded-full', className)} />;
+    if (broken)
+        return (
+            <span
+                className={cn('bg-muted block shrink-0', isBill ? 'h-6 w-12 rounded sm:h-8 sm:w-16' : 'size-7 rounded-full sm:size-8', className)}
+            />
+        );
 
     return (
         <img
@@ -44,7 +49,7 @@ export function CashThumb({ value, className }: { value: number | string; classN
             onError={() => setBroken(true)}
             className={cn(
                 'shrink-0 object-cover shadow-sm ring-1 ring-black/10 select-none',
-                isBill ? 'h-8 w-16 rounded' : 'size-8 rounded-full',
+                isBill ? 'h-6 w-12 rounded sm:h-8 sm:w-16' : 'size-7 rounded-full sm:size-8',
                 className,
             )}
         />
@@ -72,9 +77,9 @@ export function BillCounter({
             <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-muted-foreground border-b text-xs font-semibold tracking-wide uppercase">
                     <tr>
-                        <th className="px-4 py-2.5 text-left">Corte</th>
-                        <th className="px-4 py-2.5 text-center">Cantidad</th>
-                        <th className="px-4 py-2.5 text-right">Subtotal</th>
+                        <th className="px-2 py-2.5 text-left sm:px-4">Corte</th>
+                        <th className="px-2 py-2.5 text-center sm:px-4">Cantidad</th>
+                        <th className="px-2 py-2.5 text-right sm:px-4">Subtotal</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -89,7 +94,7 @@ export function BillCounter({
                                 key={d.id}
                                 className={cn('transition-colors', active ? 'bg-primary/[0.06]' : 'hover:bg-muted/40', firstCoin && 'border-t-2')}
                             >
-                                <td className="px-4 py-2">
+                                <td className="px-2 py-2 sm:px-4">
                                     <button
                                         type="button"
                                         onClick={() => set(d, quantity + 1)}
@@ -98,15 +103,17 @@ export function BillCounter({
                                             set(d, Math.max(0, quantity - 1));
                                         }}
                                         title="Tocar: +1 · Clic derecho: −1"
-                                        className="group flex items-center gap-3 text-left"
+                                        className="group flex items-center gap-2 text-left sm:gap-3"
                                     >
-                                        <span className="flex w-16 justify-center transition-transform group-hover:-translate-y-0.5 group-active:scale-95">
+                                        <span className="flex w-12 justify-center transition-transform group-hover:-translate-y-0.5 group-active:scale-95 sm:w-16">
                                             <CashThumb value={d.value} />
                                         </span>
-                                        <span className={cn('num font-semibold', !active && 'text-foreground/80')}>{cashLabel(value)}</span>
+                                        <span className={cn('num font-semibold whitespace-nowrap', !active && 'text-foreground/80')}>
+                                            {cashLabel(value)}
+                                        </span>
                                     </button>
                                 </td>
-                                <td className="px-4 py-2">
+                                <td className="px-2 py-2 sm:px-4">
                                     <div className="stepper mx-auto" data-active={active}>
                                         <button
                                             type="button"
@@ -148,7 +155,12 @@ export function BillCounter({
                                         </button>
                                     </div>
                                 </td>
-                                <td className={cn('num px-4 py-2 text-right', active ? 'font-semibold' : 'text-muted-foreground/50')}>
+                                <td
+                                    className={cn(
+                                        'num px-2 py-2 text-right whitespace-nowrap sm:px-4',
+                                        active ? 'font-semibold' : 'text-muted-foreground/50',
+                                    )}
+                                >
                                     {money(value * quantity, false)}
                                 </td>
                             </tr>
@@ -157,10 +169,10 @@ export function BillCounter({
                 </tbody>
                 <tfoot>
                     <tr className="bg-muted/40 border-t-2">
-                        <td colSpan={2} className="px-4 py-3 text-right text-sm font-semibold tracking-wide uppercase">
+                        <td colSpan={2} className="px-2 py-3 text-right text-sm font-semibold tracking-wide uppercase sm:px-4">
                             Total
                         </td>
-                        <td className="num text-primary px-4 py-3 text-right text-base font-bold">{money(total)}</td>
+                        <td className="num text-primary px-2 py-3 text-right text-base font-bold whitespace-nowrap sm:px-4">{money(total)}</td>
                     </tr>
                 </tfoot>
             </table>

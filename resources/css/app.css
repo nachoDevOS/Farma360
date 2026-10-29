@@ -8,7 +8,8 @@
 
 /* Fuentes y colores que Tailwind convierte en clases (ej: font-display, bg-primary, text-muted-foreground) */
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
     --font-display: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
     /* Colores de la marca (corporativo azul) */
     --color-brand-blue: #0d6efd;
@@ -535,5 +536,112 @@
     .nav-item:hover > svg,
     .nav-item:hover > span {
         transform: none;
+    }
+}
+
+/* ===== CELULAR: TABLAS COMO TARJETAS =====  (las usa DataTable, components/admin/common/data-table.tsx)
+   Debajo de 768 px cada fila es una tarjeta: la 1ª celda arriba (nombre), el resto "ETIQUETA  valor"
+   (la etiqueta sale de data-label, que copia el título de la columna) y la de acciones abajo a la derecha.
+   Las celdas con la clase `hidden` (ej: hidden md:table-cell) siguen ocultas. */
+@media (max-width: 767.98px) {
+    .table-stack thead {
+        display: none;
+    }
+
+    .table-stack,
+    .table-stack > tbody,
+    .table-stack > tbody > tr {
+        display: block;
+        width: 100%;
+    }
+
+    .table-stack > tbody > tr {
+        padding: 0.875rem 1rem;
+    }
+
+    .table-stack > tbody > tr > td:not(.hidden) {
+        display: flex;
+        min-height: 1.75rem;
+        align-items: center;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        column-gap: 0.35rem;
+        padding: 0.2rem 0;
+        text-align: right;
+    }
+
+    .table-stack > tbody > tr > td::before {
+        content: attr(data-label);
+        flex-shrink: 0;
+        /* La etiqueta va a la izquierda y empuja el valor (aunque tenga varias partes) a la derecha */
+        margin-right: auto;
+        padding-right: 1rem;
+        color: var(--muted-foreground);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-align: left;
+        text-transform: uppercase;
+    }
+
+    /* 1ª celda (nombre, n° de documento…): a lo ancho, sin etiqueta */
+    .table-stack > tbody > tr > td:first-child:not(.hidden) {
+        display: block;
+        padding-bottom: 0.4rem;
+        text-align: left;
+    }
+
+    /* Celdas sin título (acciones): botones a la derecha */
+    .table-stack > tbody > tr > td[data-label='']:not(:first-child) {
+        justify-content: flex-end;
+        padding-top: 0.5rem;
+    }
+
+    .table-stack > tbody > tr > td:first-child::before,
+    .table-stack > tbody > tr > td[data-label='']::before {
+        display: none;
+    }
+
+    /* Celda con dos o más renglones (ej: nombre + "Vendió Luis"): los renglones van uno debajo del otro, a la derecha */
+    .table-stack > tbody > tr > td:not(:first-child):not(.hidden):has(> :is(p, div) + :is(p, div)) {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        justify-items: end;
+    }
+
+    .table-stack > tbody > tr > td:not(:first-child):has(> :is(p, div) + :is(p, div))::before {
+        grid-row: 1 / span 4;
+        align-self: center;
+    }
+
+    .table-stack > tbody > tr > td:not(:first-child):has(> :is(p, div) + :is(p, div)) > * {
+        grid-column: 2;
+    }
+
+    /* Fila de "Sin resultados" */
+    .table-stack > tbody > tr > td[data-empty] {
+        display: block;
+        padding: 3rem 0;
+        text-align: center;
+    }
+}
+
+/* ===== CELULAR: FILTROS DE LA BARRA DE TABLA =====  (TableToolbar)
+   Debajo de 640 px los filtros van de a dos por fila y ocupan todo el ancho. */
+@media (max-width: 639.98px) {
+    .toolbar-filters {
+        display: grid;
+        width: 100%;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .toolbar-filters > * {
+        width: 100% !important;
+        min-width: 0;
+    }
+
+    /* Si queda uno suelto (ej: un solo filtro), ocupa la fila entera */
+    .toolbar-filters > :last-child:nth-child(odd) {
+        grid-column: 1 / -1;
     }
 }

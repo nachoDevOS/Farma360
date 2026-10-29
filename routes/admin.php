@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DenominationController;
+use App\Http\Controllers\Admin\IndicationController;
 use App\Http\Controllers\Admin\InventoryController;
 use App\Http\Controllers\Admin\LaboratoryController;
 use App\Http\Controllers\Admin\ProductController;
@@ -75,6 +76,7 @@ Route::middleware('auth')->group(function () {
             'categories' => [CategoryController::class, 'productos'],
             'laboratories' => [LaboratoryController::class, 'productos'],
             'active-ingredients' => [ActiveIngredientController::class, 'productos'],
+            'indications' => [IndicationController::class, 'productos'],
             'cash-registers' => [CashRegisterController::class, 'caja'],
             'denominations' => [DenominationController::class, 'caja'],
         ];

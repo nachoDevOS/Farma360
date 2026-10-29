@@ -2,11 +2,16 @@
  * PÁGINA: Nuevo / Editar producto  (rutas /admin/products/create y /admin/products/{id}/edit)
  * Datos: app/Http/Controllers/Admin/ProductController.php -> create() / edit()
  *
+ * NOMBRES: comercial (la marca: Dolofen) y genérico (el principio activo: Paracetamol). El genérico se escribe;
+ *   si no existe en el catálogo se crea al guardar.
+ * PARA QUÉ SIRVE: usos / síntomas como etiquetas ("Dolor de cabeza", "Fiebre") + un detalle en texto.
+ *   Se buscan en Productos, Inventario y el Punto de venta.
  * PRESENTACIONES: formas de vender el producto. "Unidades" = cuántas unidades base trae.
  *   Unidad = 1 · Blíster x10 = 10 · Caja x100 = 100. El stock siempre se cuenta en unidades base.
  */
 import { PageHeader } from '@/components/admin/common/page-header';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
+import { TagInput } from '@/components/admin/common/tag-input';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import InputError from '@/components/shared/input-error';
 import { Button } from '@/components/ui/button';
@@ -17,7 +22,7 @@ import AdminLayout from '@/layouts/admin/admin-layout';
 import { money } from '@/lib/format';
 import { type Option, type Product } from '@/types/admin/pharmacy';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { LoaderCircle, Pill, Plus, Trash2 } from 'lucide-react';
+import { HeartPulse, LoaderCircle, Pill, Plus, Trash2 } from 'lucide-react';
 import { FormEventHandler } from 'react';
 
 interface Props {
@@ -25,6 +30,8 @@ interface Props {
     categories: Option[];
     laboratories: Option[];
     activeIngredients: Option[];
+    /** Usos / síntomas que ya existen (se sugieren al escribir) */
+    indications: Option[];
 }
 
 // "type" (no "interface"): useForm de Inertia necesita tipos que acepten cualquier clave
@@ -38,11 +45,13 @@ type PresentationRow = {
 
 const NONE = 'all';
 
-export default function ProductForm({ product, categories, laboratories, activeIngredients }: Props) {
+export default function ProductForm({ product, categories, laboratories, activeIngredients, indications }: Props) {
     const isEdit = product !== null;
     const { data, setData, post, put, processing, errors } = useForm({
         name: product?.name ?? '',
-        active_ingredient_id: product?.active_ingredient_id ? String(product.active_ingredient_id) : '',
+        generic_name: product?.generic_name ?? '',
+        description: product?.description ?? '',
+        indications: product?.indication_names ?? ([] as string[]),
         concentration: product?.concentration ?? '',
         pharmaceutical_form: product?.pharmaceutical_form ?? '',
         laboratory_id: product?.laboratory_id ? String(product.laboratory_id) : '',
@@ -96,17 +105,21 @@ export default function ProductForm({ product, categories, laboratories, activeI
                 <Panel>
                     <PanelHeader title="Datos del producto" />
                     <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
-                        <Field label="Nombre comercial" error={err.name}>
-                            <Input value={data.name} onChange={(e) => setData('name', e.target.value)} placeholder="Panadol" autoFocus />
+                        <Field label="Nombre comercial" hint="La marca. Ej: Dolofen, Panadol" error={err.name}>
+                            <Input value={data.name} onChange={(e) => setData('name', e.target.value)} placeholder="Dolofen" autoFocus />
                         </Field>
-                        <Field label="Principio activo" error={err.active_ingredient_id}>
-                            <SimpleSelect
-                                options={activeIngredients}
-                                value={data.active_ingredient_id}
-                                allLabel="— Ninguno —"
-                                onChange={(v) => setData('active_ingredient_id', optional(v))}
-                                className="h-10"
+                        <Field label="Nombre genérico" hint="El principio activo. Ej: Paracetamol" error={err.generic_name}>
+                            <Input
+                                list="generic-names"
+                                value={data.generic_name}
+                                onChange={(e) => setData('generic_name', e.target.value)}
+                                placeholder="Paracetamol"
                             />
+                            <datalist id="generic-names">
+                                {activeIngredients.map((a) => (
+                                    <option key={a.id} value={a.name} />
+                                ))}
+                            </datalist>
                         </Field>
                         <Field label="Concentración" error={err.concentration}>
                             <Input value={data.concentration} onChange={(e) => setData('concentration', e.target.value)} placeholder="500 mg" />
@@ -170,6 +183,35 @@ export default function ProductForm({ product, categories, laboratories, activeI
                                 <Flag checked={data.is_active} onChange={(v) => setData('is_active', v)} label="Activo" />
                             </div>
                         </div>
+                    </div>
+                </Panel>
+
+                <Panel>
+                    <PanelHeader
+                        icon={HeartPulse}
+                        title="¿Para qué sirve?"
+                        description='Usos y síntomas para encontrarlo rápido: al buscar "dolor de cabeza" aparece en el punto de venta.'
+                    />
+                    <div className="grid gap-4 p-5 lg:grid-cols-2">
+                        <Field label="Usos / síntomas" hint="Escribe y presiona Enter" error={err.indications ?? err['indications.0']}>
+                            <TagInput
+                                value={data.indications}
+                                onChange={(value) => setData('indications', value)}
+                                suggestions={indications.map((i) => i.name)}
+                                placeholder="Dolor de cabeza, Fiebre…"
+                                invalid={!!err.indications}
+                            />
+                        </Field>
+                        <Field label="Detalle" hint="Opcional" error={err.description}>
+                            <textarea
+                                value={data.description}
+                                onChange={(e) => setData('description', e.target.value)}
+                                rows={3}
+                                maxLength={2000}
+                                placeholder="Alivia el dolor leve a moderado y baja la fiebre."
+                                className="border-input bg-card placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/20 dark:bg-background/60 w-full rounded-md border px-3 py-2 text-sm shadow-xs transition-[border-color,box-shadow] outline-none focus-visible:ring-3"
+                            />
+                        </Field>
                     </div>
                 </Panel>
 
@@ -258,10 +300,13 @@ export default function ProductForm({ product, categories, laboratories, activeI
     );
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: React.ReactNode }) {
     return (
         <div className="grid content-start gap-2">
-            <Label>{label}</Label>
+            <div className="flex items-baseline justify-between gap-2">
+                <Label>{label}</Label>
+                {hint && <span className="text-muted-foreground truncate text-xs">{hint}</span>}
+            </div>
             {children}
             <InputError message={error} />
         </div>

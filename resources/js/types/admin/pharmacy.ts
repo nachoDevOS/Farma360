@@ -30,6 +30,8 @@ export interface Product {
     active_ingredient_id: number | null;
     concentration: string | null;
     pharmaceutical_form: string | null;
+    /** Para qué sirve, en palabras */
+    description: string | null;
     laboratory_id: number | null;
     category_id: number | null;
     barcode: string | null;
@@ -41,6 +43,11 @@ export interface Product {
     is_active: boolean;
     presentations: Presentation[];
     active_ingredient?: Option | null;
+    /** Usos / síntomas ("Dolor de cabeza", "Fiebre"…) */
+    indications?: Option[];
+    /** Solo al editar: el genérico y los usos como texto (ProductController@edit) */
+    generic_name?: string | null;
+    indication_names?: string[];
     laboratory?: Option | null;
     category?: Option | null;
     /** Suma de los lotes (en la lista de productos y de inventario) */
@@ -68,6 +75,8 @@ export type PosLookup = {
     product_id: number;
     product_name: string;
     active_ingredient: string | null;
+    /** Usos / síntomas, para mostrar "Sirve para: …" en el resultado */
+    indications: string[];
     requires_prescription: boolean;
     is_controlled: boolean;
     presentation_id: number;

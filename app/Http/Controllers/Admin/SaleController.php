@@ -79,13 +79,10 @@ class SaleController extends Controller
             return response()->json([]);
         }
 
+        // Busca también por uso / síntoma: "dolor de cabeza" trae todo lo que sirve para eso
         $products = Product::where('is_active', true)
-            ->where(fn (Builder $w) => $w
-                ->where('name', 'like', "%{$search}%")
-                ->orWhere('barcode', $search)
-                ->orWhereHas('presentations', fn (Builder $p) => $p->where('barcode', $search))
-                ->orWhereHas('activeIngredient', fn (Builder $a) => $a->where('name', 'like', "%{$search}%")))
-            ->with('presentations', 'activeIngredient:id,name')
+            ->search($search)
+            ->with('presentations', 'activeIngredient:id,name', 'indications:id,name')
             ->orderBy('name')
             ->limit(20)
             ->get();
@@ -107,6 +104,7 @@ class SaleController extends Controller
                 'product_id' => $p->id,
                 'product_name' => $p->fullName(),
                 'active_ingredient' => $p->activeIngredient?->name,
+                'indications' => $p->indications->pluck('name'),
                 'requires_prescription' => $p->requires_prescription,
                 'is_controlled' => $p->is_controlled,
                 'presentation_id' => $pres->id,

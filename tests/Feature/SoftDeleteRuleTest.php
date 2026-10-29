@@ -19,11 +19,13 @@ class SoftDeleteRuleTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** Tablas internas de Laravel y tablas pivote de Spatie: no guardan datos del negocio. */
+    /** Tablas internas de Laravel y tablas pivote: no guardan datos del negocio. */
     private const EXCLUDED_TABLES = [
         'migrations', 'password_reset_tokens', 'sessions', 'cache', 'cache_locks',
         'jobs', 'job_batches', 'failed_jobs',
         'model_has_roles', 'model_has_permissions', 'role_has_permissions',
+        // Pivote producto ↔ uso / síntoma
+        'indication_product',
     ];
 
     private const AUDIT_COLUMNS = ['registerUser_id', 'registerRole', 'deleteUser_id', 'deleteRole', 'deleted_at'];

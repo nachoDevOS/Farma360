@@ -43,24 +43,26 @@ export function StatCard({ icon: Icon, label, value, hint, tone = 'blue', colorV
             type={onClick ? 'button' : undefined}
             onClick={onClick}
             className={cn(
-                'surface flex items-start gap-4 rounded-xl p-5 text-left',
+                'surface flex min-w-0 flex-col gap-3 rounded-xl p-4 text-left sm:flex-row sm:items-start sm:gap-4 sm:p-5',
                 onClick && 'hover:border-foreground/20 cursor-pointer transition-[border-color,box-shadow] hover:shadow-md',
                 className,
             )}
         >
-            <div className={cn('flex size-11 shrink-0 items-center justify-center rounded-xl', tones[tone].icon)}>
-                <Icon className="size-5" />
+            <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-xl sm:size-11', tones[tone].icon)}>
+                <Icon className="size-[18px] sm:size-5" />
             </div>
             <div className="min-w-0 flex-1">
-                <p className="text-muted-foreground text-sm">{label}</p>
-                <p className={cn('font-display num mt-1 truncate text-2xl leading-tight font-bold', colorValue && tones[tone].value)}>{value}</p>
+                <p className="text-muted-foreground text-xs sm:text-sm">{label}</p>
+                <p className={cn('font-display num mt-1 truncate text-xl leading-tight font-bold sm:text-2xl', colorValue && tones[tone].value)}>
+                    {value}
+                </p>
                 {hint && <p className="text-muted-foreground mt-1 truncate text-xs">{hint}</p>}
             </div>
         </Tag>
     );
 }
 
-/** Grilla responsiva de tarjetas: 1 columna en móvil, 2 en tablet, `cols` en escritorio. */
+/** Grilla responsiva de tarjetas: 2 columnas en celular y tablet, `cols` en escritorio. */
 export function StatGrid({ children, cols = 4 }: { children: React.ReactNode; cols?: 2 | 3 | 4 }) {
-    return <div className={cn('grid gap-4 sm:grid-cols-2', cols === 3 && 'xl:grid-cols-3', cols === 4 && 'xl:grid-cols-4')}>{children}</div>;
+    return <div className={cn('grid grid-cols-2 gap-3 sm:gap-4', cols === 3 && 'xl:grid-cols-3', cols === 4 && 'xl:grid-cols-4')}>{children}</div>;
 }

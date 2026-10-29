@@ -18,6 +18,14 @@ export function NavMain({ items, label, className }: { items: NavItem[]; label?:
     const page = usePage();
     const can = useCan();
     const visible = items.filter((item) => !item.permission || can(item.permission));
+    // Opción activa: la dirección es la de la opción o está "dentro" de ella (/admin/cash/sessions/3 → Turnos de caja).
+    // Se compara por tramos ("/admin/cash" no marca "/admin/cash-registers") y si dos opciones coinciden gana la más larga.
+    const path = page.url.split('?')[0];
+    const matches = (url: string) => path === url || path.startsWith(`${url}/`);
+    const activeUrl = visible
+        .map((item) => item.url)
+        .filter(matches)
+        .sort((a, b) => b.length - a.length)[0];
 
     if (visible.length === 0) return null;
 
@@ -32,12 +40,7 @@ export function NavMain({ items, label, className }: { items: NavItem[]; label?:
             <SidebarMenu className="gap-0.5">
                 {visible.map((item) => (
                     <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton
-                            asChild
-                            isActive={page.url.startsWith(item.url)}
-                            tooltip={{ children: item.title }}
-                            className={navButtonClass}
-                        >
+                        <SidebarMenuButton asChild isActive={item.url === activeUrl} tooltip={{ children: item.title }} className={navButtonClass}>
                             <Link href={item.url} prefetch>
                                 {item.icon && <item.icon />}
                                 <span>{item.title}</span>
