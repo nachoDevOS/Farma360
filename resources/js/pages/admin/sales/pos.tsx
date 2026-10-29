@@ -1,7 +1,7 @@
 /*
  * PÁGINA: Punto de venta  (ruta /admin/pos)
  *
- * 1. Buscar (nombre, principio activo o código de barras con lector) → se agrega al carrito.
+ * 1. Buscar (nombre, genérico, síntoma o código de barras con lector) → se agrega al carrito.
  * 2. Cantidades por presentación (unidad, blíster, caja).
  * 3. Cliente (opcional), receta si hay controlados, y formas de pago (se pueden combinar).
  * El precio final lo calcula Laravel (SaleService): usa el lote que vence primero y su promoción.
@@ -127,7 +127,7 @@ export default function Pos({ session, paymentMethods }: Props) {
                                             {item.is_controlled && <span className="ml-2 text-xs font-semibold text-red-600">CONTROLADO</span>}
                                         </p>
                                         <p className="text-muted-foreground text-xs">
-                                            {item.active_ingredient ?? '—'} · stock {item.stock_units}
+                                            {item.generic_name ?? '—'} · stock {item.stock_units}
                                         </p>
                                         {item.indications.length > 0 && (
                                             <p className="text-primary truncate text-xs">Sirve para: {item.indications.join(', ')}</p>

@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Admin\ActiveIngredientController;
 use App\Http\Controllers\Admin\BranchController;
 use App\Http\Controllers\Admin\CashController;
 use App\Http\Controllers\Admin\CashRegisterController;
@@ -75,7 +74,6 @@ Route::middleware('auth')->group(function () {
             'customers' => [CustomerController::class, 'clientes'],
             'categories' => [CategoryController::class, 'productos'],
             'laboratories' => [LaboratoryController::class, 'productos'],
-            'active-ingredients' => [ActiveIngredientController::class, 'productos'],
             'indications' => [IndicationController::class, 'productos'],
             'cash-registers' => [CashRegisterController::class, 'caja'],
             'denominations' => [DenominationController::class, 'caja'],

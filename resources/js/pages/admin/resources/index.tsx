@@ -1,6 +1,6 @@
 /*
  * PÁGINA GENÉRICA de catálogos simples: sucursales, proveedores, clientes, categorías, laboratorios,
- * principios activos, cajas y billetes. Todo lo que cambia entre uno y otro (título, campos, columnas,
+ * usos, cajas y billetes. Todo lo que cambia entre uno y otro (título, campos, columnas,
  * rutas y permisos) lo manda Laravel en la prop `resource` (ver app/Http/Controllers/Admin/ResourceController.php).
  */
 import { ConfirmDialog } from '@/components/admin/common/confirm-dialog';
@@ -28,7 +28,6 @@ import {
     Check,
     Coins,
     Contact,
-    FlaskConical,
     FlaskRound,
     LoaderCircle,
     type LucideIcon,
@@ -51,7 +50,6 @@ const resourceIcons: Record<string, LucideIcon> = {
     'admin.customers': Contact,
     'admin.categories': Tags,
     'admin.laboratories': FlaskRound,
-    'admin.active-ingredients': FlaskConical,
     'admin.indications': Stethoscope,
     'admin.cash-registers': Monitor,
     'admin.denominations': Coins,

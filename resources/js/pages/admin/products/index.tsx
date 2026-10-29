@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 import { type Paginated } from '@/types';
 import { type ListFilters, type Option, type Product } from '@/types/admin/pharmacy';
 import { Head, Link, router } from '@inertiajs/react';
-import { FlaskConical, Pencil, Pill, Plus, Stethoscope, Tags, Trash2 } from 'lucide-react';
+import { Pencil, Pill, Plus, Stethoscope, Tags, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface Props {
@@ -50,11 +50,6 @@ export default function ProductsIndex({ products, filters, categories, laborator
                             <Button asChild variant="outline" size="sm">
                                 <Link href={route('admin.categories.index')}>
                                     <Tags /> Categorías
-                                </Link>
-                            </Button>
-                            <Button asChild variant="outline" size="sm">
-                                <Link href={route('admin.active-ingredients.index')}>
-                                    <FlaskConical /> Genéricos
                                 </Link>
                             </Button>
                             <Button asChild variant="outline" size="sm">
@@ -124,7 +119,7 @@ export default function ProductsIndex({ products, filters, categories, laborator
                                             {product.name} <span className="text-muted-foreground font-normal">{product.concentration}</span>
                                         </p>
                                         <p className="text-muted-foreground text-xs">
-                                            {[product.active_ingredient?.name, product.pharmaceutical_form, product.category?.name]
+                                            {[product.generic_name, product.pharmaceutical_form, product.category?.name]
                                                 .filter(Boolean)
                                                 .join(' · ') || '—'}
                                             {product.is_controlled && <span className="ml-2 font-medium text-red-600">Controlado</span>}

@@ -60,7 +60,7 @@ export default function InventoryShow({ product, branches, branchId, stock, batc
                 <PageHeader
                     icon={Boxes}
                     title={`${product.name} ${product.concentration ?? ''}`}
-                    description={[product.active_ingredient?.name, product.pharmaceutical_form, product.laboratory?.name].filter(Boolean).join(' · ')}
+                    description={[product.generic_name, product.pharmaceutical_form, product.laboratory?.name].filter(Boolean).join(' · ')}
                     actions={
                         <>
                             {branches.length > 1 && (

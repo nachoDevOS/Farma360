@@ -20,7 +20,6 @@ import {
     ClipboardList,
     Coins,
     Contact,
-    FlaskConical,
     FlaskRound,
     History,
     LayoutGrid,
@@ -70,7 +69,6 @@ const inventoryNavItems: NavItem[] = [
 const catalogNavItems: NavItem[] = [
     { title: 'Categorías', url: '/admin/categories', icon: Tags, permission: 'productos.ver' },
     { title: 'Laboratorios', url: '/admin/laboratories', icon: FlaskRound, permission: 'productos.ver' },
-    { title: 'Genéricos', url: '/admin/active-ingredients', icon: FlaskConical, permission: 'productos.ver' },
     { title: 'Usos y síntomas', url: '/admin/indications', icon: Stethoscope, permission: 'productos.ver' },
 ];
 

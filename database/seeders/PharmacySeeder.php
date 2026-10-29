@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\ActiveIngredient;
 use App\Models\Branch;
 use App\Models\CashRegister;
 use App\Models\Category;
@@ -100,7 +99,6 @@ class PharmacySeeder extends Seeder
             ->mapWithKeys(fn ($name) => [$name => Category::create(['name' => $name])]);
         $labs = collect(['Laboratorios Andinos', 'Farmacéutica del Oriente', 'Genéricos Bolivia', 'Lab. Amazonía'])
             ->map(fn ($name) => Laboratory::create(['name' => $name, 'country' => 'Bolivia']));
-        $ingredient = fn (string $name) => ActiveIngredient::firstOrCreate(['name' => $name]);
 
         // Para qué sirve cada producto: [detalle, [usos / síntomas]] (se buscan en el catálogo y en el punto de venta)
         $uses = [
@@ -117,7 +115,7 @@ class PharmacySeeder extends Seeder
             'clonazepam' => ['Ansiolítico. Medicamento controlado: venta con receta retenida.', ['Ansiedad', 'Insomnio']],
         ];
 
-        // [clave, nombre, principio activo, concentración, forma, categoría, unidad base, [presentación => [unidades, precio]], controlado]
+        // [clave, nombre comercial, nombre genérico, concentración, forma, categoría, unidad base, [presentación => [unidades, precio]], controlado]
         $rows = [
             ['paracetamol', 'Dolofen', 'Paracetamol', '500 mg', 'Tableta', 'Analgésicos', 'tableta', ['Unidad' => [1, 0.50], 'Blíster x10' => [10, 4.50], 'Caja x100' => [100, 40]], false],
             ['paracetamol_gen', 'Paracetamol genérico', 'Paracetamol', '500 mg', 'Tableta', 'Analgésicos', 'tableta', ['Unidad' => [1, 0.30], 'Caja x100' => [100, 25]], false],
@@ -136,7 +134,7 @@ class PharmacySeeder extends Seeder
         foreach ($rows as $i => [$key, $name, $active, $concentration, $form, $category, $unit, $presentations, $controlled]) {
             $product = Product::create([
                 'name' => $name,
-                'active_ingredient_id' => $ingredient($active)->id,
+                'generic_name' => $active,
                 'concentration' => $concentration,
                 'pharmaceutical_form' => $form,
                 'description' => $uses[$key][0],

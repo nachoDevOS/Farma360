@@ -2,8 +2,8 @@
  * PÁGINA: Nuevo / Editar producto  (rutas /admin/products/create y /admin/products/{id}/edit)
  * Datos: app/Http/Controllers/Admin/ProductController.php -> create() / edit()
  *
- * NOMBRES: comercial (la marca: Dolofen) y genérico (el principio activo: Paracetamol). El genérico se escribe;
- *   si no existe en el catálogo se crea al guardar.
+ * NOMBRES: comercial (la marca: Dolofen) y genérico (la sustancia: Paracetamol). El genérico se escribe;
+ *   se sugieren los que ya usan otros productos.
  * PARA QUÉ SIRVE: usos / síntomas como etiquetas ("Dolor de cabeza", "Fiebre") + un detalle en texto.
  *   Se buscan en Productos, Inventario y el Punto de venta.
  * PRESENTACIONES: formas de vender el producto. "Unidades" = cuántas unidades base trae.
@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/admin/common/page-header';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { TagInput } from '@/components/admin/common/tag-input';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
+import { BaseUnitHelp, COMMON_BASE_UNITS } from '@/components/admin/products/base-unit-help';
 import InputError from '@/components/shared/input-error';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -29,7 +30,8 @@ interface Props {
     product: Product | null;
     categories: Option[];
     laboratories: Option[];
-    activeIngredients: Option[];
+    /** Genéricos ya usados en otros productos (se sugieren al escribir) */
+    genericNames: string[];
     /** Usos / síntomas que ya existen (se sugieren al escribir) */
     indications: Option[];
 }
@@ -45,7 +47,7 @@ type PresentationRow = {
 
 const NONE = 'all';
 
-export default function ProductForm({ product, categories, laboratories, activeIngredients, indications }: Props) {
+export default function ProductForm({ product, categories, laboratories, genericNames, indications }: Props) {
     const isEdit = product !== null;
     const { data, setData, post, put, processing, errors } = useForm({
         name: product?.name ?? '',
@@ -108,7 +110,7 @@ export default function ProductForm({ product, categories, laboratories, activeI
                         <Field label="Nombre comercial" hint="La marca. Ej: Dolofen, Panadol" error={err.name}>
                             <Input value={data.name} onChange={(e) => setData('name', e.target.value)} placeholder="Dolofen" autoFocus />
                         </Field>
-                        <Field label="Nombre genérico" hint="El principio activo. Ej: Paracetamol" error={err.generic_name}>
+                        <Field label="Nombre genérico" hint="La sustancia. Ej: Paracetamol" error={err.generic_name}>
                             <Input
                                 list="generic-names"
                                 value={data.generic_name}
@@ -116,8 +118,8 @@ export default function ProductForm({ product, categories, laboratories, activeI
                                 placeholder="Paracetamol"
                             />
                             <datalist id="generic-names">
-                                {activeIngredients.map((a) => (
-                                    <option key={a.id} value={a.name} />
+                                {genericNames.map((name) => (
+                                    <option key={name} value={name} />
                                 ))}
                             </datalist>
                         </Field>
@@ -155,12 +157,21 @@ export default function ProductForm({ product, categories, laboratories, activeI
                         <Field label="Registro sanitario" error={err.health_registry}>
                             <Input value={data.health_registry} onChange={(e) => setData('health_registry', e.target.value)} />
                         </Field>
-                        <Field label="Unidad base (cómo se cuenta el stock)" error={err.base_unit}>
+                        <Field label="Unidad base" hint={<BaseUnitHelp />} error={err.base_unit}>
                             <Input
+                                list="base-units"
                                 value={data.base_unit}
                                 onChange={(e) => setData('base_unit', e.target.value)}
                                 placeholder="tableta, frasco, ampolla…"
                             />
+                            <datalist id="base-units">
+                                {COMMON_BASE_UNITS.map((unit) => (
+                                    <option key={unit} value={unit} />
+                                ))}
+                            </datalist>
+                            <p className="text-muted-foreground text-xs">
+                                Lo más pequeño que vendes. Ej: tableta (si vendes sueltas), frasco (jarabe).
+                            </p>
                         </Field>
                         <Field label={`Stock mínimo (en ${data.base_unit || 'unidades'})`} error={err.min_stock}>
                             <Input type="number" min={0} value={data.min_stock} onChange={(e) => setData('min_stock', e.target.value)} />
@@ -218,18 +229,21 @@ export default function ProductForm({ product, categories, laboratories, activeI
                 <Panel>
                     <PanelHeader
                         title="Presentaciones y precios"
-                        description={`"Unidades" = cuántas ${data.base_unit || 'unidades'} trae cada presentación.`}
+                        description={`"Unidades" = cuántas ${data.base_unit || 'unidades'} trae cada presentación (una caja de 10 blísteres de 10 = 100).`}
                         aside={
-                            <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                    setData('presentations', [...data.presentations, { name: '', factor: '', sale_price: '', barcode: '' }])
-                                }
-                            >
-                                <Plus /> Agregar
-                            </Button>
+                            <div className="flex items-center gap-3">
+                                <BaseUnitHelp label="¿Cómo lleno esto?" />
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                        setData('presentations', [...data.presentations, { name: '', factor: '', sale_price: '', barcode: '' }])
+                                    }
+                                >
+                                    <Plus /> Agregar
+                                </Button>
+                            </div>
                         }
                     />
                     <div className="grid gap-3 p-5">
@@ -300,12 +314,12 @@ export default function ProductForm({ product, categories, laboratories, activeI
     );
 }
 
-function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: React.ReactNode }) {
+function Field({ label, hint, error, children }: { label: string; hint?: React.ReactNode; error?: string; children: React.ReactNode }) {
     return (
         <div className="grid content-start gap-2">
             <div className="flex items-baseline justify-between gap-2">
                 <Label>{label}</Label>
-                {hint && <span className="text-muted-foreground truncate text-xs">{hint}</span>}
+                {hint && <span className="text-muted-foreground shrink-0 truncate text-xs">{hint}</span>}
             </div>
             {children}
             <InputError message={error} />

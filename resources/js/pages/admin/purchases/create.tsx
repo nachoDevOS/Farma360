@@ -126,7 +126,7 @@ export default function PurchaseCreate({ branches, suppliers }: Props) {
                 <Panel>
                     <PanelHeader
                         title="Productos recibidos"
-                        description="Busca por nombre, código de barras o principio activo y elige la presentación comprada."
+                        description="Busca por nombre, genérico o código de barras y elige la presentación comprada."
                     />
                     <div className="grid gap-4 p-5">
                         <SearchPicker<ProductLookup>
@@ -138,7 +138,7 @@ export default function PurchaseCreate({ branches, suppliers }: Props) {
                                 <div className="flex items-center justify-between gap-3">
                                     <span>
                                         <span className="font-medium">{item.product_name}</span> · {item.presentation_name}
-                                        {item.active_ingredient && <span className="text-muted-foreground"> ({item.active_ingredient})</span>}
+                                        {item.generic_name && <span className="text-muted-foreground"> ({item.generic_name})</span>}
                                     </span>
                                     <span className="text-muted-foreground text-xs whitespace-nowrap">
                                         {item.factor} {item.base_unit}

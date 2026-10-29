@@ -82,7 +82,7 @@ class SaleController extends Controller
         // Busca también por uso / síntoma: "dolor de cabeza" trae todo lo que sirve para eso
         $products = Product::where('is_active', true)
             ->search($search)
-            ->with('presentations', 'activeIngredient:id,name', 'indications:id,name')
+            ->with('presentations', 'indications:id,name')
             ->orderBy('name')
             ->limit(20)
             ->get();
@@ -103,7 +103,7 @@ class SaleController extends Controller
             return $p->presentations->map(fn ($pres) => [
                 'product_id' => $p->id,
                 'product_name' => $p->fullName(),
-                'active_ingredient' => $p->activeIngredient?->name,
+                'generic_name' => $p->generic_name,
                 'indications' => $p->indications->pluck('name'),
                 'requires_prescription' => $p->requires_prescription,
                 'is_controlled' => $p->is_controlled,

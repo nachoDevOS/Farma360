@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Pharmacy;
 
-use App\Models\ActiveIngredient;
 use App\Models\Branch;
 use App\Models\Indication;
 use App\Models\Product;
@@ -103,12 +102,10 @@ class CatalogTest extends TestCase
         $this->assertNotSoftDeleted($product);
     }
 
-    public function test_product_search_finds_by_active_ingredient_and_barcode()
+    public function test_product_search_finds_by_generic_name_and_barcode()
     {
         $admin = $this->userWithRole('Administrador');
-        $this->actingAs($admin)->post('/admin/active-ingredients', ['name' => 'Ibuprofeno']);
-        $product = $this->product(1.0, ['name' => 'Febrax', 'barcode' => '999111']);
-        $product->update(['active_ingredient_id' => 1]);
+        $product = $this->product(1.0, ['name' => 'Febrax', 'generic_name' => 'Ibuprofeno', 'barcode' => '999111']);
 
         $this->actingAs($admin)->getJson('/admin/products/search?q=ibupro')->assertOk()->assertJsonPath('0.product_id', $product->id);
         $this->actingAs($admin)->getJson('/admin/products/search?q=999111')->assertOk()->assertJsonCount(2);
@@ -126,25 +123,26 @@ class CatalogTest extends TestCase
             'presentations' => [['name' => 'Unidad', 'factor' => 1, 'sale_price' => 0.5]],
         ])->assertRedirect('/admin/products');
 
-        $product = Product::with('activeIngredient', 'indications')->firstOrFail();
-        // El genérico escrito se crea en el catálogo; los usos existentes se reutilizan sin duplicarse
-        $this->assertSame('Paracetamol', $product->activeIngredient->name);
+        $product = Product::with('indications')->firstOrFail();
+        // El genérico se guarda con mayúscula inicial; los usos existentes se reutilizan sin duplicarse
+        $this->assertSame('Paracetamol', $product->generic_name);
         $this->assertSame(['Dolor de cabeza', 'Fiebre'], $product->indications->pluck('name')->all());
         $this->assertSame(2, Indication::count());
         $this->assertSame('Alivia el dolor y baja la fiebre.', $product->description);
 
-        // Un segundo producto con el mismo genérico usa el mismo principio activo
+        // Un segundo producto con el mismo genérico (otras mayúsculas) queda escrito igual que el primero
         $this->actingAs($admin)->post('/admin/products', [
             'name' => 'Panadol', 'generic_name' => 'PARACETAMOL', 'base_unit' => 'tableta', 'min_stock' => 0,
             'presentations' => [['name' => 'Unidad', 'factor' => 1, 'sale_price' => 0.6]],
         ]);
-        $this->assertSame(1, ActiveIngredient::count());
+        $this->assertSame(['Paracetamol'], Product::pluck('generic_name')->unique()->values()->all());
 
-        // Al editar llegan el genérico y los usos como texto
+        // Al editar llegan el genérico, los usos como texto y los genéricos ya usados para sugerir
         $this->actingAs($admin)->get("/admin/products/{$product->id}/edit")
             ->assertInertia(fn ($page) => $page
                 ->where('product.generic_name', 'Paracetamol')
                 ->where('product.indication_names', ['Dolor de cabeza', 'Fiebre'])
+                ->where('genericNames', ['Paracetamol'])
                 ->has('indications', 2));
 
         // Quitar los usos al editar los desvincula
@@ -153,7 +151,7 @@ class CatalogTest extends TestCase
             'presentations' => [['id' => $product->presentations()->first()->id, 'name' => 'Unidad', 'factor' => 1, 'sale_price' => 0.5]],
         ])->assertRedirect('/admin/products');
         $this->assertCount(0, $product->fresh()->indications);
-        $this->assertNull($product->fresh()->active_ingredient_id);
+        $this->assertNull($product->fresh()->generic_name);
     }
 
     public function test_products_are_found_and_filtered_by_what_they_are_for()

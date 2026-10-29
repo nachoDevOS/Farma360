@@ -33,7 +33,7 @@ class ProductRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            // Nombre genérico (principio activo). Se escribe; si no existe en el catálogo se crea al guardar.
+            // Nombre genérico (la sustancia: Paracetamol). Texto libre; se sugieren los ya usados en otros productos.
             'generic_name' => ['nullable', 'string', 'max:255'],
             'concentration' => ['nullable', 'string', 'max:60'],
             'pharmaceutical_form' => ['nullable', 'string', 'max:60'],

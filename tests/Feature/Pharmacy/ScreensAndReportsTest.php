@@ -41,7 +41,7 @@ class ScreensAndReportsTest extends TestCase
             '/admin/customers' => 'admin/resources/index',
             '/admin/categories' => 'admin/resources/index',
             '/admin/laboratories' => 'admin/resources/index',
-            '/admin/active-ingredients' => 'admin/resources/index',
+            '/admin/indications' => 'admin/resources/index',
             '/admin/cash-registers' => 'admin/resources/index',
             '/admin/denominations' => 'admin/resources/index',
             '/admin/products' => 'admin/products/index',

@@ -27,7 +27,8 @@ export interface Presentation {
 export interface Product {
     id: number;
     name: string;
-    active_ingredient_id: number | null;
+    /** Nombre genérico (la sustancia: Paracetamol) */
+    generic_name: string | null;
     concentration: string | null;
     pharmaceutical_form: string | null;
     /** Para qué sirve, en palabras */
@@ -42,11 +43,9 @@ export interface Product {
     min_stock: number;
     is_active: boolean;
     presentations: Presentation[];
-    active_ingredient?: Option | null;
     /** Usos / síntomas ("Dolor de cabeza", "Fiebre"…) */
     indications?: Option[];
-    /** Solo al editar: el genérico y los usos como texto (ProductController@edit) */
-    generic_name?: string | null;
+    /** Solo al editar: los usos como texto (ProductController@edit) */
     indication_names?: string[];
     laboratory?: Option | null;
     category?: Option | null;
@@ -60,7 +59,7 @@ export interface Product {
 export interface ProductLookup {
     product_id: number;
     product_name: string;
-    active_ingredient: string | null;
+    generic_name: string | null;
     base_unit: string;
     presentation_id: number;
     presentation_name: string;
@@ -74,7 +73,7 @@ export interface ProductLookup {
 export type PosLookup = {
     product_id: number;
     product_name: string;
-    active_ingredient: string | null;
+    generic_name: string | null;
     /** Usos / síntomas, para mostrar "Sirve para: …" en el resultado */
     indications: string[];
     requires_prescription: boolean;

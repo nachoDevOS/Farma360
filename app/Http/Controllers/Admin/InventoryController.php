@@ -38,7 +38,6 @@ class InventoryController extends Controller
         $search = trim((string) ($filters['search'] ?? ''));
 
         $products = Product::query()
-            ->with('activeIngredient:id,name')
             ->withSum(['batches as stock' => fn ($q) => $q->where('branch_id', $branchId)], 'quantity')
             ->withSum(['batches as stock_value' => fn ($q) => $q->where('branch_id', $branchId)], DB::raw('quantity * unit_cost'))
             ->withMin(['batches as next_expiry' => fn ($q) => $q->where('branch_id', $branchId)->where('quantity', '>', 0)], 'expires_at')
@@ -78,7 +77,7 @@ class InventoryController extends Controller
         abort_unless($branches->contains('id', $branchId), 403);
 
         return Inertia::render('admin/inventory/show', [
-            'product' => $product->load('presentations', 'activeIngredient:id,name', 'laboratory:id,name'),
+            'product' => $product->load('presentations', 'laboratory:id,name'),
             'branches' => $branches,
             'branchId' => $branchId,
             'stock' => $this->inventory->stock($product->id, $branchId),

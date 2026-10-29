@@ -18,7 +18,7 @@ class Product extends Model
     use Auditable, HasFactory;
 
     protected $fillable = [
-        'name', 'active_ingredient_id', 'concentration', 'pharmaceutical_form', 'description', 'laboratory_id', 'category_id',
+        'name', 'generic_name', 'concentration', 'pharmaceutical_form', 'description', 'laboratory_id', 'category_id',
         'barcode', 'health_registry', 'base_unit', 'requires_prescription', 'is_controlled', 'min_stock', 'is_active',
     ];
 
@@ -30,11 +30,6 @@ class Product extends Model
             'is_active' => 'boolean',
             'min_stock' => 'integer',
         ];
-    }
-
-    public function activeIngredient(): BelongsTo
-    {
-        return $this->belongsTo(ActiveIngredient::class);
     }
 
     /** Usos / síntomas: para qué sirve ("Dolor de cabeza", "Fiebre"…). */
@@ -65,7 +60,7 @@ class Product extends Model
 
     /**
      * BUSCADOR DE PRODUCTOS (catálogo, punto de venta, inventario, compras…).
-     * Encuentra por nombre comercial, nombre genérico (principio activo), código de barras del producto o de una
+     * Encuentra por nombre comercial, nombre genérico, código de barras del producto o de una
      * presentación, uso / síntoma ("dolor de cabeza") o el texto de para qué sirve.
      * Uso: Product::search($texto)->get()
      */
@@ -78,10 +73,10 @@ class Product extends Model
 
         $query->where(fn (Builder $w) => $w
             ->where('name', 'like', "%{$term}%")
+            ->orWhere('generic_name', 'like', "%{$term}%")
             ->orWhere('barcode', $term)
             ->orWhere('description', 'like', "%{$term}%")
             ->orWhereHas('presentations', fn (Builder $p) => $p->where('barcode', $term))
-            ->orWhereHas('activeIngredient', fn (Builder $a) => $a->where('name', 'like', "%{$term}%"))
             ->orWhereHas('indications', fn (Builder $i) => $i->where('name', 'like', "%{$term}%")));
     }
 

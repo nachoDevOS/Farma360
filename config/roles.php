@@ -53,7 +53,7 @@ return [
         ],
         'productos' => [
             'label' => 'Productos',
-            'description' => 'Catálogo: productos, presentaciones, categorías, laboratorios y principios activos.',
+            'description' => 'Catálogo: productos, presentaciones, categorías, laboratorios y usos.',
             'actions' => ['ver', 'crear', 'editar', 'eliminar'],
         ],
         'proveedores' => [

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Exceptions\BusinessException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ProductRequest;
-use App\Models\ActiveIngredient;
 use App\Models\Batch;
 use App\Models\Category;
 use App\Models\Indication;
@@ -31,7 +30,7 @@ class ProductController extends Controller
         $filters = $request->only(['search', 'category', 'laboratory', 'indication', 'status', 'per_page']);
 
         $products = Product::search($filters['search'] ?? null)
-            ->with(['activeIngredient:id,name', 'laboratory:id,name', 'category:id,name', 'presentations', 'indications:id,name'])
+            ->with(['laboratory:id,name', 'category:id,name', 'presentations', 'indications:id,name'])
             ->withSum('batches as stock', 'quantity')
             ->when($filters['category'] ?? null, fn (Builder $q, $id) => $q->where('category_id', $id))
             ->when($filters['laboratory'] ?? null, fn (Builder $q, $id) => $q->where('laboratory_id', $id))
@@ -69,13 +68,12 @@ class ProductController extends Controller
 
     public function edit(Product $product): Response
     {
-        $product->load('presentations', 'activeIngredient:id,name', 'indications:id,name');
+        $product->load('presentations', 'indications:id,name');
 
         return Inertia::render('admin/products/form', [
             'product' => [
                 ...$product->toArray(),
-                // El formulario escribe el genérico y los usos como texto
-                'generic_name' => $product->activeIngredient?->name,
+                // El formulario escribe los usos como texto
                 'indication_names' => $product->indications->pluck('name'),
             ],
             ...$this->options(),
@@ -113,7 +111,7 @@ class ProductController extends Controller
         $branchId = $request->integer('branch_id') ?: null;
 
         $products = Product::where('is_active', true)->search($request->query('q'))
-            ->with('presentations', 'activeIngredient:id,name')
+            ->with('presentations')
             ->when($branchId, fn (Builder $q) => $q->withSum(['batches as stock' => fn ($b) => $b->where('branch_id', $branchId)], 'quantity'))
             ->orderBy('name')
             ->limit(15)
@@ -122,7 +120,7 @@ class ProductController extends Controller
         return response()->json($products->flatMap(fn (Product $p) => $p->presentations->map(fn ($pres) => [
             'product_id' => $p->id,
             'product_name' => $p->fullName(),
-            'active_ingredient' => $p->activeIngredient?->name,
+            'generic_name' => $p->generic_name,
             'base_unit' => $p->base_unit,
             'presentation_id' => $pres->id,
             'presentation_name' => $pres->name,
@@ -133,16 +131,21 @@ class ProductController extends Controller
     }
 
     /**
-     * Datos del producto para guardar. El nombre genérico llega como texto y se convierte en el principio activo
-     * (si no existe en el catálogo, se crea).
+     * Datos del producto para guardar. Si el nombre genérico ya lo usa otro producto (sin importar mayúsculas),
+     * se guarda escrito igual que ese: así "PARACETAMOL" y "paracetamol" quedan como el mismo genérico.
      *
      * @return array<string, mixed>
      */
     private function productData(ProductRequest $request): array
     {
+        $generic = trim(preg_replace('/\s+/', ' ', (string) $request->validated('generic_name')));
+        $existing = $generic === '' ? null : Product::withTrashed()
+            ->whereRaw('LOWER(generic_name) = ?', [mb_strtolower($generic)])
+            ->value('generic_name');
+
         return [
             ...$request->safe()->except(['presentations', 'indications', 'generic_name']),
-            'active_ingredient_id' => ActiveIngredient::idFor($request->validated('generic_name')),
+            'generic_name' => $generic === '' ? null : ($existing ?? mb_strtoupper(mb_substr($generic, 0, 1)).mb_substr($generic, 1)),
         ];
     }
 
@@ -176,7 +179,8 @@ class ProductController extends Controller
         return [
             'categories' => Category::orderBy('name')->get(['id', 'name']),
             'laboratories' => Laboratory::orderBy('name')->get(['id', 'name']),
-            'activeIngredients' => ActiveIngredient::orderBy('name')->get(['id', 'name']),
+            // Genéricos ya usados (se sugieren al escribir el nombre genérico)
+            'genericNames' => Product::whereNotNull('generic_name')->distinct()->orderBy('generic_name')->pluck('generic_name'),
             'indications' => Indication::orderBy('name')->get(['id', 'name']),
         ];
     }

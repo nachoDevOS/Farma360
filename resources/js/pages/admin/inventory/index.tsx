@@ -90,7 +90,7 @@ export default function InventoryIndex({ products, filters, branches, alertDays,
                         onPerPageChange={(n) => applyFilters({ per_page: String(n) })}
                         search={filters.search ?? ''}
                         onSearch={(search) => applyFilters({ search })}
-                        searchPlaceholder="Producto, código o principio activo…"
+                        searchPlaceholder="Producto, genérico, código o síntoma…"
                     >
                         <SimpleSelect
                             className="w-52"
@@ -123,9 +123,7 @@ export default function InventoryIndex({ products, filters, branches, alertDays,
                                         >
                                             {product.name} {product.concentration}
                                         </Link>
-                                        <p className="text-muted-foreground text-xs">
-                                            {product.active_ingredient?.name ?? product.pharmaceutical_form ?? '—'}
-                                        </p>
+                                        <p className="text-muted-foreground text-xs">{product.generic_name ?? product.pharmaceutical_form ?? '—'}</p>
                                     </Td>
                                     <Td align="right">
                                         <span className={cn('font-medium', low && 'text-red-600')}>{stock.toLocaleString('es')}</span>{' '}

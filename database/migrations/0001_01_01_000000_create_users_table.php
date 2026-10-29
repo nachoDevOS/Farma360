@@ -4,56 +4,51 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * TABLA users — Usuarios del sistema
+ *
+ * Personas que entran al panel. El ROL no es una columna: lo guarda spatie/laravel-permission (model_has_roles).
+ *
+ * Columnas:
+ *   id                       BIGINT UNSIGNED, PK           Identificador (autoincremental).
+ *   name                     VARCHAR(255)                  Nombre completo.
+ *   email                    VARCHAR(255), único           Correo con el que inicia sesión.
+ *   email_verified_at        TIMESTAMP                     Cuándo verificó el correo (null = sin verificar).
+ *   password                 VARCHAR(255)                  Contraseña cifrada (hash).
+ *   is_active                BOOLEAN                       false = no puede iniciar sesión.
+ *   last_login_at            TIMESTAMP                     Último inicio de sesión (null = nunca entró).
+ *   branch_id                BIGINT UNSIGNED, FK branches  Sucursal donde trabaja (null = ve todas). La FK se agrega en add_branch_foreign_key_to_users_table.
+ *   remember_token           VARCHAR(100)                  Token de "recordarme" del inicio de sesión.
+ *   created_at / updated_at  TIMESTAMP                     Fecha de registro y de la última modificación.
+ *   registerUser_id          BIGINT UNSIGNED, FK users     Quién registró el registro (opcional).
+ *   registerRole             VARCHAR(255)                  Rol que tenía al registrarlo.
+ *   deleteUser_id            BIGINT UNSIGNED, FK users     Quién lo eliminó (opcional).
+ *   deleteRole               VARCHAR(255)                  Rol que tenía al eliminarlo.
+ *   deleted_at               TIMESTAMP                     Fecha de eliminación lógica (null = vigente). Nunca se borra de verdad.
+ */
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        // Usuarios del sistema. El rol NO es una columna: lo guarda spatie/laravel-permission (tabla model_has_roles).
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            // false = no puede iniciar sesión
             $table->boolean('is_active')->default(true);
-            // Último inicio de sesión (null = nunca entró)
             $table->timestamp('last_login_at')->nullable();
-            // Sucursal donde trabaja (null = todas). La clave foránea se crea en create_branches_table,
-            // porque la tabla branches se crea después (necesita users para sus columnas de auditoría).
+            // La clave foránea se crea después: branches necesita a users para sus columnas de auditoría
             $table->unsignedBigInteger('branch_id')->nullable()->index();
             $table->rememberToken();
             $table->timestamps();
             // REGLA DEL SISTEMA: registerUser_id, registerRole, deleteUser_id, deleteRole y deleted_at
             $table->auditable();
         });
-
-        Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
-        });
-
-        Schema::create('sessions', function (Blueprint $table) {
-            $table->string('id')->primary();
-            $table->foreignId('user_id')->nullable()->index();
-            $table->string('ip_address', 45)->nullable();
-            $table->text('user_agent')->nullable();
-            $table->longText('payload');
-            $table->integer('last_activity')->index();
-        });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
-        Schema::dropIfExists('sessions');
     }
 };
