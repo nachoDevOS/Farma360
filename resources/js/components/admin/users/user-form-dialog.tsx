@@ -18,7 +18,18 @@ import { FormEventHandler, useEffect } from 'react';
  * Ventana para crear un usuario (user = null) o editarlo (user = el usuario elegido).
  * Envía el formulario a UserController@store o UserController@update.
  */
-export function UserFormDialog({ open, onClose, user, roles }: { open: boolean; onClose: () => void; user: User | null; roles: string[] }) {
+interface UserFormDialogProps {
+    open: boolean;
+    onClose: () => void;
+    user: User | null;
+    roles: string[];
+    branches: { id: number; name: string }[];
+}
+
+/** Valor del selector de sucursal que significa "todas" (Radix no acepta value vacío). */
+const ALL_BRANCHES = 'all';
+
+export function UserFormDialog({ open, onClose, user, roles, branches }: UserFormDialogProps) {
     // Si recibimos un usuario estamos EDITANDO; si es null, CREANDO
     const isEdit = user !== null;
     // useForm de Inertia guarda: los campos (data), los errores de Laravel (errors) y si se está enviando (processing)
@@ -27,6 +38,7 @@ export function UserFormDialog({ open, onClose, user, roles }: { open: boolean; 
         email: '',
         role: 'user',
         is_active: true,
+        branch_id: '',
         password: '',
         password_confirmation: '',
     });
@@ -41,6 +53,7 @@ export function UserFormDialog({ open, onClose, user, roles }: { open: boolean; 
             // Rol por defecto al crear: Operador (si existe) o el primero de la lista
             role: user?.role ?? (roles.includes('Operador') ? 'Operador' : (roles[0] ?? '')),
             is_active: user?.is_active ?? true,
+            branch_id: user?.branch_id ? String(user.branch_id) : '',
             password: '',
             password_confirmation: '',
         });
@@ -114,6 +127,27 @@ export function UserFormDialog({ open, onClose, user, roles }: { open: boolean; 
                             </label>
                             <InputError message={errors.is_active} />
                         </div>
+                    </div>
+                    <div className="grid gap-2">
+                        <Label>Sucursal</Label>
+                        <Select
+                            value={data.branch_id || ALL_BRANCHES}
+                            onValueChange={(value) => setData('branch_id', value === ALL_BRANCHES ? '' : value)}
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={ALL_BRANCHES}>Todas las sucursales</SelectItem>
+                                {branches.map((branch) => (
+                                    <SelectItem key={branch.id} value={String(branch.id)}>
+                                        {branch.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-muted-foreground text-xs">Con una sucursal asignada solo opera en ella (caja, ventas, inventario).</p>
+                        <InputError message={errors.branch_id} />
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="grid gap-2">

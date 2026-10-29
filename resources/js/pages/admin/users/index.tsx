@@ -32,9 +32,11 @@ interface Props {
     roles: string[];
     /** Roles que el usuario logueado puede asignar en el formulario */
     assignableRoles: string[];
+    /** Sucursales para el formulario */
+    branches: { id: number; name: string }[];
 }
 
-export default function UsersIndex({ users, filters, roles, assignableRoles }: Props) {
+export default function UsersIndex({ users, filters, roles, assignableRoles, branches }: Props) {
     // Permisos del usuario logueado: deciden qué botones se muestran
     const can = useCan();
     // Estado local de la pantalla (lo que el usuario está haciendo ahora mismo)
@@ -101,7 +103,7 @@ export default function UsersIndex({ users, filters, roles, assignableRoles }: P
             </div>
 
             {/* Ventanas modales (se muestran solo cuando hacen falta) */}
-            <UserFormDialog open={formOpen} onClose={() => setFormOpen(false)} user={editing} roles={assignableRoles} />
+            <UserFormDialog open={formOpen} onClose={() => setFormOpen(false)} user={editing} roles={assignableRoles} branches={branches} />
             <DeleteUserDialog user={deleting} onClose={() => setDeleting(null)} />
         </AdminLayout>
     );

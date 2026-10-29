@@ -30,7 +30,7 @@ class SoftDeleteRuleTest extends TestCase
 
     public function test_every_table_has_the_audit_columns()
     {
-        $tables = collect(Schema::getTableListing(schemaQualified: false))
+        $tables = collect(Schema::getTableListing(schema: Schema::getCurrentSchemaName(), schemaQualified: false))
             ->reject(fn (string $table) => in_array($table, self::EXCLUDED_TABLES) || str_starts_with($table, 'sqlite_'));
 
         foreach ($tables as $table) {
@@ -54,7 +54,7 @@ class SoftDeleteRuleTest extends TestCase
         $admin = User::factory()->withRole('Administrador')->create();
         $this->actingAs($admin);
 
-        $role = Role::create(['name' => 'Cajero', 'guard_name' => 'web']);
+        $role = Role::create(['name' => 'Mensajero', 'guard_name' => 'web']);
 
         $this->assertSame($admin->id, $role->fresh()->registerUser_id);
         $this->assertSame('Administrador', $role->fresh()->registerRole);

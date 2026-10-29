@@ -11,7 +11,26 @@ import AppLogo from '@/components/shared/app-logo';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { LayoutGrid, Palette, Settings, ShieldCheck, Users } from 'lucide-react';
+import {
+    ArrowLeftRight,
+    BadgePercent,
+    BarChart3,
+    Boxes,
+    Building2,
+    ClipboardList,
+    Coins,
+    Contact,
+    LayoutGrid,
+    Palette,
+    Pill,
+    Receipt,
+    Settings,
+    ShieldCheck,
+    ShoppingCart,
+    Truck,
+    Users,
+    Wallet,
+} from 'lucide-react';
 
 // Grupo "Plataforma": lo ve todo usuario logueado
 const mainNavItems: NavItem[] = [
@@ -22,8 +41,29 @@ const mainNavItems: NavItem[] = [
     },
 ];
 
+// Grupo "Ventas": el día a día del mostrador
+const salesNavItems: NavItem[] = [
+    { title: 'Punto de venta', url: '/admin/pos', icon: ShoppingCart, permission: 'ventas.crear' },
+    { title: 'Mi caja', url: '/admin/cash', icon: Wallet, permission: 'caja.ver' },
+    { title: 'Ventas', url: '/admin/sales', icon: Receipt, permission: 'ventas.ver' },
+    { title: 'Clientes', url: '/admin/customers', icon: Contact, permission: 'clientes.ver' },
+];
+
+// Grupo "Inventario": productos, compras, stock, transferencias y promociones
+const inventoryNavItems: NavItem[] = [
+    { title: 'Productos', url: '/admin/products', icon: Pill, permission: 'productos.ver' },
+    { title: 'Inventario', url: '/admin/inventory', icon: Boxes, permission: 'inventario.ver' },
+    { title: 'Compras', url: '/admin/purchases', icon: ClipboardList, permission: 'compras.ver' },
+    { title: 'Transferencias', url: '/admin/transfers', icon: ArrowLeftRight, permission: 'transferencias.ver' },
+    { title: 'Promociones', url: '/admin/promotions', icon: BadgePercent, permission: 'promociones.ver' },
+    { title: 'Proveedores', url: '/admin/suppliers', icon: Truck, permission: 'proveedores.ver' },
+];
+
 // Grupo "Administración": cada opción pide su permiso
 const adminNavItems: NavItem[] = [
+    { title: 'Reportes', url: '/admin/reports', icon: BarChart3, permission: 'reportes.ver' },
+    { title: 'Sucursales', url: '/admin/branches', icon: Building2, permission: 'sucursales.ver' },
+    { title: 'Cajas y billetes', url: '/admin/cash-registers', icon: Coins, permission: 'caja.editar' },
     {
         title: 'Usuarios',
         url: '/admin/users',
@@ -73,6 +113,8 @@ export function AdminSidebar() {
 
             <SidebarContent>
                 <NavMain label="Plataforma" items={mainNavItems} />
+                <NavMain label="Ventas" items={salesNavItems} />
+                <NavMain label="Inventario" items={inventoryNavItems} />
                 <NavMain label="Administración" items={adminNavItems} />
             </SidebarContent>
 

@@ -20,6 +20,8 @@ export type UserForm = {
     /** Nombre del rol elegido, ej: "Operador" */
     role: string;
     is_active: boolean;
+    /** Sucursal donde trabaja ('' = todas) */
+    branch_id: string;
     password: string;
     password_confirmation: string;
 };

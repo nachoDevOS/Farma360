@@ -52,6 +52,9 @@ export interface User {
     /** Nombre del rol, ej: "Supervisor". Los roles se crean en Administración → Roles */
     role: string | null;
     is_active: boolean;
+    /** Sucursal donde trabaja (null = todas) */
+    branch_id: number | null;
+    branch?: { id: number; name: string } | null;
     last_login_at: string | null;
     avatar?: string;
     email_verified_at: string | null;

@@ -17,6 +17,28 @@ export function formatDate(date: string, options: Intl.DateTimeFormatOptions = {
     return new Date(date).toLocaleString('es', options);
 }
 
+/** Moneda del sistema (debe coincidir con config/farmacia.php → currency). */
+export const CURRENCY = 'Bs';
+
+/** Monto con 2 decimales y moneda: money(12.5) → "Bs 12.50". Acepta los decimales que Laravel manda como texto. */
+export function money(value: number | string | null | undefined, withCurrency = true): string {
+    const amount = Number(value ?? 0).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return withCurrency ? `${CURRENCY} ${amount}` : amount;
+}
+
+/** Solo la fecha de un campo "Y-m-d" sin correrla por zona horaria: formatDay('2026-12-01') → "01 dic 2026". */
+export function formatDay(date: string | null | undefined): string {
+    if (!date) return '—';
+    const [y, m, d] = date.slice(0, 10).split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+/** Fecha de hoy en formato "Y-m-d" (para inputs type="date"). */
+export function today(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
 /** "hace 4 días", "Justo ahora", "Nunca"... */
 export function relativeTime(date: string | null): string {
     if (!date) return 'Nunca';

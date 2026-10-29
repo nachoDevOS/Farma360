@@ -20,6 +20,9 @@ class DatabaseSeeder extends Seeder
 
         $this->createAdmin();
         $this->createDemoUsers();
+
+        // Farmacia de ejemplo: sucursales, productos, compras, lotes, promociones, caja y ventas
+        $this->call(PharmacySeeder::class);
     }
 
     /**

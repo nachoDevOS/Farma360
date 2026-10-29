@@ -22,6 +22,9 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
             // Último inicio de sesión (null = nunca entró)
             $table->timestamp('last_login_at')->nullable();
+            // Sucursal donde trabaja (null = todas). La clave foránea se crea en create_branches_table,
+            // porque la tabla branches se crea después (necesita users para sus columnas de auditoría).
+            $table->unsignedBigInteger('branch_id')->nullable()->index();
             $table->rememberToken();
             $table->timestamps();
             // REGLA DEL SISTEMA: registerUser_id, registerRole, deleteUser_id, deleteRole y deleted_at

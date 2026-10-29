@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\BusinessException;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -22,6 +23,15 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        // REGLAS DEL NEGOCIO (stock insuficiente, caja cerrada…): volver atrás con el aviso rojo.
+        // No se escriben en el log: no son errores del sistema, son avisos para el usuario.
+        $exceptions->dontReport(BusinessException::class);
+        $exceptions->render(function (BusinessException $exception, Request $request) {
+            if (! $request->expectsJson()) {
+                return back()->with('error', $exception->getMessage());
+            }
+        });
+
         // PÁGINAS DE ERROR con el diseño del panel (resources/js/pages/error.tsx).
         $exceptions->respond(function (Response $response, Throwable $exception, Request $request) {
             $status = $response->getStatusCode();

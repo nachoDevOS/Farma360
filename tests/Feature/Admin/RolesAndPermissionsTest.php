@@ -61,10 +61,10 @@ class RolesAndPermissionsTest extends TestCase
         $admin = User::factory()->withRole('Administrador')->create();
 
         $this->actingAs($admin)
-            ->post('/admin/roles', ['name' => 'Cajero', 'permissions' => ['usuarios.ver']])
+            ->post('/admin/roles', ['name' => 'Mensajero', 'permissions' => ['usuarios.ver']])
             ->assertRedirect('/admin/roles');
 
-        $role = Role::findByName('Cajero');
+        $role = Role::findByName('Mensajero');
         $this->assertTrue($role->hasPermissionTo('usuarios.ver'));
         $this->assertFalse($role->hasPermissionTo('usuarios.crear'));
     }
@@ -75,10 +75,10 @@ class RolesAndPermissionsTest extends TestCase
         $role = Role::findByName('Supervisor');
 
         $this->actingAs($admin)->get('/admin/roles')
-            ->assertInertia(fn ($page) => $page->component('admin/roles/index')->has('roles', 4));
+            ->assertInertia(fn ($page) => $page->component('admin/roles/index')->has('roles', count(config('roles.defaults')) + 1));
 
         $this->actingAs($admin)->get('/admin/roles/create')
-            ->assertInertia(fn ($page) => $page->component('admin/roles/form')->where('role', null)->has('catalog.modules', 2));
+            ->assertInertia(fn ($page) => $page->component('admin/roles/form')->where('role', null)->has('catalog.modules', count(config('roles.modules'))));
 
         $this->actingAs($admin)->get("/admin/roles/{$role->id}/edit")
             ->assertInertia(fn ($page) => $page->component('admin/roles/form')->where('role.name', 'Supervisor')->has('role.permissions', 1));

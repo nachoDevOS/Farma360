@@ -38,6 +38,8 @@ class StoreUserRequest extends FormRequest
             // Debe ser un rol que exista en la tabla roles (se administran en Administración → Roles)
             'role' => ['required', 'string', Rule::exists('roles', 'name')],
             'is_active' => ['boolean'],
+            // Sucursal donde trabaja (vacío = todas)
+            'branch_id' => ['nullable', Rule::exists('branches', 'id')->whereNull('deleted_at')],
             // Password::defaults() = mínimo 8 caracteres (se puede endurecer en AppServiceProvider)
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ];
@@ -67,6 +69,7 @@ class StoreUserRequest extends FormRequest
         return [
             'role' => 'rol',
             'is_active' => 'estado',
+            'branch_id' => 'sucursal',
         ];
     }
 }

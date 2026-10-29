@@ -5,7 +5,30 @@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useCan } from '@/hooks/use-can';
 import { router } from '@inertiajs/react';
-import { type LucideIcon, KeyRound, LayoutGrid, Palette, Search, ShieldCheck, User, UserSearch, Users } from 'lucide-react';
+import {
+    type LucideIcon,
+    ArrowLeftRight,
+    BadgePercent,
+    BarChart3,
+    Boxes,
+    Building2,
+    ClipboardList,
+    Coins,
+    Contact,
+    KeyRound,
+    LayoutGrid,
+    Palette,
+    Pill,
+    Receipt,
+    Search,
+    ShieldCheck,
+    ShoppingCart,
+    Truck,
+    User,
+    UserSearch,
+    Users,
+    Wallet,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface CommandItem {
@@ -19,6 +42,21 @@ interface CommandItem {
 
 const pages: CommandItem[] = [
     { title: 'Dashboard', group: 'Plataforma', url: '/dashboard', icon: LayoutGrid },
+    { title: 'Punto de venta', group: 'Ventas', url: '/admin/pos', icon: ShoppingCart, permission: 'ventas.crear' },
+    { title: 'Mi caja', group: 'Ventas', url: '/admin/cash', icon: Wallet, permission: 'caja.ver' },
+    { title: 'Ventas', group: 'Ventas', url: '/admin/sales', icon: Receipt, permission: 'ventas.ver' },
+    { title: 'Clientes', group: 'Ventas', url: '/admin/customers', icon: Contact, permission: 'clientes.ver' },
+    { title: 'Productos', group: 'Inventario', url: '/admin/products', icon: Pill, permission: 'productos.ver' },
+    { title: 'Inventario', group: 'Inventario', url: '/admin/inventory', icon: Boxes, permission: 'inventario.ver' },
+    { title: 'Nueva compra', group: 'Inventario', url: '/admin/purchases/create', icon: ClipboardList, permission: 'compras.crear' },
+    { title: 'Compras', group: 'Inventario', url: '/admin/purchases', icon: ClipboardList, permission: 'compras.ver' },
+    { title: 'Transferencias', group: 'Inventario', url: '/admin/transfers', icon: ArrowLeftRight, permission: 'transferencias.ver' },
+    { title: 'Promociones por vencimiento', group: 'Inventario', url: '/admin/promotions', icon: BadgePercent, permission: 'promociones.ver' },
+    { title: 'Proveedores', group: 'Inventario', url: '/admin/suppliers', icon: Truck, permission: 'proveedores.ver' },
+    { title: 'Reportes', group: 'Administración', url: '/admin/reports', icon: BarChart3, permission: 'reportes.ver' },
+    { title: 'Sucursales', group: 'Administración', url: '/admin/branches', icon: Building2, permission: 'sucursales.ver' },
+    { title: 'Cajas', group: 'Administración', url: '/admin/cash-registers', icon: Coins, permission: 'caja.editar' },
+    { title: 'Billetes y monedas', group: 'Administración', url: '/admin/denominations', icon: Coins, permission: 'caja.editar' },
     { title: 'Usuarios', group: 'Administración', url: '/admin/users', icon: Users, permission: 'usuarios.ver' },
     { title: 'Roles y permisos', group: 'Administración', url: '/admin/roles', icon: ShieldCheck, permission: 'roles.ver' },
     { title: 'Mi perfil', group: 'Ajustes', url: '/settings/profile', icon: User },

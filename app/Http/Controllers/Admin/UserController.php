@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreUserRequest;
 use App\Http\Requests\Admin\UpdateUserRequest;
+use App\Models\Branch;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\PermissionCatalog;
@@ -44,6 +45,8 @@ class UserController extends Controller
             'filters' => $filters,
             // Nombres de todos los roles, para el filtro (ej: ['Administrador', 'Operador', ...])
             'roles' => Role::orderBy('name')->pluck('name'),
+            // Sucursales para el formulario (a cuál pertenece el usuario)
+            'branches' => Branch::orderBy('name')->get(['id', 'name']),
             // Roles que este usuario puede asignar en el formulario: el Super Admin solo lo puede dar otro Super Admin
             'assignableRoles' => Role::orderBy('name')
                 ->when(! $request->user()->isSuperAdmin(), fn (Builder $q) => $q->where('name', '!=', PermissionCatalog::superAdmin()))
@@ -143,7 +146,7 @@ class UserController extends Controller
 
         return User::query()
             // with('roles') = trae los roles en una sola consulta (sin esto, haría una consulta por cada usuario)
-            ->with('roles')
+            ->with('roles', 'branch:id,name')
             // ->when() aplica el filtro SOLO si ese valor vino en la URL
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
                 $query->where(fn (Builder $q) => $q

@@ -8,6 +8,7 @@ use App\Support\PermissionCatalog;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
@@ -43,6 +44,8 @@ class User extends Authenticatable
         // Campos del panel (ver migración create_users_table)
         'is_active',
         'last_login_at',
+        // Sucursal donde trabaja (null = todas)
+        'branch_id',
     ];
 
     /**
@@ -77,6 +80,7 @@ class User extends Authenticatable
             // Convierte 0/1 de la base de datos en true/false
             'is_active' => 'boolean',
             'last_login_at' => 'datetime',
+            'branch_id' => 'integer',
         ];
     }
 
@@ -84,6 +88,22 @@ class User extends Authenticatable
     protected function role(): Attribute
     {
         return Attribute::get(fn () => $this->roles->first()?->name);
+    }
+
+    /** Sucursal donde trabaja. null = puede operar en todas. */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * Ids de las sucursales donde puede operar: la suya, o todas las activas si no tiene una asignada.
+     *
+     * @return list<int>
+     */
+    public function allowedBranchIds(): array
+    {
+        return $this->branch_id ? [$this->branch_id] : Branch::where('is_active', true)->pluck('id')->all();
     }
 
     /** ¿Es Super Admin? Tiene todos los permisos y solo otro Super Admin puede tocar su cuenta. */

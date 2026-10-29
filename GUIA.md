@@ -402,6 +402,52 @@ en **producción** (`APP_DEBUG=false`) se muestra la página con diseño.
 
 ---
 
+## 7b. La farmacia: cómo funciona por dentro
+
+### Las 3 ideas clave
+1. **El stock vive en los LOTES** (`batches`): cada lote es un producto en una sucursal, con número de lote, vencimiento,
+   costo por unidad y cantidad. El stock de un producto = la suma de sus lotes.
+2. **El stock se cuenta en la UNIDAD BASE** (tableta, cápsula, frasco). Las **presentaciones** (Unidad, Blíster x10, Caja x100)
+   solo dicen cuántas unidades base traen y a qué precio se venden.
+3. **El stock nunca se edita a mano**: todo cambio pasa por `App\Services\InventoryService` y deja un movimiento en el
+   **kardex** (`stock_movements`): compra, venta, ajuste, baja, transferencia, anulación.
+
+### Dónde está la lógica (`app/Services/`)
+| Servicio | Qué hace |
+|---|---|
+| `InventoryService` | sumar / restar stock de un lote (con kardex) y **FEFO**: elegir los lotes que vencen primero |
+| `PurchaseService` | registrar una compra (cada ítem crea un lote) y anularla |
+| `SaleService` | vender: FEFO + precio de promoción del lote + pagos combinados + receta para controlados; anular |
+| `CashService` | caja: apertura y cierre con **corte de billetes**, ingresos / egresos / retiros, aprobación de diferencias |
+| `TransferService` | enviar, recibir (mismo lote y vencimiento en el destino) y anular transferencias |
+| `PromotionService` | **promociones por vencimiento**: reglas (90/60/30 días), sugeridas, aplicar, control "bajo el costo" |
+
+Cuando una regla del negocio impide algo (stock insuficiente, caja cerrada…) el servicio lanza
+`App\Exceptions\BusinessException`: se deshace todo y el usuario ve el aviso rojo con el motivo.
+
+### Sucursales
+Cada usuario puede tener una **sucursal** (Usuarios → editar). Con sucursal solo opera en ella (caja, ventas, compras, inventario);
+sin sucursal opera en todas. Ver `User::allowedBranchIds()`.
+
+### Nada se borra
+Ventas, compras y transferencias **se anulan** (con motivo, quién y cuándo) y el stock vuelve. Una venta solo se anula
+mientras su turno de caja esté abierto.
+
+### Configuración (`config/farmacia.php`)
+Moneda, formas de pago, días de alerta de vencimiento y la diferencia de caja que necesita aprobación.
+
+### Catálogos simples
+Sucursales, proveedores, clientes, categorías, laboratorios, principios activos, cajas y billetes usan **una sola pantalla**
+(`pages/admin/resources/index.tsx`). Cada uno es una clase chica en `app/Http/Controllers/Admin/` que hereda de
+`ResourceController` y dice sus campos, columnas y validación.
+
+### Datos de prueba
+`php artisan migrate:fresh --seed` crea la farmacia de ejemplo (`database/seeders/PharmacySeeder.php`): 3 sucursales,
+11 productos, compras, lotes por vencer y uno vencido, promociones, una transferencia en camino y una caja abierta con ventas.
+Usuarios (contraseña `password`): `admin@admin.com` (Super Admin), `regente@farma360.test`, `cajero@farma360.test`, `almacenero@farma360.test`.
+
+---
+
 ## 8. Roles y permisos
 
 Se usa el paquete [spatie/laravel-permission](https://spatie.be/docs/laravel-permission). La idea:
@@ -436,6 +482,9 @@ php artisan permissions:sync   # crea los permisos nuevos y elimina (lógicament
 | **Administrador** | Todos los permisos (pero se pueden quitar desde la pantalla de Roles). |
 | **Supervisor** | Ver usuarios. |
 | **Operador** | Solo dashboard y sus ajustes. Es el rol de quien se registra solo (`default_role`). |
+| **Regente** | Productos, compras, inventario (con ajustes), transferencias, promociones, ver ventas y reportes. |
+| **Cajero** | Punto de venta, su caja (abrir, movimientos, cerrar), ver productos y registrar clientes. |
+| **Almacenero** | Compras, inventario (con ajustes) y transferencias. |
 
 Se crean una sola vez (`permissions:sync`). Después se cambian desde **Administración → Roles y permisos**:
 crear roles nuevos (ej: "Cajero"), marcar sus permisos en la tabla de casillas, y eliminar los que no tengan usuarios.
