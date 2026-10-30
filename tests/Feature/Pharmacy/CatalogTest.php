@@ -385,6 +385,32 @@ class CatalogTest extends TestCase
                 ->where('products.data.1.branch_stock.0.next_expiry', now()->addMonths(6)->toDateString()));
     }
 
+    public function test_product_list_stock_follows_the_chosen_branch()
+    {
+        $central = $this->branch(['name' => 'Central']);
+        $north = $this->branch(['name' => 'Norte']);
+        $product = $this->product();
+        $this->batch($product, $central, 50);
+        $this->batch($product, $north, 20);
+        $admin = $this->userWithRole('Administrador');
+        // MySQL devuelve las sumas como texto: se comparan como número
+        $stockIs = fn (int $expected) => fn ($stock) => (int) $stock === $expected;
+
+        // Sin sucursal asignada: todas por defecto, o la que elija
+        $this->actingAs($admin)->get('/admin/products')
+            ->assertInertia(fn ($page) => $page->where('products.data.0.stock', $stockIs(70))->where('filters.branch', null)->where('canSeeAllBranches', true));
+        $this->actingAs($admin)->get("/admin/products?branch={$north->id}")
+            ->assertInertia(fn ($page) => $page->where('products.data.0.stock', $stockIs(20))->where('filters.branch', (string) $north->id));
+
+        // Asignado a Central: siempre la suya, aunque pida otra
+        $this->actingAs($this->userWithRole('Administrador', $central))->get("/admin/products?branch={$north->id}")
+            ->assertInertia(fn ($page) => $page
+                ->where('products.data.0.stock', $stockIs(50))
+                ->where('filters.branch', (string) $central->id)
+                ->where('canSeeAllBranches', false)
+                ->has('branchOptions', 1));
+    }
+
     public function test_a_product_with_stock_cannot_be_deleted()
     {
         $product = $this->product();

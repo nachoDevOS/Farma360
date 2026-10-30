@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -28,7 +29,11 @@ class InventoryController extends Controller
 {
     public function __construct(private InventoryService $inventory, private BatchHistory $batchHistory) {}
 
-    /** GET /admin/inventory — stock de cada producto en la sucursal elegida. */
+    /**
+     * GET /admin/inventory — stock de cada producto en la sucursal elegida.
+     * Cada fila trae también lo de su detalle desplegable: los lotes con stock de la sucursal, lo vendido en los
+     * últimos 30 días (para saber para cuántos días alcanza) y el stock en las demás sucursales.
+     */
     public function index(Request $request): Response
     {
         $branches = Branch::whereIn('id', $request->user()->allowedBranchIds())->orderBy('name')->get(['id', 'name']);
@@ -41,7 +46,14 @@ class InventoryController extends Controller
 
         $products = Product::query()
             // Presentaciones: para mostrar el stock desglosado (2 cajas + 8 blísteres + 7 tabletas)
-            ->with('presentations:id,product_id,package,name,factor')
+            ->with([
+                'presentations:id,product_id,package,name,factor',
+                'laboratory:id,name',
+                'category:id,name',
+                // Lotes con stock de la sucursal, el que vence primero adelante (detalle desplegable)
+                'batches' => fn ($q) => $q->where('branch_id', $branchId)->where('quantity', '>', 0)->orderBy('expires_at')
+                    ->select('id', 'product_id', 'batch_number', 'expires_at', 'quantity', 'unit_cost'),
+            ])
             ->withSum(['batches as stock' => fn ($q) => $q->where('branch_id', $branchId)], 'quantity')
             ->withSum(['batches as stock_value' => fn ($q) => $q->where('branch_id', $branchId)], DB::raw('quantity * unit_cost'))
             ->withMin(['batches as next_expiry' => fn ($q) => $q->where('branch_id', $branchId)->where('quantity', '>', 0)], 'expires_at')
@@ -58,6 +70,7 @@ class InventoryController extends Controller
             ->orderBy('name')
             ->paginate($this->perPage($request))
             ->withQueryString();
+        $this->attachSalesAndOtherBranches($products->getCollection(), $branchId);
 
         return Inertia::render('admin/inventory/index', [
             'products' => $products,
@@ -71,6 +84,46 @@ class InventoryController extends Controller
                 'expired' => Batch::where('branch_id', $branchId)->where('quantity', '>', 0)->whereDate('expires_at', '<', today())->count(),
             ],
         ]);
+    }
+
+    /**
+     * Agrega a cada producto de la página: sold_30 (unidades vendidas en la sucursal en los últimos 30 días, sin las
+     * anuladas) y other_branches (stock en las demás sucursales, solo las que tienen).
+     *
+     * @param  Collection<int, Product>  $products
+     */
+    private function attachSalesAndOtherBranches(Collection $products, int $branchId): void
+    {
+        $ids = $products->modelKeys();
+        if ($ids === []) {
+            return;
+        }
+        $sold = DB::table('sale_items')
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->whereIn('sale_items.product_id', $ids)
+            ->where('sales.branch_id', $branchId)
+            ->where('sales.status', 'completada')
+            ->whereNull('sales.deleted_at')
+            ->whereNull('sale_items.deleted_at')
+            ->where('sales.created_at', '>=', today()->subDays(29))
+            ->groupBy('sale_items.product_id')
+            ->selectRaw('sale_items.product_id, SUM(sale_items.units) as units')
+            ->pluck('units', 'product_id');
+        $others = Batch::with('branch:id,name')
+            ->whereIn('product_id', $ids)
+            ->where('branch_id', '!=', $branchId)
+            ->where('quantity', '>', 0)
+            ->groupBy('product_id', 'branch_id')
+            ->selectRaw('product_id, branch_id, SUM(quantity) as stock')
+            ->get()
+            ->groupBy('product_id');
+
+        $products->each(function (Product $product) use ($sold, $others) {
+            $product->setAttribute('sold_30', (int) ($sold[$product->id] ?? 0));
+            $product->setAttribute('other_branches', $others->get($product->id, collect())
+                ->map(fn (Batch $row) => ['branch_id' => $row->branch_id, 'branch' => $row->branch?->name, 'stock' => (int) $row->stock])
+                ->sortBy('branch')->values()->all());
+        });
     }
 
     /**

@@ -64,6 +64,12 @@ export interface Product {
     stock?: string | number | null;
     stock_value?: string | number | null;
     next_expiry?: string | null;
+    /** Lista de inventario (detalle desplegable de la fila): lotes con stock de la sucursal, el que vence primero adelante */
+    batches?: Pick<Batch, 'id' | 'batch_number' | 'expires_at' | 'quantity' | 'unit_cost'>[];
+    /** Lista de inventario: unidades vendidas en la sucursal en los últimos 30 días */
+    sold_30?: number;
+    /** Lista de inventario: stock en las demás sucursales (solo las que tienen) */
+    other_branches?: { branch_id: number; branch: string | null; stock: number }[];
     /** Lista de productos: stock por sucursal para el detalle desplegable de la fila */
     branch_stock?: BranchStock[];
     /** Quién lo registró y con qué rol (columnas de auditoría) */

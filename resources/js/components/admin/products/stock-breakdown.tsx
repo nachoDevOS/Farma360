@@ -20,5 +20,5 @@ export function StockBreakdown({
 }) {
     const text = stockBreakdown(units, product.presentations ?? [], product.base_unit);
     if (!text) return null;
-    return <span className={cn('text-muted-foreground block text-[11px] font-normal whitespace-normal', className)}>= {text}</span>;
+    return <span className={cn('text-foreground/80 block text-xs font-normal whitespace-normal', className)}>= {text}</span>;
 }

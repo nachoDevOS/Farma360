@@ -35,16 +35,19 @@ use Inertia\Response;
 class ProductController extends Controller
 {
     /**
-     * GET /admin/products — lista con búsqueda y filtros, los más nuevos primero.
+     * GET /admin/products?branch= — lista con búsqueda y filtros, los más nuevos primero.
      * Cada fila trae también lo que muestra su detalle desplegable: stock por sucursal y quién lo registró.
+     * La columna Stock es de la sucursal elegida o de todas (vacío), con los mismos permisos que la ficha del producto.
      */
     public function index(Request $request): Response
     {
         $filters = $request->only(['search', 'category', 'laboratory', 'indication', 'status', 'per_page']);
+        ['branchId' => $branchId, 'allowed' => $allowed, 'canSeeAll' => $canSeeAll] = $this->branchScope($request);
+        $filters['branch'] = $branchId ? (string) $branchId : null;
 
         $products = Product::search($filters['search'] ?? null)
             ->with(['laboratory:id,name', 'category:id,name', 'presentations', 'indications:id,name', 'registeredBy:id,name'])
-            ->withSum('batches as stock', 'quantity')
+            ->withSum(['batches as stock' => fn ($q) => $q->when($branchId, fn ($q) => $q->where('branch_id', $branchId))], 'quantity')
             ->when($filters['category'] ?? null, fn (Builder $q, $id) => $q->where('category_id', $id))
             ->when($filters['laboratory'] ?? null, fn (Builder $q, $id) => $q->where('laboratory_id', $id))
             // Filtro por uso / síntoma (ej: todos los productos para "Dolor de cabeza")
@@ -61,6 +64,8 @@ class ProductController extends Controller
         return Inertia::render('admin/products/index', [
             'products' => $products,
             'filters' => $filters,
+            'branchOptions' => Branch::whereIn('id', $allowed)->orderBy('name')->get(['id', 'name']),
+            'canSeeAllBranches' => $canSeeAll,
             ...$this->options(),
         ]);
     }
@@ -80,11 +85,7 @@ class ProductController extends Controller
         $product->load(['laboratory:id,name', 'category:id,name', 'presentations', 'indications:id,name', 'registeredBy:id,name']);
         $product->setAttribute('branch_stock', $this->branchStock([$product->id])->get($product->id, []));
 
-        $allowed = array_map(intval(...), $request->user()->allowedBranchIds());
-        $canSeeAll = $request->user()->branch_id === null;
-        $branchId = in_array($request->integer('branch'), $allowed, true)
-            ? $request->integer('branch')
-            : ($canSeeAll ? null : $request->user()->branch_id);
+        ['branchId' => $branchId, 'allowed' => $allowed, 'canSeeAll' => $canSeeAll] = $this->branchScope($request);
         $analysis = null;
         $analyze = function () use (&$analysis, $analytics, $product, $branchId, $allowed, $canSeeAll): array {
             if ($analysis === null) {
@@ -115,6 +116,24 @@ class ProductController extends Controller
             'priceSeries' => fn () => $this->priceSeries($product),
             'purchaseCosts' => fn () => $this->purchaseCosts($product),
         ]);
+    }
+
+    /**
+     * Sucursal que se mira (?branch=) entre las permitidas al usuario, como en el inventario: quien no está asignado a una
+     * sucursal puede ver todas (null) y es lo que ve por defecto; quien está asignado ve la suya.
+     * Una sucursal no permitida o que no existe = la de por defecto.
+     *
+     * @return array{branchId: ?int, allowed: list<int>, canSeeAll: bool}
+     */
+    private function branchScope(Request $request): array
+    {
+        $allowed = array_map(intval(...), $request->user()->allowedBranchIds());
+        $canSeeAll = $request->user()->branch_id === null;
+        $branchId = in_array($request->integer('branch'), $allowed, true)
+            ? $request->integer('branch')
+            : ($canSeeAll ? null : $request->user()->branch_id);
+
+        return ['branchId' => $branchId, 'allowed' => $allowed, 'canSeeAll' => $canSeeAll];
     }
 
     /**

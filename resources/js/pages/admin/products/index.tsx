@@ -7,6 +7,7 @@
  * (presentaciones, stock por sucursal y datos): components/admin/products/product-row-detail.tsx
  * Botones: Ver (ficha completa: products/show.tsx) · Editar · Eliminar.
  */
+import { BranchMenu } from '@/components/admin/common/branch-menu';
 import { ConfirmDialog } from '@/components/admin/common/confirm-dialog';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
 import { PageHeader } from '@/components/admin/common/page-header';
@@ -32,14 +33,20 @@ import { Fragment, useState } from 'react';
 interface Props {
     products: Paginated<Product>;
     filters: ListFilters & { category?: string; laboratory?: string; indication?: string };
+    /** Sucursales que el usuario puede elegir y si puede ver "Todas" (sin sucursal asignada) */
+    branchOptions: Option[];
+    canSeeAllBranches: boolean;
     categories: Option[];
     laboratories: Option[];
     indications: Option[];
 }
 
-export default function ProductsIndex({ products, filters, categories, laboratories, indications }: Props) {
+export default function ProductsIndex({ products, filters, branchOptions, canSeeAllBranches, categories, laboratories, indications }: Props) {
     const can = useCan();
     const applyFilters = useFilters('admin.products.index', filters);
+    // Sucursal elegida (null = todas): cambia la columna Stock y el ojo abre la ficha en esa sucursal
+    const branchId = filters.branch ? Number(filters.branch) : null;
+    const branchName = branchOptions.find((b) => b.id === branchId)?.name ?? null;
     const [deleting, setDeleting] = useState<Product | null>(null);
     // Filas con el detalle abierto (por ID)
     const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -62,6 +69,17 @@ export default function ProductsIndex({ products, filters, categories, laborator
                     description={`${products.total} productos en el catálogo. El stock se cuenta en la unidad base de cada uno.`}
                     actions={
                         <>
+                            {(canSeeAllBranches || branchOptions.length > 1) && (
+                                <BranchMenu
+                                    note="Cambia la columna Stock y la sucursal con la que se abre cada producto."
+                                    current={branchId}
+                                    onChoose={(branch) => applyFilters({ branch: branch === null ? '' : String(branch) })}
+                                    options={[
+                                        ...(canSeeAllBranches ? [{ id: null, name: 'Todas las sucursales' }] : []),
+                                        ...branchOptions.map((b) => ({ id: b.id, name: b.name })),
+                                    ]}
+                                />
+                            )}
                             <Button asChild variant="outline" size="sm">
                                 <Link href={route('admin.categories.index')}>
                                     <Tags /> Categorías
@@ -120,7 +138,7 @@ export default function ProductsIndex({ products, filters, categories, laborator
                                 <Th>Producto</Th>
                                 <Th>Laboratorio</Th>
                                 <Th>Presentaciones</Th>
-                                <Th align="right">Stock total</Th>
+                                <Th align="right">{branchName ? `Stock · ${branchName}` : 'Stock total'}</Th>
                                 <Th>Estado</Th>
                                 <Th align="right">Acciones</Th>
                             </>
@@ -196,7 +214,7 @@ export default function ProductsIndex({ products, filters, categories, laborator
                                                 {stock.toLocaleString('es')}
                                             </span>{' '}
                                             <span className="text-muted-foreground text-xs">{product.base_unit}</span>
-                                            <StockBreakdown units={stock} product={product} />
+                                            <StockBreakdown units={stock} product={product} className="mt-0.5 font-medium" />
                                         </Td>
                                         <Td>
                                             <StatusBadge active={product.is_active} />
@@ -206,7 +224,11 @@ export default function ProductsIndex({ products, filters, categories, laborator
                                                 <ActionButton
                                                     icon={Eye}
                                                     label="Ver producto"
-                                                    onClick={() => router.visit(route('admin.products.show', product.id))}
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            route('admin.products.show', { product: product.id, branch: branchId ?? undefined }),
+                                                        )
+                                                    }
                                                 />
                                                 {can('productos.editar') && (
                                                     <ActionButton

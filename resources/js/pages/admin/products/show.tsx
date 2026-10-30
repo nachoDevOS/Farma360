@@ -203,7 +203,7 @@ export default function ProductShow({
                             value={`${stock.toLocaleString('es')} ${units}`}
                             hint={
                                 <>
-                                    <StockBreakdown units={stock} product={product} className="text-xs" />
+                                    <StockBreakdown units={stock} product={product} />
                                     {scope.branchId
                                         ? `Mínimo ${product.min_stock} · ${totalStock.toLocaleString('es')} en todas las sucursales`
                                         : `${branches.length} ${branches.length === 1 ? 'sucursal' : 'sucursales'} · mínimo ${product.min_stock} por sucursal`}

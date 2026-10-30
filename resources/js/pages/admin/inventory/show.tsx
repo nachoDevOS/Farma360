@@ -163,7 +163,7 @@ export default function InventoryShow({
                         colorValue={product.min_stock > 0 && stock <= product.min_stock}
                         hint={
                             <>
-                                <StockBreakdown units={stock} product={product} className="text-foreground text-xs" />
+                                <StockBreakdown units={stock} product={product} />
                                 {product.min_stock === 0 ? (
                                     <span className="text-amber-700 dark:text-amber-400">Sin stock mínimo configurado</span>
                                 ) : stock <= product.min_stock ? (

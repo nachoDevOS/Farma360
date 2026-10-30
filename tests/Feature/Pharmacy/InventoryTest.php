@@ -309,4 +309,31 @@ class InventoryTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page->component('admin/inventory/show')->where('stock', 40)->has('batches', 1)->has('movements.data', 1));
     }
+
+    public function test_inventory_list_rows_bring_their_lots_recent_sales_and_other_branches()
+    {
+        $central = $this->branch(['name' => 'Central']);
+        $north = $this->branch(['name' => 'Norte']);
+        $product = $this->product();
+        $this->batch($product, $central, 40, '+1 month', 0.5, 'L-A');
+        $this->batch($product, $central, 60, '+1 year', 0.5, 'L-B');
+        $this->batch($product, $north, 25);
+        $cashier = $this->userWithRole('Cajero', $central);
+        $this->openCash($cashier, $central);
+        $this->actingAs($cashier)->post('/admin/sales', [
+            'items' => [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 7]],
+            'payments' => [['method' => 'efectivo', 'amount' => 10]],
+        ])->assertRedirect();
+
+        $this->actingAs($this->userWithRole('Administrador'))->get("/admin/inventory?branch={$central->id}")
+            ->assertInertia(fn ($page) => $page
+                // Lotes con stock de la sucursal, el que vence primero adelante (la venta salió de ese)
+                ->has('products.data.0.batches', 2)
+                ->where('products.data.0.batches.0.batch_number', 'L-A')
+                ->where('products.data.0.batches.0.quantity', 33)
+                ->where('products.data.0.sold_30', 7)
+                ->has('products.data.0.other_branches', 1)
+                ->where('products.data.0.other_branches.0.branch', 'Norte')
+                ->where('products.data.0.other_branches.0.stock', 25));
+    }
 }
