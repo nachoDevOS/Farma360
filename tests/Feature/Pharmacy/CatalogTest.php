@@ -213,6 +213,119 @@ class CatalogTest extends TestCase
                 ->where('priceSeries.1.factor', 100));
     }
 
+    public function test_product_performance_shows_where_when_and_how_it_sells_and_what_could_expire()
+    {
+        $central = $this->branch(['name' => 'Central']);
+        $north = $this->branch(['name' => 'Norte']);
+        $product = $this->product(1.0, ['name' => 'Febrax']);
+        $this->batch($product, $central, 4, '-5 days');
+        $this->batch($product, $central, 20, '+10 days');
+        $this->batch($product, $central, 300, '+100 days');
+        $this->batch($product, $north, 50, '+30 days');
+        $cashier = $this->userWithRole('Cajero', $central);
+        $this->openCash($cashier, $central);
+        // 7 tabletas en un producto creado hoy: el ritmo se mide sobre 7 días mínimo → 1 tableta por día
+        $this->actingAs($cashier)->post('/admin/sales', [
+            'items' => [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 7]],
+            'payments' => [['method' => 'efectivo', 'amount' => 10]],
+        ])->assertRedirect();
+
+        $this->actingAs($this->userWithRole('Administrador'))->get("/admin/products/{$product->id}")
+            ->assertInertia(fn ($page) => $page
+                ->has('performance.daily', 60)
+                ->where('performance.daily.59.date', today()->toDateString())
+                ->where('performance.daily.59.units', 7)
+                ->where('performance.dailyRate', 1)
+                ->where('performance.branches.0.branch', 'Central')
+                ->where('performance.branches.0.units', 7)
+                ->where('performance.branches.0.stock', 317)
+                ->where('performance.branches.1.branch', 'Norte')
+                ->where('performance.branches.1.units', 0)
+                ->where('performance.mix.0.factor', 1)
+                ->where('performance.mix.0.quantity', 7)
+                ->has('performance.hours', 1)
+                ->where('performance.hours.0.day', now()->isoWeekday())
+                ->where('performance.hours.0.units', 7)
+                // Vencido: todo en riesgo. Vence en 10 días con 13 tabletas a 1 por día: se venden 10.
+                // El de 100 días empieza a venderse cuando se acaba el anterior: 90 días → 90 tabletas.
+                // Norte no vendió nada: no se puede estimar.
+                ->where('performance.batches.0.units_at_risk', 4)
+                ->where('performance.batches.1.quantity', 13)
+                ->where('performance.batches.1.units_at_risk', 3)
+                ->where('performance.batches.2.branch', 'Norte')
+                ->where('performance.batches.2.units_at_risk', null)
+                ->where('performance.batches.3.units_at_risk', 210)
+                ->has('purchaseCosts', 0));
+    }
+
+    public function test_product_performance_can_be_seen_for_one_branch()
+    {
+        $central = $this->branch(['name' => 'Central']);
+        $north = $this->branch(['name' => 'Norte']);
+        $product = $this->product(1.0, ['name' => 'Febrax']);
+        $this->batch($product, $central, 100);
+        $this->batch($product, $north, 50);
+        $cashier = $this->userWithRole('Cajero', $central);
+        $this->openCash($cashier, $central);
+        $this->actingAs($cashier)->post('/admin/sales', [
+            'items' => [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 7]],
+            'payments' => [['method' => 'efectivo', 'amount' => 10]],
+        ])->assertRedirect();
+        $admin = $this->userWithRole('Administrador');
+
+        // Norte: sin sus ventas, solo sus lotes; la comparación con las demás sucursales sigue completa
+        $this->actingAs($admin)->get("/admin/products/{$product->id}?branch={$north->id}")
+            ->assertInertia(fn ($page) => $page
+                ->where('branchFilter', $north->id)
+                ->has('branchOptions', 2)
+                ->where('salesByMonth.11.units', 0)
+                ->where('performance.daily.59.units', 0)
+                ->where('performance.dailyRate', 0)
+                ->has('performance.hours', 0)
+                ->has('performance.branches', 2)
+                ->has('performance.batches', 1)
+                ->where('performance.batches.0.branch', 'Norte'));
+
+        // Una sucursal que no existe = todas
+        $this->actingAs($admin)->get("/admin/products/{$product->id}?branch=999")
+            ->assertInertia(fn ($page) => $page
+                ->where('branchFilter', null)
+                ->where('canSeeAllBranches', true)
+                ->where('salesByMonth.11.units', 7)
+                ->has('performance.batches', 2));
+    }
+
+    public function test_a_user_assigned_to_a_branch_sees_the_product_page_of_that_branch_only()
+    {
+        $central = $this->branch(['name' => 'Central']);
+        $north = $this->branch(['name' => 'Norte']);
+        $product = $this->product(1.0, ['name' => 'Febrax']);
+        $supplier = Supplier::factory()->create();
+        $admin = $this->userWithRole('Administrador');
+        foreach ([$central, $north] as $branch) {
+            $this->actingAs($admin)->post('/admin/purchases', [
+                'branch_id' => $branch->id, 'supplier_id' => $supplier->id, 'purchased_at' => today()->toDateString(),
+                'items' => [['product_presentation_id' => $this->presentation($product, 100)->id, 'quantity' => 1, 'cost' => 40, 'batch_number' => "L-{$branch->id}", 'expires_at' => today()->addYear()->toDateString()]],
+            ]);
+        }
+
+        // Asignado a Norte: no tiene "Todas", y pedir otra sucursal no le muestra esa
+        $this->actingAs($this->userWithRole('Administrador', $north))->get("/admin/products/{$product->id}?branch={$central->id}")
+            ->assertInertia(fn ($page) => $page
+                ->where('branchFilter', $north->id)
+                ->where('canSeeAllBranches', false)
+                ->has('branchOptions', 1)
+                ->has('purchases', 1)
+                ->where('purchases.0.branch', 'Norte')
+                ->has('performance.branches', 1)
+                ->where('performance.branches.0.branch', 'Norte')
+                // El stock de cada sucursal se sigue viendo: sirve para saber dónde hay
+                ->has('product.branch_stock', 2));
+
+        // Sin sucursal asignada: las compras de todas
+        $this->actingAs($admin)->get("/admin/products/{$product->id}")->assertInertia(fn ($page) => $page->has('purchases', 2));
+    }
+
     public function test_price_changes_are_kept_in_the_price_history()
     {
         $admin = $this->userWithRole('Administrador');

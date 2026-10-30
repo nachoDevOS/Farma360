@@ -6,6 +6,7 @@ use App\Exceptions\BusinessException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ProductRequest;
 use App\Models\Batch;
+use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Indication;
 use App\Models\Laboratory;
@@ -13,10 +14,12 @@ use App\Models\Product;
 use App\Models\ProductPresentation;
 use App\Models\ProductPriceHistory;
 use App\Models\PurchaseItem;
+use App\Services\ProductAnalytics;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -61,18 +64,65 @@ class ProductController extends Controller
     }
 
     /**
-     * GET /admin/products/{product} — ficha completa del producto: datos, presentaciones, stock por sucursal,
-     * últimas compras (para ver el costo y la ganancia), historial de precios y quién lo registró.
+     * GET /admin/products/{product}?branch= — ficha completa del producto: datos, presentaciones, stock por sucursal,
+     * últimas compras (para ver el costo y la ganancia), historial de precios, quién lo registró y la pestaña "Rendimiento".
+     *
+     * Sucursal (?branch=, arriba en la pantalla): las compras y el rendimiento son de la elegida o de todas (vacío).
+     * Como en el inventario, se elige entre las sucursales permitidas al usuario; quien está asignado a una sucursal
+     * no tiene "Todas" y ve la suya por defecto. Una sucursal no permitida o que no existe = la de por defecto.
+     * Precios, costos de compra y el stock de cada sucursal son siempre de todas (el precio es único).
+     * Al cambiar de sucursal la pantalla pide solo purchases, salesByMonth, performance y branchFilter.
      */
-    public function show(Product $product): Response
+    public function show(Request $request, Product $product, ProductAnalytics $analytics): Response
     {
         $product->load(['laboratory:id,name', 'category:id,name', 'presentations', 'indications:id,name', 'registeredBy:id,name']);
         $product->setAttribute('branch_stock', $this->branchStock([$product->id])->get($product->id, []));
 
-        $purchases = PurchaseItem::query()
+        $allowed = array_map(intval(...), $request->user()->allowedBranchIds());
+        $canSeeAll = $request->user()->branch_id === null;
+        $branchId = in_array($request->integer('branch'), $allowed, true)
+            ? $request->integer('branch')
+            : ($canSeeAll ? null : $request->user()->branch_id);
+        $analysis = null;
+        $analyze = function () use (&$analysis, $analytics, $product, $branchId, $allowed, $canSeeAll): array {
+            if ($analysis === null) {
+                $analysis = $analytics->for($product, $branchId);
+                // Asignado a una sucursal: no ve las ventas de las demás
+                if (! $canSeeAll) {
+                    $analysis['branches'] = array_values(array_filter($analysis['branches'], fn (array $row) => in_array($row['branch_id'], $allowed, true)));
+                }
+            }
+
+            return $analysis;
+        };
+
+        return Inertia::render('admin/products/show', [
+            'product' => $product,
+            'purchases' => fn () => $this->lastPurchases($product, $branchId),
+            'priceHistory' => fn () => $this->priceHistory($product),
+            // Sucursal que se mira (null = todas), las que se pueden elegir y si se puede elegir "Todas"
+            'branchFilter' => $branchId,
+            'branchOptions' => fn () => Branch::whereIn('id', $allowed)->orderBy('name')->get(['id', 'name']),
+            'canSeeAllBranches' => $canSeeAll,
+            // Pestaña "Rendimiento": cómo se vende, dónde, cuándo, precio contra costo y riesgo de vencimiento
+            'salesByMonth' => fn () => $analyze()['salesByMonth'],
+            'performance' => fn () => Arr::except($analyze(), 'salesByMonth'),
+            'priceSeries' => fn () => $this->priceSeries($product),
+            'purchaseCosts' => fn () => $this->purchaseCosts($product),
+        ]);
+    }
+
+    /**
+     * Últimas 10 compras registradas del producto (la más reciente primero), de una sucursal o de todas.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function lastPurchases(Product $product, ?int $branchId): Collection
+    {
+        return PurchaseItem::query()
             ->with(['purchase' => fn ($q) => $q->with('supplier:id,name', 'branch:id,name'), 'presentation' => fn ($q) => $q->withTrashed()])
             ->where('product_id', $product->id)
-            ->whereHas('purchase', fn (Builder $q) => $q->where('status', 'registrada'))
+            ->whereHas('purchase', fn (Builder $q) => $q->where('status', 'registrada')->when($branchId, fn (Builder $q) => $q->where('branch_id', $branchId)))
             ->latest('id')
             ->limit(10)
             ->get()
@@ -90,9 +140,16 @@ class ProductController extends Controller
                 'batch_number' => $item->batch_number,
                 'expires_at' => $item->expires_at?->toDateString(),
             ]);
+    }
 
-        // Cambios de precio, el más reciente primero (solo historial: las ventas guardan sus propios montos)
-        $priceHistory = ProductPriceHistory::with('registeredBy:id,name')
+    /**
+     * Últimos 50 cambios de precio, el más reciente primero (solo historial: las ventas guardan sus propios montos).
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function priceHistory(Product $product): Collection
+    {
+        return ProductPriceHistory::with('registeredBy:id,name')
             ->where('product_id', $product->id)
             ->latest('id')
             ->limit(50)
@@ -107,51 +164,6 @@ class ProductController extends Controller
                 'user' => $change->registeredBy?->name,
                 'role' => $change->registerRole,
             ]);
-
-        return Inertia::render('admin/products/show', [
-            'product' => $product,
-            'purchases' => $purchases,
-            'priceHistory' => $priceHistory,
-            // Gráficos de la pestaña "Gráficos"
-            'salesByMonth' => $this->salesByMonth($product),
-            'priceSeries' => $this->priceSeries($product),
-        ]);
-    }
-
-    /**
-     * Ventas del producto en los últimos 12 meses, todas las sucursales (sin las anuladas): unidades base,
-     * monto cobrado, ganancia (cobrado − costo del lote) y cantidad de ventas. Se agrupa en PHP para no
-     * depender de funciones de fecha de una base de datos en particular.
-     *
-     * @return list<array{month: string, units: int, amount: float, profit: float, sales: int}>
-     */
-    private function salesByMonth(Product $product): array
-    {
-        $from = today()->startOfMonth()->subMonths(11);
-        $items = DB::table('sale_items')
-            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
-            ->where('sale_items.product_id', $product->id)
-            ->where('sales.status', 'completada')
-            ->whereNull('sales.deleted_at')
-            ->whereNull('sale_items.deleted_at')
-            ->where('sales.created_at', '>=', $from)
-            ->get(['sales.id as sale_id', 'sales.created_at', 'sale_items.units', 'sale_items.subtotal', 'sale_items.unit_cost'])
-            ->groupBy(fn ($row) => Carbon::parse($row->created_at)->format('Y-m'));
-
-        $months = [];
-        for ($month = $from->copy(); $month->lte(today()); $month->addMonth()) {
-            $rows = $items->get($month->format('Y-m'), collect());
-            $amount = (float) $rows->sum('subtotal');
-            $months[] = [
-                'month' => $month->format('Y-m'),
-                'units' => (int) $rows->sum('units'),
-                'amount' => round($amount, 2),
-                'profit' => round($amount - $rows->sum(fn ($row) => $row->units * (float) $row->unit_cost), 2),
-                'sales' => $rows->pluck('sale_id')->unique()->count(),
-            ];
-        }
-
-        return $months;
     }
 
     /**
@@ -178,6 +190,33 @@ class ProductController extends Controller
                     'date' => $change->created_at->toIso8601String(),
                     'price' => (float) $change->new_price,
                 ])->values()->all(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Costo por unidad base de las últimas 200 compras registradas (la más vieja primero), para compararlo con el precio.
+     *
+     * @return list<array{date: string, unit_cost: float, supplier: ?string}>
+     */
+    private function purchaseCosts(Product $product): array
+    {
+        return PurchaseItem::query()
+            ->join('purchases', 'purchases.id', '=', 'purchase_items.purchase_id')
+            ->leftJoin('suppliers', 'suppliers.id', '=', 'purchases.supplier_id')
+            ->where('purchase_items.product_id', $product->id)
+            ->where('purchases.status', 'registrada')
+            ->whereNull('purchases.deleted_at')
+            ->orderByDesc('purchases.purchased_at')
+            ->orderByDesc('purchase_items.id')
+            ->limit(200)
+            ->get(['purchases.purchased_at', 'purchase_items.unit_cost', 'suppliers.name as supplier'])
+            ->reverse()
+            ->map(fn (PurchaseItem $item) => [
+                'date' => Carbon::parse($item->purchased_at)->toDateString(),
+                'unit_cost' => (float) $item->unit_cost,
+                'supplier' => $item->supplier,
             ])
             ->values()
             ->all();

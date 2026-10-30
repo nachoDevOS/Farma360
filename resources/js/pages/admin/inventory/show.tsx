@@ -199,7 +199,7 @@ export default function InventoryShow({
                             <div className="flex flex-wrap items-center gap-2">
                                 <StockScopeBadge label={branchName} />
                                 <Button asChild variant="outline" size="sm">
-                                    <Link href={route('admin.products.show', product.id)}>
+                                    <Link href={route('admin.products.show', { product: product.id, branch: branchId })}>
                                         <Eye /> Ver producto
                                     </Link>
                                 </Button>
