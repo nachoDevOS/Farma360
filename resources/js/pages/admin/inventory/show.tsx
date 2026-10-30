@@ -17,7 +17,7 @@ import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import { StockCharts, type StockDay } from '@/components/admin/inventory/stock-charts';
 import { plural } from '@/components/admin/products/presentation-levels';
-import { PresentationsTable } from '@/components/admin/products/product-row-detail';
+import { PresentationsTable, StockScopeBadge } from '@/components/admin/products/product-row-detail';
 import { StockBreakdown } from '@/components/admin/products/stock-breakdown';
 import InputError from '@/components/shared/input-error';
 import { Pagination } from '@/components/shared/pagination';
@@ -81,6 +81,7 @@ export default function InventoryShow({
     const [tab, setTab] = useState<'lotes' | 'kardex' | 'graficos'>('lotes');
 
     const units = plural(product.base_unit);
+    const branchName = branches.find((b) => b.id === branchId)?.name ?? 'Esta sucursal';
     const lots = batches.filter((b) => b.quantity > 0);
     const nextExpiry = lots.map((b) => b.expires_at.slice(0, 10)).sort()[0] ?? null;
     const daysLeft = nextExpiry ? daysUntil(nextExpiry) : null;
@@ -193,9 +194,10 @@ export default function InventoryShow({
                     <PanelHeader
                         icon={Layers}
                         title="Presentaciones"
-                        description="Cuántas completas alcanzan con el stock de esta sucursal. Precios y códigos: en «Ver producto»."
+                        description="«Alcanza para»: cuántas completas alcanzan con el stock de esta sucursal. Precios y códigos: en «Ver producto»."
                         aside={
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <StockScopeBadge label={branchName} />
                                 <Button asChild variant="outline" size="sm">
                                     <Link href={route('admin.products.show', product.id)}>
                                         <Eye /> Ver producto
@@ -212,7 +214,7 @@ export default function InventoryShow({
                         }
                     />
                     <div className="p-5">
-                        <PresentationsTable product={product} stock={stock} compact className="text-[13px]" />
+                        <PresentationsTable product={product} stock={stock} stockScope={branchName} compact className="text-[13px]" />
                     </div>
                 </Panel>
 

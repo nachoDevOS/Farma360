@@ -108,7 +108,79 @@ class ProductController extends Controller
                 'role' => $change->registerRole,
             ]);
 
-        return Inertia::render('admin/products/show', ['product' => $product, 'purchases' => $purchases, 'priceHistory' => $priceHistory]);
+        return Inertia::render('admin/products/show', [
+            'product' => $product,
+            'purchases' => $purchases,
+            'priceHistory' => $priceHistory,
+            // Gráficos de la pestaña "Gráficos"
+            'salesByMonth' => $this->salesByMonth($product),
+            'priceSeries' => $this->priceSeries($product),
+        ]);
+    }
+
+    /**
+     * Ventas del producto en los últimos 12 meses, todas las sucursales (sin las anuladas): unidades base,
+     * monto cobrado, ganancia (cobrado − costo del lote) y cantidad de ventas. Se agrupa en PHP para no
+     * depender de funciones de fecha de una base de datos en particular.
+     *
+     * @return list<array{month: string, units: int, amount: float, profit: float, sales: int}>
+     */
+    private function salesByMonth(Product $product): array
+    {
+        $from = today()->startOfMonth()->subMonths(11);
+        $items = DB::table('sale_items')
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->where('sale_items.product_id', $product->id)
+            ->where('sales.status', 'completada')
+            ->whereNull('sales.deleted_at')
+            ->whereNull('sale_items.deleted_at')
+            ->where('sales.created_at', '>=', $from)
+            ->get(['sales.id as sale_id', 'sales.created_at', 'sale_items.units', 'sale_items.subtotal', 'sale_items.unit_cost'])
+            ->groupBy(fn ($row) => Carbon::parse($row->created_at)->format('Y-m'));
+
+        $months = [];
+        for ($month = $from->copy(); $month->lte(today()); $month->addMonth()) {
+            $rows = $items->get($month->format('Y-m'), collect());
+            $amount = (float) $rows->sum('subtotal');
+            $months[] = [
+                'month' => $month->format('Y-m'),
+                'units' => (int) $rows->sum('units'),
+                'amount' => round($amount, 2),
+                'profit' => round($amount - $rows->sum(fn ($row) => $row->units * (float) $row->unit_cost), 2),
+                'sales' => $rows->pluck('sale_id')->unique()->count(),
+            ];
+        }
+
+        return $months;
+    }
+
+    /**
+     * Evolución del precio de cada presentación que se vende hoy, sacada del historial de precios.
+     * Cada punto es el precio desde esa fecha; el gráfico lo muestra por unidad base (precio ÷ factor).
+     *
+     * @return list<array{presentation_id: int, name: string, factor: int, points: list<array{date: string, price: float}>}>
+     */
+    private function priceSeries(Product $product): array
+    {
+        $changes = ProductPriceHistory::where('product_id', $product->id)
+            ->whereNotNull('new_price')
+            ->orderBy('id')
+            ->get(['product_presentation_id', 'new_price', 'created_at'])
+            ->groupBy('product_presentation_id');
+
+        return $product->presentations
+            ->filter(fn (ProductPresentation $p) => $p->is_sellable && $changes->has($p->id))
+            ->map(fn (ProductPresentation $p) => [
+                'presentation_id' => $p->id,
+                'name' => $p->name,
+                'factor' => $p->factor,
+                'points' => $changes->get($p->id)->map(fn (ProductPriceHistory $change) => [
+                    'date' => $change->created_at->toIso8601String(),
+                    'price' => (float) $change->new_price,
+                ])->values()->all(),
+            ])
+            ->values()
+            ->all();
     }
 
     public function create(): Response

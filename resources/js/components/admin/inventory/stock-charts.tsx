@@ -11,11 +11,12 @@
  * Colores: azul = entradas / stock (--chart-1), ámbar = salidas (amber-600 en claro, --chart-4 en oscuro):
  * validados para daltonismo y contraste en claro y oscuro.
  */
+import { ChartCard, compact, niceMax, shortDay, useWidth } from '@/components/admin/common/chart-utils';
 import { SegmentedControl } from '@/components/admin/common/segmented-control';
 import { plural } from '@/components/admin/products/presentation-levels';
 import { formatDay } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 /** Un día de la historia del stock. Ver InventoryController@stockHistory. */
 export interface StockDay {
@@ -67,45 +68,6 @@ export function StockCharts({ history, minStock, baseUnit, movementTypes }: Prop
         </div>
     );
 }
-
-function ChartCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
-    return (
-        <div className="surface min-w-0 rounded-xl">
-            <div className="border-b px-5 py-4">
-                <p className="text-sm font-semibold">{title}</p>
-                <p className="text-muted-foreground text-xs">{description}</p>
-            </div>
-            <div className="p-5">{children}</div>
-        </div>
-    );
-}
-
-/** Ancho real del contenedor (los gráficos se dibujan en píxeles para que las líneas no se deformen). */
-function useWidth<T extends HTMLElement>() {
-    const ref = useRef<T>(null);
-    const [width, setWidth] = useState(0);
-    useLayoutEffect(() => {
-        const element = ref.current;
-        if (!element) return;
-        const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
-        observer.observe(element);
-        setWidth(element.getBoundingClientRect().width);
-        return () => observer.disconnect();
-    }, []);
-    return [ref, width] as const;
-}
-
-/** Máximo "redondo" para el eje (4 divisiones con números limpios). */
-function niceMax(value: number): number {
-    if (value <= 4) return 4;
-    const step = Math.pow(10, Math.floor(Math.log10(value / 4)));
-    // Pasos finos (110 → 120, no 200) para no dejar aire de más arriba
-    const nice = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * step).find((s) => s * 4 >= value) ?? step * 10;
-    return nice * 4;
-}
-
-const compact = (n: number) => (Math.abs(n) >= 1000 ? `${(n / 1000).toLocaleString('es', { maximumFractionDigits: 1 })}K` : n.toLocaleString('es'));
-const shortDay = (date: string) => formatDay(date).replace(/ \d{4}$/, '');
 
 /** Detalle de un día o semana: neto por tipo de movimiento (venta −12, compra +100). */
 function TypeLines({ types, movementTypes }: { types: Record<string, number>; movementTypes: Record<string, string> }) {

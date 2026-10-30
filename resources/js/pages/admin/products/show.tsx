@@ -4,7 +4,8 @@
  *
  * Lo importante primero: para qué sirve (usos), indicadores (stock, precio, último costo, ganancia) y presentaciones
  * con su costo, ganancia y "alcanza para". El resto en pestañas, una a la vez: Stock por sucursal (con enlace a los
- * lotes) · Compras · Historial de precios · Datos (datos del producto, para qué sirve y registro).
+ * lotes) · Compras · Historial de precios · Gráficos (ventas por mes y evolución del precio, product-charts.tsx)
+ * · Datos (datos del producto, para qué sirve y registro).
  * Las tablas de presentaciones y stock son las mismas del desplegable de la lista (product-row-detail.tsx).
  */
 import { DataTable, Detail, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
@@ -14,7 +15,8 @@ import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
 import { StatusBadge } from '@/components/admin/common/user-badges';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import { plural } from '@/components/admin/products/presentation-levels';
-import { BranchStockTable, PresentationsTable, RegisteredBy, SaleType } from '@/components/admin/products/product-row-detail';
+import { type MonthSales, type PriceSeries, ProductCharts } from '@/components/admin/products/product-charts';
+import { BranchStockTable, PresentationsTable, RegisteredBy, SaleType, StockScopeBadge } from '@/components/admin/products/product-row-detail';
 import { StockBreakdown } from '@/components/admin/products/stock-breakdown';
 import { Button } from '@/components/ui/button';
 import { useCan } from '@/hooks/use-can';
@@ -76,9 +78,12 @@ interface Props {
     purchases: PurchaseRow[];
     /** Últimos 50 cambios de precio (el primero es el más reciente) */
     priceHistory: PriceChange[];
+    /** Gráficos: ventas de los últimos 12 meses y precios de cada presentación en el tiempo */
+    salesByMonth: MonthSales[];
+    priceSeries: PriceSeries[];
 }
 
-export default function ProductShow({ product, purchases, priceHistory }: Props) {
+export default function ProductShow({ product, purchases, priceHistory, salesByMonth, priceSeries }: Props) {
     const can = useCan();
     const units = plural(product.base_unit);
     const branches = product.branch_stock ?? [];
@@ -93,7 +98,7 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
     const title = [product.name, product.concentration].filter(Boolean).join(' ');
     const control = product.is_controlled ? 'Controlado' : product.requires_prescription ? 'Con receta' : 'Venta libre';
     // Lo importante arriba (indicadores y precios); el resto en pestañas, una a la vez
-    const [tab, setTab] = useState<'stock' | 'compras' | 'precios' | 'datos'>('stock');
+    const [tab, setTab] = useState<'stock' | 'compras' | 'precios' | 'graficos' | 'datos'>('stock');
 
     return (
         <AdminLayout
@@ -145,7 +150,7 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
                 <StatGrid>
                     <StatCard
                         icon={Boxes}
-                        label="Stock total"
+                        label="Stock total · todas las sucursales"
                         value={`${stock.toLocaleString('es')} ${units}`}
                         hint={
                             <>
@@ -185,14 +190,21 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
                     <PanelHeader
                         icon={Layers}
                         title="Presentaciones y precios"
-                        description={`${
+                        description={`Precios iguales en todas las sucursales. ${
                             lastUnitCost !== null
                                 ? 'Costo y ganancia calculados con la última compra.'
                                 : 'Sin compras todavía: no hay costo para calcular la ganancia.'
-                        } «Alcanza para»: cuántas completas se pueden vender con el stock de todas las sucursales.`}
+                        } «Alcanza para» suma el stock de todas las sucursales.`}
+                        aside={<StockScopeBadge label="Todas las sucursales" />}
                     />
                     <div className="p-5">
-                        <PresentationsTable product={product} unitCost={lastUnitCost} stock={stock} className="text-[13px]" />
+                        <PresentationsTable
+                            product={product}
+                            unitCost={lastUnitCost}
+                            stock={stock}
+                            stockScope="todas las sucursales"
+                            className="text-[13px]"
+                        />
                     </div>
                 </Panel>
 
@@ -207,6 +219,7 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
                             { value: 'stock', label: 'Stock por sucursal', count: branches.length },
                             { value: 'compras', label: 'Compras', count: purchases.length },
                             { value: 'precios', label: 'Historial de precios', count: priceHistory.length },
+                            { value: 'graficos', label: 'Gráficos' },
                             { value: 'datos', label: 'Datos' },
                         ]}
                     />
@@ -320,6 +333,7 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
                             </DataTable>
                         </Panel>
                     )}
+                    {tab === 'graficos' && <ProductCharts salesByMonth={salesByMonth} priceSeries={priceSeries} baseUnit={product.base_unit} />}
                     {tab === 'datos' && (
                         <div className="grid gap-6 lg:grid-cols-3">
                             <Panel>

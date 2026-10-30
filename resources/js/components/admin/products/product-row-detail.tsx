@@ -16,7 +16,7 @@ import { formatDate, formatDay, money } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type Presentation, type Product } from '@/types/admin/pharmacy';
 import { Link } from '@inertiajs/react';
-import { Check, Minus } from 'lucide-react';
+import { Check, Minus, Warehouse } from 'lucide-react';
 
 export function ProductRowDetail({ product }: { product: Product }) {
     return (
@@ -71,6 +71,7 @@ export function PresentationsTable({
     unitCost,
     stock,
     compact = false,
+    stockScope,
     className,
 }: {
     product: Product;
@@ -79,6 +80,8 @@ export function PresentationsTable({
     stock?: number;
     /** Solo presentación, contiene, precio y "alcanza para" (para la ficha de inventario: lo demás está en la del producto) */
     compact?: boolean;
+    /** De dónde sale el stock de "Alcanza para" (se muestra bajo el título): "todas las sucursales", "Almacén Central" */
+    stockScope?: string;
     className?: string;
 }) {
     const withCost = unitCost !== undefined && unitCost !== null;
@@ -100,7 +103,12 @@ export function PresentationsTable({
                         {withCost && <th className={cn(th, 'text-right')}>Ganancia</th>}
                         {!compact && <th className={cn(th, 'text-center')}>Vende</th>}
                         {!compact && <th className={cn(th, 'text-center')}>Compra</th>}
-                        {withStock && <th className={cn(th, 'text-right')}>Alcanza para</th>}
+                        {withStock && (
+                            <th className={cn(th, 'text-right')}>
+                                Alcanza para
+                                {stockScope && <span className="block text-[10px] font-normal tracking-normal normal-case">{stockScope}</span>}
+                            </th>
+                        )}
                         {!compact && <th className={cn(th, 'pr-0 text-left')}>Código</th>}
                     </tr>
                 </thead>
@@ -246,6 +254,16 @@ function VolumeSaving({ unitPrice, looseUnitPrice }: { unitPrice: number; looseU
         <span className="text-red-600" title="Sale más caro por unidad que comprando suelto: revisa el precio">
             {' '}
             · {-percent}% más
+        </span>
+    );
+}
+
+/** Etiqueta "🏬 Todas las sucursales" / "🏬 Almacén Central": aclara de qué stock hablan los números de un panel. */
+export function StockScopeBadge({ label }: { label: string }) {
+    return (
+        <span className="bg-muted text-foreground inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium">
+            <Warehouse className="text-muted-foreground size-3.5" />
+            {label}
         </span>
     );
 }

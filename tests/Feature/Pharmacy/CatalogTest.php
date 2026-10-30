@@ -182,6 +182,37 @@ class CatalogTest extends TestCase
                 ->where('purchases.0.unit_cost', 0.4));
     }
 
+    public function test_product_page_sends_monthly_sales_and_price_series_for_the_charts()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0, ['name' => 'Febrax']);
+        $this->batch($product, $branch, 300, '+1 year', 0.4);
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+        // 5 tabletas a Bs 1 (costo Bs 0,40 c/u) y después sube el precio a Bs 1,20
+        $this->actingAs($cashier)->post('/admin/sales', [
+            'items' => [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 5]],
+            'payments' => [['method' => 'efectivo', 'amount' => 10]],
+        ])->assertRedirect();
+        $this->presentation($product)->update(['sale_price' => 1.2]);
+
+        $this->actingAs($this->userWithRole('Administrador'))->get("/admin/products/{$product->id}")
+            ->assertInertia(fn ($page) => $page
+                ->has('salesByMonth', 12)
+                ->where('salesByMonth.11.month', now()->format('Y-m'))
+                ->where('salesByMonth.11.units', 5)
+                ->where('salesByMonth.11.amount', 5)
+                ->where('salesByMonth.11.profit', 3)
+                ->where('salesByMonth.11.sales', 1)
+                ->where('salesByMonth.0.units', 0)
+                ->has('priceSeries', 2)
+                ->where('priceSeries.0.factor', 1)
+                ->has('priceSeries.0.points', 2)
+                ->where('priceSeries.0.points.0.price', 1)
+                ->where('priceSeries.0.points.1.price', 1.2)
+                ->where('priceSeries.1.factor', 100));
+    }
+
     public function test_price_changes_are_kept_in_the_price_history()
     {
         $admin = $this->userWithRole('Administrador');
