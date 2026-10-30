@@ -14,6 +14,7 @@ import { StatusBadge } from '@/components/admin/common/user-badges';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import { plural } from '@/components/admin/products/presentation-levels';
 import { BranchStockTable, PresentationsTable, RegisteredBy, SaleType } from '@/components/admin/products/product-row-detail';
+import { StockBreakdown } from '@/components/admin/products/stock-breakdown';
 import { Button } from '@/components/ui/button';
 import { useCan } from '@/hooks/use-can';
 import AdminLayout from '@/layouts/admin/admin-layout';
@@ -128,7 +129,12 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
                         icon={Boxes}
                         label="Stock total"
                         value={`${stock.toLocaleString('es')} ${units}`}
-                        hint={`${branches.length} ${branches.length === 1 ? 'sucursal' : 'sucursales'} · mínimo ${product.min_stock} por sucursal`}
+                        hint={
+                            <>
+                                <StockBreakdown units={stock} product={product} className="text-xs" />
+                                {branches.length} {branches.length === 1 ? 'sucursal' : 'sucursales'} · mínimo {product.min_stock} por sucursal
+                            </>
+                        }
                         tone={stock <= product.min_stock ? 'red' : 'blue'}
                         colorValue={stock <= product.min_stock}
                     />

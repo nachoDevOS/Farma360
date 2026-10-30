@@ -15,6 +15,7 @@ import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { TableToolbar } from '@/components/admin/common/table-toolbar';
 import { StatusBadge } from '@/components/admin/common/user-badges';
 import { ProductRowDetail } from '@/components/admin/products/product-row-detail';
+import { StockBreakdown } from '@/components/admin/products/stock-breakdown';
 import { Pagination } from '@/components/shared/pagination';
 import { Button } from '@/components/ui/button';
 import { useCan } from '@/hooks/use-can';
@@ -195,6 +196,7 @@ export default function ProductsIndex({ products, filters, categories, laborator
                                                 {stock.toLocaleString('es')}
                                             </span>{' '}
                                             <span className="text-muted-foreground text-xs">{product.base_unit}</span>
+                                            <StockBreakdown units={stock} product={product} />
                                         </Td>
                                         <Td>
                                             <StatusBadge active={product.is_active} />

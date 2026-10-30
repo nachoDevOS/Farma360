@@ -8,6 +8,7 @@
  */
 import { Detail } from '@/components/admin/common/data-table';
 import { plural } from '@/components/admin/products/presentation-levels';
+import { StockBreakdown } from '@/components/admin/products/stock-breakdown';
 import { formatDate, formatDay, money } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type Presentation, type Product } from '@/types/admin/pharmacy';
@@ -147,6 +148,7 @@ export function BranchStockTable({ product, inventoryLink, className }: { produc
                                     <td className="py-1.5 pr-3 font-medium">{s.branch ?? '—'}</td>
                                     <td className={cn('num py-1.5 pr-3 text-right', s.stock <= product.min_stock && 'font-semibold text-red-600')}>
                                         {s.stock.toLocaleString('es')}
+                                        <StockBreakdown units={s.stock} product={product} />
                                     </td>
                                     <td className="num py-1.5 pr-3 text-right">{s.batches}</td>
                                     <td

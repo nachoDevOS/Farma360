@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/admin/common/page-header';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
 import { TableToolbar } from '@/components/admin/common/table-toolbar';
+import { StockBreakdown } from '@/components/admin/products/stock-breakdown';
 import { Pagination } from '@/components/shared/pagination';
 import { useFilters } from '@/hooks/use-filters';
 import AdminLayout from '@/layouts/admin/admin-layout';
@@ -128,6 +129,7 @@ export default function InventoryIndex({ products, filters, branches, alertDays,
                                     <Td align="right">
                                         <span className={cn('font-medium', low && 'text-red-600')}>{stock.toLocaleString('es')}</span>{' '}
                                         <span className="text-muted-foreground text-xs">{product.base_unit}</span>
+                                        <StockBreakdown units={stock} product={product} />
                                     </Td>
                                     <Td align="right" className="text-muted-foreground">
                                         {product.min_stock.toLocaleString('es')}

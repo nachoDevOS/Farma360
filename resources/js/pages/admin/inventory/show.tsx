@@ -1,14 +1,19 @@
 /*
  * PÁGINA: Inventario de un producto  (ruta /admin/inventory/{producto}?branch=)
- * Lotes (con vencimiento, costo y promoción), kardex y ajustes manuales.
+ * Lotes (con vencimiento, costo y promoción), gráficos del stock (stock-charts.tsx), kardex y ajustes manuales.
+ * "Ingreso sin compra" (inventario inicial) se carga por presentación, como una compra: 3 Caja x100 a Bs 40 → 300 tabletas.
  * Datos: InventoryController@show · Ajustes: InventoryController@adjust
  */
 import { DataTable, Detail, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
 import { ExpiryBadge, PromoBadge } from '@/components/admin/common/doc-status';
 import { PageHeader } from '@/components/admin/common/page-header';
+import { QuantityInput } from '@/components/admin/common/quantity-input';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
+import { StockCharts, type StockDay } from '@/components/admin/inventory/stock-charts';
+import { plural } from '@/components/admin/products/presentation-levels';
+import { StockBreakdown } from '@/components/admin/products/stock-breakdown';
 import InputError from '@/components/shared/input-error';
 import { Pagination } from '@/components/shared/pagination';
 import { Button } from '@/components/ui/button';
@@ -22,7 +27,7 @@ import { cn } from '@/lib/utils';
 import { type Paginated } from '@/types';
 import { type Batch, type Option, type Product, type StockMovement } from '@/types/admin/pharmacy';
 import { Head, router, useForm } from '@inertiajs/react';
-import { Boxes, LoaderCircle, Minus, PackageX, Plus } from 'lucide-react';
+import { Boxes, LoaderCircle, Minus, PackageX, Plus, X } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
 
 interface Props {
@@ -33,6 +38,8 @@ interface Props {
     batches: Batch[];
     movements: Paginated<StockMovement>;
     movementTypes: Record<string, string>;
+    /** Últimos 90 días del stock en la sucursal, un día por fila (para los gráficos) */
+    history: StockDay[];
 }
 
 type Mode = 'new' | 'in' | 'out' | 'writeoff';
@@ -44,7 +51,7 @@ const modeTitles: Record<Mode, string> = {
     writeoff: 'Baja por vencimiento o daño',
 };
 
-export default function InventoryShow({ product, branches, branchId, stock, batches, movements, movementTypes }: Props) {
+export default function InventoryShow({ product, branches, branchId, stock, batches, movements, movementTypes, history }: Props) {
     const can = useCan();
     const [adjust, setAdjust] = useState<{ mode: Mode; batch: Batch | null } | null>(null);
 
@@ -84,6 +91,7 @@ export default function InventoryShow({ product, branches, branchId, stock, batc
                     <Detail label="Stock en la sucursal">
                         <span className={cn('num text-lg', stock <= product.min_stock && 'text-red-600')}>
                             {stock.toLocaleString('es')} {product.base_unit}
+                            <StockBreakdown units={stock} product={product} />
                         </span>
                     </Detail>
                     <Detail label="Stock mínimo">{product.min_stock.toLocaleString('es')}</Detail>
@@ -94,6 +102,8 @@ export default function InventoryShow({ product, branches, branchId, stock, batc
                         {product.is_controlled ? 'Controlado' : product.requires_prescription ? 'Con receta' : 'Venta libre'}
                     </Detail>
                 </Panel>
+
+                <StockCharts history={history} minStock={product.min_stock} baseUnit={product.base_unit} movementTypes={movementTypes} />
 
                 <Panel className="overflow-hidden">
                     <PanelHeader title="Lotes" description="Se venden primero los que vencen antes (FEFO). Los vencidos no se pueden vender." />
@@ -202,6 +212,10 @@ function AdjustDialog({
     adjust: { mode: Mode; batch: Batch | null } | null;
     onClose: () => void;
 }) {
+    // Ingreso sin compra: por defecto la presentación más grande que se compra (normalmente la caja)
+    const defaultPresentation = String(
+        ([...product.presentations].reverse().find((p) => p.is_purchasable) ?? product.presentations.at(-1))?.id ?? '',
+    );
     const { data, setData, post, processing, errors, reset, clearErrors } = useForm({
         mode: 'new' as Mode,
         batch_id: '',
@@ -209,7 +223,11 @@ function AdjustDialog({
         branch_id: String(branchId),
         batch_number: '',
         expires_at: '',
-        unit_cost: '',
+        // Solo en "Ingreso sin compra": líneas por presentación (1 caja + 5 blísteres) y el costo de compra de UNA presentación
+        items: [{ product_presentation_id: defaultPresentation, quantity: '' }],
+        cost: '',
+        cost_presentation_id: defaultPresentation,
+        // En los demás ajustes: cantidad en unidades base
         quantity: '',
         note: '',
     });
@@ -222,6 +240,22 @@ function AdjustDialog({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [adjust]);
 
+    const err = errors as Record<string, string | undefined>;
+    const unitsLabel = plural(product.base_unit);
+    const factorOf = (id: string) => product.presentations.find((p) => String(p.id) === id)?.factor ?? 0;
+    const presentationOptions = product.presentations.map((p) => ({ id: p.id as number, name: p.name }));
+    const units = data.items.reduce((sum, item) => sum + Number(item.quantity || 0) * factorOf(item.product_presentation_id), 0);
+    const costFactor = factorOf(data.cost_presentation_id);
+    const unitCost = costFactor > 0 && data.cost !== '' ? Number(data.cost) / costFactor : null;
+    const costPresentation = product.presentations.find((p) => String(p.id) === data.cost_presentation_id);
+    const unused = product.presentations.filter((p) => !data.items.some((item) => item.product_presentation_id === String(p.id)));
+
+    const setItem = (index: number, patch: Partial<(typeof data.items)[number]>) =>
+        setData(
+            'items',
+            data.items.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+        );
+
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         post(route('admin.inventory.adjust'), { preserveScroll: true, onSuccess: () => onClose() });
@@ -231,7 +265,7 @@ function AdjustDialog({
 
     return (
         <Dialog open={adjust !== null} onOpenChange={(value) => !value && onClose()}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
                 <form onSubmit={submit} className="grid gap-4">
                     <DialogHeader>
                         <DialogTitle>{modeTitles[mode]}</DialogTitle>
@@ -242,38 +276,155 @@ function AdjustDialog({
                             Queda registrado en el kardex con tu usuario.
                         </DialogDescription>
                     </DialogHeader>
-                    {mode === 'new' && (
-                        <div className="grid gap-4 sm:grid-cols-3">
+                    {mode === 'new' ? (
+                        <>
+                            {/* Qué hay en el estante, por presentación: 1 caja + 5 blísteres */}
                             <div className="grid gap-2">
-                                <Label>Lote</Label>
-                                <Input value={data.batch_number} onChange={(e) => setData('batch_number', e.target.value)} />
-                                <InputError message={errors.batch_number} />
+                                <Label>Qué ingresa</Label>
+                                {data.items.map((item, i) => (
+                                    <div key={i} className="grid gap-1">
+                                        <div className="flex items-start gap-2">
+                                            <QuantityInput
+                                                min={1}
+                                                value={item.quantity}
+                                                onChange={(value) => setItem(i, { quantity: value })}
+                                                placeholder="Cant."
+                                                aria-label="Cantidad"
+                                                wrapperClassName="w-24 shrink-0"
+                                                autoFocus={i === 0}
+                                            />
+                                            <SimpleSelect
+                                                options={presentationOptions.filter(
+                                                    (o) => String(o.id) === item.product_presentation_id || unused.some((p) => p.id === o.id),
+                                                )}
+                                                value={item.product_presentation_id}
+                                                onChange={(value) => setItem(i, { product_presentation_id: value })}
+                                                className="h-9 min-w-0 flex-1"
+                                            />
+                                            {data.items.length > 1 && (
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="text-red-600 hover:text-red-700"
+                                                    onClick={() =>
+                                                        setData(
+                                                            'items',
+                                                            data.items.filter((_, j) => j !== i),
+                                                        )
+                                                    }
+                                                    aria-label="Quitar línea"
+                                                >
+                                                    <X className="size-4" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <InputError message={err[`items.${i}.quantity`] ?? err[`items.${i}.product_presentation_id`]} />
+                                    </div>
+                                ))}
+                                <InputError message={err.items} />
+                                {unused.length > 0 && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-fit"
+                                        onClick={() =>
+                                            setData('items', [
+                                                ...data.items,
+                                                { product_presentation_id: String(unused[unused.length - 1].id), quantity: '' },
+                                            ])
+                                        }
+                                    >
+                                        <Plus /> Agregar otra presentación
+                                    </Button>
+                                )}
                             </div>
+
+                            {/* Costo de compra (no el precio de venta) de una presentación: el sistema saca el de cada unidad */}
                             <div className="grid gap-2">
-                                <Label>Vencimiento</Label>
-                                <Input type="date" min={today()} value={data.expires_at} onChange={(e) => setData('expires_at', e.target.value)} />
-                                <InputError message={errors.expires_at} />
+                                <Label>Costo de compra</Label>
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        min={0}
+                                        value={data.cost}
+                                        onChange={(e) => setData('cost', e.target.value)}
+                                        placeholder="0,00"
+                                        className="w-28 shrink-0"
+                                        aria-label="Costo de compra"
+                                    />
+                                    <span className="text-muted-foreground shrink-0 text-sm">por</span>
+                                    <SimpleSelect
+                                        options={presentationOptions}
+                                        value={data.cost_presentation_id}
+                                        onChange={(value) => setData('cost_presentation_id', value)}
+                                        className="h-9 min-w-0 flex-1"
+                                    />
+                                </div>
+                                <p className="text-muted-foreground text-xs">
+                                    Lo que te costó {costPresentation ? `cada ${costPresentation.package.toLowerCase()}` : ''} al comprarlo, no el
+                                    precio de venta. Sirve para calcular la ganancia.
+                                </p>
+                                <InputError message={err.cost ?? err.cost_presentation_id} />
                             </div>
-                            <div className="grid gap-2">
-                                <Label>Costo por {product.base_unit}</Label>
-                                <Input
-                                    type="number"
-                                    step="0.0001"
-                                    min={0}
-                                    value={data.unit_cost}
-                                    onChange={(e) => setData('unit_cost', e.target.value)}
-                                />
-                                <InputError message={errors.unit_cost} />
+
+                            {units > 0 && (
+                                <p className="bg-muted/50 rounded-md px-3 py-2 text-sm">
+                                    Entran{' '}
+                                    <span className="font-semibold">
+                                        {units.toLocaleString('es')} {unitsLabel}
+                                    </span>
+                                    {unitCost !== null && (
+                                        <>
+                                            {' '}
+                                            · {money(unitCost)} c/{product.base_unit.toLowerCase()} · total{' '}
+                                            <span className="font-semibold">{money(unitCost * units)}</span>
+                                        </>
+                                    )}
+                                </p>
+                            )}
+
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label>
+                                        Lote <span className="text-muted-foreground font-normal">(opcional)</span>
+                                    </Label>
+                                    <Input
+                                        value={data.batch_number}
+                                        onChange={(e) => setData('batch_number', e.target.value)}
+                                        placeholder="Si lo dejas vacío: SL-…"
+                                    />
+                                    <InputError message={errors.batch_number} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label>Vencimiento</Label>
+                                    <Input
+                                        type="date"
+                                        min={today()}
+                                        value={data.expires_at}
+                                        onChange={(e) => setData('expires_at', e.target.value)}
+                                    />
+                                    <InputError message={errors.expires_at} />
+                                </div>
                             </div>
+                        </>
+                    ) : (
+                        <div className="grid gap-2">
+                            <Label>Cantidad ({unitsLabel})</Label>
+                            <QuantityInput
+                                min={1}
+                                value={data.quantity}
+                                onChange={(value) => setData('quantity', value)}
+                                fractionHint={`Solo números enteros, en ${unitsLabel}.`}
+                                autoFocus
+                            />
+                            <InputError message={errors.quantity} />
                         </div>
                     )}
                     <div className="grid gap-2">
-                        <Label>Cantidad ({product.base_unit})</Label>
-                        <Input type="number" min={1} value={data.quantity} onChange={(e) => setData('quantity', e.target.value)} autoFocus />
-                        <InputError message={errors.quantity} />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label>Motivo</Label>
+                        <Label>Motivo {mode === 'new' && <span className="text-muted-foreground font-normal">(opcional)</span>}</Label>
                         <Input
                             value={data.note}
                             onChange={(e) => setData('note', e.target.value)}

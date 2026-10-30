@@ -6,7 +6,8 @@
  * El usuario no escribe el factor ni el nombre: se calculan aquí para la vista previa
  * y el servidor los vuelve a calcular al guardar (ProductPresentation::arrange).
  *
- * Además: precios sugeridos (precio unitario × cantidad) y qué se compra por defecto.
+ * Además: precios sugeridos (precio unitario × cantidad), qué se compra por defecto y el stock desglosado
+ * en presentaciones (stockBreakdown).
  */
 import { type Presentation } from '@/types/admin/pharmacy';
 
@@ -174,4 +175,27 @@ export function withSuggestedPrices(rows: LevelRow[]): LevelRow[] {
         const price = suggestedPrice(rows, i);
         return price === null ? r : { ...r, sale_price: price.toFixed(2) };
     });
+}
+
+/**
+ * Stock desglosado en presentaciones, de la más grande a la más chica (para contar el estante):
+ *   stockBreakdown(287, product.presentations, 'Tableta') → "2 cajas + 8 blísteres + 7 tabletas"
+ * Devuelve null si no hay nada que desglosar (sin stock o menos que el empaque más chico).
+ * Si dos empaques se llaman igual (Caja x10 y Caja x30) usa su nombre completo para no confundir.
+ */
+export function stockBreakdown(units: number, presentations: Pick<Presentation, 'factor' | 'package' | 'name'>[], baseUnit: string): string | null {
+    const packages = presentations.filter((p) => p.factor > 1).sort((a, b) => b.factor - a.factor);
+    if (units <= 0 || packages.length === 0 || units < packages[packages.length - 1].factor) return null;
+
+    const repeated = (p: Pick<Presentation, 'package'>) => packages.filter((other) => sameName(other.package, p.package)).length > 1;
+    const parts: string[] = [];
+    let rest = units;
+    for (const p of packages) {
+        const count = Math.floor(rest / p.factor);
+        if (count === 0) continue;
+        parts.push(repeated(p) ? `${count} × ${p.name}` : `${count} ${count === 1 ? p.package.toLowerCase() : plural(p.package)}`);
+        rest -= count * p.factor;
+    }
+    if (rest > 0) parts.push(`${rest} ${rest === 1 ? baseUnit.toLowerCase() : plural(baseUnit)}`);
+    return parts.join(' + ');
 }

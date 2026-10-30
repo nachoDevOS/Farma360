@@ -8,6 +8,7 @@
  * Aquí se muestra una estimación con la promoción del primer lote.
  */
 import { DocStatus, PromoBadge } from '@/components/admin/common/doc-status';
+import { blockFractionKeys } from '@/components/admin/common/quantity-input';
 import { SearchPicker } from '@/components/admin/common/search-picker';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import InputError from '@/components/shared/input-error';
@@ -182,7 +183,10 @@ export default function Pos({ session, paymentMethods }: Props) {
                                                     min={1}
                                                     className="text-sm"
                                                     value={line.quantity}
-                                                    onChange={(e) => setQuantity(i, Number(e.target.value))}
+                                                    step={1}
+                                                    inputMode="numeric"
+                                                    onKeyDown={blockFractionKeys}
+                                                    onChange={(e) => setQuantity(i, Math.floor(Number(e.target.value)))}
                                                     onFocus={(e) => e.target.select()}
                                                     aria-label="Cantidad"
                                                 />

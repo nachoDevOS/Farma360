@@ -7,6 +7,7 @@
  */
 import { Detail } from '@/components/admin/common/data-table';
 import { PageHeader } from '@/components/admin/common/page-header';
+import { QuantityInput } from '@/components/admin/common/quantity-input';
 import { SearchPicker } from '@/components/admin/common/search-picker';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
@@ -167,7 +168,7 @@ export default function PurchaseCreate({ branches, suppliers }: Props) {
                                         )}
                                     </div>
                                     <ItemField label="Cantidad" error={err[`items.${i}.quantity`]}>
-                                        <Input type="number" min={1} value={row.quantity} onChange={(e) => setItem(i, 'quantity', e.target.value)} />
+                                        <QuantityInput min={1} value={row.quantity} onChange={(value) => setItem(i, 'quantity', value)} />
                                     </ItemField>
                                     <ItemField label="Costo c/presentación" error={err[`items.${i}.cost`]}>
                                         <Input

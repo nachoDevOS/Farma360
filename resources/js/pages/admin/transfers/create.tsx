@@ -5,6 +5,7 @@
  */
 import { ExpiryBadge } from '@/components/admin/common/doc-status';
 import { PageHeader } from '@/components/admin/common/page-header';
+import { QuantityInput } from '@/components/admin/common/quantity-input';
 import { SearchPicker } from '@/components/admin/common/search-picker';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
@@ -147,15 +148,15 @@ export default function TransferCreate({ fromBranches, toBranches }: { fromBranc
                                     </div>
                                     <ExpiryBadge date={row.expires_at} className="justify-self-start" />
                                     <div>
-                                        <Input
-                                            type="number"
+                                        <QuantityInput
                                             min={1}
                                             max={row.available}
                                             value={row.quantity}
-                                            onChange={(e) =>
+                                            fractionHint={`Solo números enteros, en ${row.base_unit}.`}
+                                            onChange={(value) =>
                                                 setData(
                                                     'items',
-                                                    data.items.map((r, j) => (j === i ? { ...r, quantity: e.target.value } : r)),
+                                                    data.items.map((r, j) => (j === i ? { ...r, quantity: value } : r)),
                                                 )
                                             }
                                         />
