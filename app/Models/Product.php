@@ -20,6 +20,8 @@ class Product extends Model
     protected $fillable = [
         'name', 'generic_name', 'concentration', 'pharmaceutical_form', 'description', 'laboratory_id', 'category_id',
         'barcode', 'health_registry', 'base_unit', 'requires_prescription', 'is_controlled', 'min_stock', 'is_active',
+        // Foto: ruta del .avif en S3 (StorageController)
+        'image',
     ];
 
     protected function casts(): array

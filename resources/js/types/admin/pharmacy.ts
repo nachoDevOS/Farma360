@@ -44,6 +44,8 @@ export interface Product {
     pharmaceutical_form: string | null;
     /** Para qué sirve, en palabras */
     description: string | null;
+    /** Foto: ruta del .avif en S3 (ver lib/storage.ts) */
+    image?: string | null;
     laboratory_id: number | null;
     category_id: number | null;
     barcode: string | null;

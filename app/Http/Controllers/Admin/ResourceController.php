@@ -37,14 +37,16 @@ abstract class ResourceController extends Controller
     abstract protected function meta(): array;
 
     /**
-     * Campos del formulario. type: text | number | email | select | checkbox
+     * Campos del formulario. type: text | number | email | select | checkbox | image
+     * image: se sube un archivo y lo guarda StorageController en S3 (.avif) dentro de "folder"; en la columna queda la ruta.
+     *   Sus reglas van en rules() como cualquier campo ('image' => [...], 'remove_image' => ['nullable', 'boolean']).
      *
-     * @return list<array{name: string, label: string, type: string, options?: list<array{value: string|int, label: string}>, placeholder?: string, default?: mixed}>
+     * @return list<array{name: string, label: string, type: string, options?: list<array{value: string|int, label: string}>, placeholder?: string, default?: mixed, folder?: string}>
      */
     abstract protected function fields(): array;
 
     /**
-     * Columnas de la tabla. type: text | boolean | status | money
+     * Columnas de la tabla. type: text | boolean | status | money | image (miniatura de la ruta guardada en S3)
      *
      * @return list<array{key: string, label: string, type?: string}>
      */
@@ -141,7 +143,16 @@ abstract class ResourceController extends Controller
         }
 
         $attributes = collect($this->fields())->mapWithKeys(fn (array $f) => [$f['name'] => mb_strtolower($f['label'])])->all();
+        $data = $request->validate($this->rules($model), [], $attributes);
 
-        return $request->validate($this->rules($model), [], $attributes);
+        // Imágenes: se suben a S3 y en la columna queda la ruta (o null si se quitó, o la que tenía si no se tocó)
+        foreach ($this->fields() as $field) {
+            if ($field['type'] === 'image') {
+                $data[$field['name']] = $this->storeImage($request, $field['name'], $field['folder'] ?? 'images', $model?->getAttribute($field['name']));
+                unset($data["remove_{$field['name']}"]);
+            }
+        }
+
+        return $data;
     }
 }

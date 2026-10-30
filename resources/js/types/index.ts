@@ -43,6 +43,8 @@ export interface SharedData {
     quote: { message: string; author: string };
     auth: Auth;
     flash: Flash;
+    /** Dirección pública del bucket S3 (AWS_URL): las imágenes son aws_url/ruta. Ver lib/storage.ts */
+    aws_url?: string | null;
     [key: string]: unknown;
 }
 
@@ -58,7 +60,8 @@ export interface User {
     branch_id: number | null;
     branch?: { id: number; name: string } | null;
     last_login_at: string | null;
-    avatar?: string;
+    /** Foto de perfil: ruta del .avif en S3 (ver lib/storage.ts) */
+    avatar?: string | null;
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;

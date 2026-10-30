@@ -2,9 +2,12 @@
  * PÁGINA GENÉRICA de catálogos simples: sucursales, proveedores, clientes, categorías, laboratorios,
  * usos, cajas y billetes. Todo lo que cambia entre uno y otro (título, campos, columnas,
  * rutas y permisos) lo manda Laravel en la prop `resource` (ver app/Http/Controllers/Admin/ResourceController.php).
+ * Campo "image" (ej: logo del laboratorio): se elige con ImageUpload y lo sube StorageController a S3; la columna
+ * "image" muestra la miniatura. Con un archivo al editar se manda POST + _method=put (PHP no lee archivos en un PUT).
  */
 import { ConfirmDialog } from '@/components/admin/common/confirm-dialog';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
+import { ImageUpload, StoredImage } from '@/components/admin/common/image-upload';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
 import { TableToolbar } from '@/components/admin/common/table-toolbar';
@@ -41,7 +44,7 @@ import {
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
 
-type Value = string | number | boolean | null;
+type Value = string | number | boolean | File | null;
 
 /** Ícono de cada catálogo (por nombre de ruta). */
 const resourceIcons: Record<string, LucideIcon> = {
@@ -59,7 +62,7 @@ type Row = { id: number } & Record<string, unknown>;
 interface Field {
     name: string;
     label: string;
-    type: 'text' | 'number' | 'email' | 'select' | 'checkbox';
+    type: 'text' | 'number' | 'email' | 'select' | 'checkbox' | 'image';
     options?: { value: string | number; label: string }[];
     placeholder?: string;
     default?: Value;
@@ -68,7 +71,7 @@ interface Field {
 interface Column {
     key: string;
     label: string;
-    type?: 'text' | 'boolean' | 'status' | 'money';
+    type?: 'text' | 'boolean' | 'status' | 'money' | 'image';
 }
 
 interface Resource {
@@ -149,8 +152,12 @@ export default function ResourceIndex({ resource, rows, filters }: Props) {
                         {rows.data.map((row) => (
                             <tr key={row.id}>
                                 {resource.columns.map((column) => (
-                                    <Td key={column.key} align={column.type === 'money' ? 'right' : 'left'}>
-                                        <Cell column={column} value={read(row, column.key)} />
+                                    <Td
+                                        key={column.key}
+                                        align={column.type === 'money' ? 'right' : 'left'}
+                                        className={column.type === 'image' ? 'w-px' : undefined}
+                                    >
+                                        <Cell column={column} value={read(row, column.key)} icon={resourceIcons[resource.route] ?? Tags} />
                                     </Td>
                                 ))}
                                 {showActions && (
@@ -187,7 +194,9 @@ export default function ResourceIndex({ resource, rows, filters }: Props) {
     );
 }
 
-function Cell({ column, value }: { column: Column; value: unknown }) {
+function Cell({ column, value, icon: Icon }: { column: Column; value: unknown; icon: LucideIcon }) {
+    if (column.type === 'image')
+        return <StoredImage path={value as string | null} alt="" fallback={<Icon className="size-4" />} className="size-10" />;
     if (column.type === 'status') return <StatusBadge active={Boolean(value)} />;
     if (column.type === 'boolean') return value ? <Check className="size-4 text-emerald-600" /> : <span className="text-muted-foreground">—</span>;
     if (column.type === 'money') return <>{money(value as string)}</>;
@@ -197,19 +206,29 @@ function Cell({ column, value }: { column: Column; value: unknown }) {
 
 /** Formulario que se arma solo a partir de resource.fields. */
 function ResourceFormDialog({ resource, open, row, onClose }: { resource: Resource; open: boolean; row: Row | null; onClose: () => void }) {
+    const imageFields = resource.fields.filter((f) => f.type === 'image');
+    // Imagen: el archivo nuevo (null = no se cambia) y remove_<campo> para quitar la que tiene
+    const initial = (f: Field): Value => (f.type === 'image' ? null : (f.default ?? (f.type === 'checkbox' ? false : '')));
     const empty = () =>
-        Object.fromEntries(resource.fields.map((f) => [f.name, f.default ?? (f.type === 'checkbox' ? false : '')])) as Record<string, Value>;
-    const { data, setData, post, put, processing, errors, clearErrors } = useForm<Record<string, Value>>(empty());
+        Object.fromEntries([...resource.fields.map((f) => [f.name, initial(f)]), ...imageFields.map((f) => [`remove_${f.name}`, false])]) as Record<
+            string,
+            Value
+        >;
+    const { data, setData, post, put, processing, errors, clearErrors, transform } = useForm<Record<string, Value>>(empty());
+    const hasFile = imageFields.some((f) => data[f.name] instanceof File);
 
     useEffect(() => {
         if (!open) return;
         clearErrors();
         setData(
             row
-                ? (Object.fromEntries(resource.fields.map((f) => [f.name, (row[f.name] as Value) ?? (f.type === 'checkbox' ? false : '')])) as Record<
-                      string,
-                      Value
-                  >)
+                ? (Object.fromEntries([
+                      ...resource.fields.map((f) => [
+                          f.name,
+                          f.type === 'image' ? null : ((row[f.name] as Value) ?? (f.type === 'checkbox' ? false : '')),
+                      ]),
+                      ...imageFields.map((f) => [`remove_${f.name}`, false]),
+                  ]) as Record<string, Value>)
                 : empty(),
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,8 +237,13 @@ function ResourceFormDialog({ resource, open, row, onClose }: { resource: Resour
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         const options = { preserveScroll: true, onSuccess: () => onClose() };
-        if (row) put(route(`${resource.route}.update`, row.id), options);
-        else post(route(`${resource.route}.store`), options);
+        // Sin imagen nueva: JSON como siempre (null = no se cambia la imagen, así que no se manda)
+        transform((d) => {
+            const sent = Object.fromEntries(Object.entries(d).filter(([key, value]) => !(imageFields.some((f) => f.name === key) && value === null)));
+            return row && hasFile ? { ...sent, _method: 'put' } : sent;
+        });
+        if (row && !hasFile) put(route(`${resource.route}.update`, row.id), options);
+        else post(row ? route(`${resource.route}.update`, row.id) : route(`${resource.route}.store`), options);
     };
 
     return (
@@ -234,7 +258,18 @@ function ResourceFormDialog({ resource, open, row, onClose }: { resource: Resour
                 <form onSubmit={submit} className="grid gap-4">
                     {resource.fields.map((field, i) => (
                         <div key={field.name} className="grid gap-2">
-                            {field.type === 'checkbox' ? (
+                            {field.type === 'image' ? (
+                                <>
+                                    <Label>{field.label}</Label>
+                                    <ImageUpload
+                                        current={row ? (row[field.name] as string | null) : null}
+                                        file={data[field.name] instanceof File ? (data[field.name] as File) : null}
+                                        removed={Boolean(data[`remove_${field.name}`])}
+                                        onChange={(file) => setData((d) => ({ ...d, [field.name]: file, [`remove_${field.name}`]: false }))}
+                                        onRemove={() => setData((d) => ({ ...d, [field.name]: null, [`remove_${field.name}`]: true }))}
+                                    />
+                                </>
+                            ) : field.type === 'checkbox' ? (
                                 <label className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5">
                                     <Checkbox
                                         checked={Boolean(data[field.name])}

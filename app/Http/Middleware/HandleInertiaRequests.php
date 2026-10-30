@@ -44,6 +44,8 @@ class HandleInertiaRequests extends Middleware
         return array_merge(parent::share($request), [
             ...parent::share($request),
             'name' => config('app.name'),
+            // Dirección pública del bucket S3 (AWS_URL): las imágenes se muestran como aws_url/ruta (ver lib/storage.ts)
+            'aws_url' => config('filesystems.disks.s3.url'),
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => $request->user(),

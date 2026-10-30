@@ -64,7 +64,7 @@ export function UsersTable({ users, filters, onSort, onEdit, onToggle, onDelete 
                         <tr key={user.id} className={cn('hover:bg-muted/50 transition-colors', !user.is_active && 'opacity-60')}>
                             <td className="px-4 py-3">
                                 <div className="flex items-center gap-3">
-                                    <UserAvatar name={user.name} className="size-8" />
+                                    <UserAvatar name={user.name} avatar={user.avatar} className="size-8" />
                                     <div className="min-w-0">
                                         <p className="text-foreground flex items-center gap-2 truncate font-medium">
                                             {user.name}

@@ -63,7 +63,7 @@ class DashboardController extends Controller
                 ->map(fn (Role $role) => ['role' => $role->name, 'total' => $role->users_count]),
             // Solo pedimos las columnas necesarias: nunca enviar datos sensibles (como la contraseña) al navegador.
             // with('roles') trae el rol de cada uno en una sola consulta.
-            'recentUsers' => User::with('roles')->latest()->take(6)->get(['id', 'name', 'email', 'is_active', 'created_at']),
+            'recentUsers' => User::with('roles')->latest()->take(6)->get(['id', 'name', 'email', 'avatar', 'is_active', 'created_at']),
         ]);
     }
 }

@@ -57,6 +57,9 @@ class ProductRequest extends FormRequest
             'pharmaceutical_form' => ['nullable', 'string', 'max:60'],
             // Para qué sirve, en palabras (también se busca por este texto)
             'description' => ['nullable', 'string', 'max:2000'],
+            // Foto (la guarda StorageController en S3 como .avif). remove_image = quitar la que tiene
+            'image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,bmp,webp,gif,avif', 'max:5120'],
+            'remove_image' => ['nullable', 'boolean'],
             // Usos / síntomas: "Dolor de cabeza", "Fiebre"… (los que no existen se crean al guardar)
             'indications' => ['array', 'max:20'],
             'indications.*' => ['string', 'max:80'],
@@ -150,6 +153,7 @@ class ProductRequest extends FormRequest
             'name' => 'nombre comercial',
             'generic_name' => 'nombre genérico',
             'description' => 'para qué sirve',
+            'image' => 'imagen',
             'indications' => 'usos',
             'indications.*' => 'uso',
             'base_unit' => 'unidad base',

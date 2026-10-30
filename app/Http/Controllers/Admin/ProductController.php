@@ -253,8 +253,10 @@ class ProductController extends Controller
 
     public function store(ProductRequest $request): RedirectResponse
     {
-        $product = DB::transaction(function () use ($request) {
-            $product = Product::create($this->productData($request));
+        // La foto se sube a S3 antes de abrir la transacción (si falla, avisa y no se crea nada)
+        $image = $this->storeImage($request, 'image', 'products');
+        $product = DB::transaction(function () use ($request, $image) {
+            $product = Product::create($this->productData($request) + ['image' => $image]);
             $this->syncPresentations($product, $request->validated('presentations'));
             $product->indications()->sync(Indication::idsFor($request->validated('indications', [])));
 
@@ -280,8 +282,9 @@ class ProductController extends Controller
 
     public function update(ProductRequest $request, Product $product): RedirectResponse
     {
-        DB::transaction(function () use ($request, $product) {
-            $product->update($this->productData($request));
+        $image = $this->storeImage($request, 'image', 'products', $product->image);
+        DB::transaction(function () use ($request, $product, $image) {
+            $product->update($this->productData($request) + ['image' => $image]);
             $this->syncPresentations($product, $request->validated('presentations'));
             $product->indications()->sync(Indication::idsFor($request->validated('indications', [])));
         });
@@ -342,7 +345,7 @@ class ProductController extends Controller
             ->value('generic_name');
 
         return [
-            ...$request->safe()->except(['presentations', 'indications', 'generic_name']),
+            ...$request->safe()->except(['presentations', 'indications', 'generic_name', 'image', 'remove_image']),
             'generic_name' => $generic === '' ? null : ($existing ?? mb_strtoupper(mb_substr($generic, 0, 1)).mb_substr($generic, 1)),
         ];
     }

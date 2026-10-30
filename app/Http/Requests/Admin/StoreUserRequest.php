@@ -42,6 +42,9 @@ class StoreUserRequest extends FormRequest
             'branch_id' => ['nullable', Rule::exists('branches', 'id')->whereNull('deleted_at')],
             // Password::defaults() = mínimo 8 caracteres (se puede endurecer en AppServiceProvider)
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            // Foto de perfil (la guarda StorageController en S3 como .avif). remove_avatar = quitar la que tiene
+            'avatar' => ['nullable', 'image', 'mimes:jpeg,jpg,png,bmp,webp,gif,avif', 'max:5120'],
+            'remove_avatar' => ['nullable', 'boolean'],
         ];
     }
 
@@ -70,6 +73,7 @@ class StoreUserRequest extends FormRequest
             'role' => 'rol',
             'is_active' => 'estado',
             'branch_id' => 'sucursal',
+            'avatar' => 'foto',
         ];
     }
 }

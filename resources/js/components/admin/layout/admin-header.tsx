@@ -43,7 +43,7 @@ function HeaderUser() {
                     className="hover:bg-muted data-[state=open]:bg-muted flex items-center gap-2 rounded-full p-0.5 transition-colors md:rounded-md md:py-1 md:pr-2 md:pl-1"
                     aria-label="Menú del usuario"
                 >
-                    <UserAvatar name={auth.user.name} className="size-7 text-[11px]" />
+                    <UserAvatar name={auth.user.name} avatar={auth.user.avatar} className="size-7 text-[11px]" />
                     <span className="hidden max-w-32 truncate text-sm font-medium md:inline">{auth.user.name.split(' ')[0]}</span>
                 </button>
             </DropdownMenuTrigger>

@@ -36,12 +36,14 @@ class LaboratoryController extends ResourceController
         return [
             ['name' => 'name', 'label' => 'Nombre', 'type' => 'text'],
             ['name' => 'country', 'label' => 'País', 'type' => 'text'],
+            ['name' => 'image', 'label' => 'Logo', 'type' => 'image', 'folder' => 'laboratories'],
         ];
     }
 
     protected function columns(): array
     {
         return [
+            ['key' => 'image', 'label' => 'Logo', 'type' => 'image'],
             ['key' => 'name', 'label' => 'Nombre'],
             ['key' => 'country', 'label' => 'País'],
             ['key' => 'products_count', 'label' => 'Productos'],
@@ -53,6 +55,8 @@ class LaboratoryController extends ResourceController
         return [
             'name' => ['required', 'string', 'max:255', Rule::unique('laboratories')->ignore($model)],
             'country' => ['nullable', 'string', 'max:60'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,bmp,webp,gif,avif', 'max:5120'],
+            'remove_image' => ['nullable', 'boolean'],
         ];
     }
 

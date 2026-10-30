@@ -24,4 +24,7 @@ export type UserForm = {
     branch_id: string;
     password: string;
     password_confirmation: string;
+    /** Foto nueva elegida (la sube StorageController a S3) y si se quitó la que tenía */
+    avatar: File | null;
+    remove_avatar: boolean;
 };

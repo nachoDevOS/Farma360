@@ -23,7 +23,7 @@ export function RecentUsers({ users }: { users: RecentUser[] }) {
             <ul className="divide-y">
                 {users.map((user) => (
                     <li key={user.id} className="hover:bg-muted/50 flex items-center gap-3 px-5 py-2.5 transition-colors">
-                        <UserAvatar name={user.name} className="size-8" />
+                        <UserAvatar name={user.name} avatar={user.avatar} className="size-8" />
                         <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium">{user.name}</p>
                             <p className="text-muted-foreground truncate text-xs">{user.email}</p>

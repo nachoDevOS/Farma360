@@ -47,7 +47,7 @@ export default function Profile({ mustVerifyEmail, status }: { mustVerifyEmail: 
             <SettingsLayout>
                 <SettingsCard>
                     <div className="flex items-center gap-4">
-                        <UserAvatar name={auth.user.name} className="size-14 text-base" />
+                        <UserAvatar name={auth.user.name} avatar={auth.user.avatar} className="size-14 text-base" />
                         <div className="min-w-0">
                             <p className="font-display truncate text-lg font-semibold">{auth.user.name}</p>
                             <p className="text-muted-foreground truncate text-sm">{auth.user.email}</p>

@@ -25,4 +25,4 @@ export interface RoleCount {
     total: number;
 }
 
-export type RecentUser = Pick<User, 'id' | 'name' | 'email' | 'role' | 'is_active' | 'created_at'>;
+export type RecentUser = Pick<User, 'id' | 'name' | 'email' | 'avatar' | 'role' | 'is_active' | 'created_at'>;

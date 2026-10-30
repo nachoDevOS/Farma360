@@ -3,7 +3,9 @@
  */
 import { SUPER_ADMIN } from '@/components/admin/common/role-colors';
 import { useInitials } from '@/hooks/use-initials';
+import { useStorageUrl } from '@/lib/storage';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
 
 /**
  * Etiqueta de rol, en gris neutro (sobria para tablas). El Super Admin va con texto más marcado.
@@ -34,9 +36,27 @@ export function StatusBadge({ active, className }: { active: boolean; className?
     );
 }
 
-/** Círculo gris con las iniciales. Uso: <UserAvatar name={user.name} /> */
-export function UserAvatar({ name, className }: { name: string; className?: string }) {
+/**
+ * Círculo con la foto del usuario (avatar en S3) o, si no tiene, sus iniciales.
+ * Uso: <UserAvatar name={user.name} avatar={user.avatar} />
+ */
+export function UserAvatar({ name, avatar, className }: { name: string; avatar?: string | null; className?: string }) {
     const getInitials = useInitials();
+    const imageUrl = useStorageUrl();
+    const [failed, setFailed] = useState(false);
+    const url = imageUrl(avatar);
+
+    if (url && !failed) {
+        return (
+            <img
+                src={url}
+                alt={name}
+                loading="lazy"
+                onError={() => setFailed(true)}
+                className={cn('ring-border size-9 shrink-0 rounded-full object-cover ring-1', className)}
+            />
+        );
+    }
 
     return (
         <div

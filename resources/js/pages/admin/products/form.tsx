@@ -12,6 +12,7 @@
  *   (precio unitario × cantidad), y se pueden cambiar a mano. Cada una dice si se vende y/o se compra.
  *   Lógica: components/admin/products/presentation-levels.ts. El stock siempre se cuenta en unidades base.
  */
+import { ImageUpload } from '@/components/admin/common/image-upload';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { TagInput } from '@/components/admin/common/tag-input';
@@ -69,12 +70,17 @@ export default function ProductForm({ product, categories, laboratories, generic
         min_stock: String(product?.min_stock ?? 0),
         is_active: product?.is_active ?? true,
         presentations: product ? rowsFromPresentations(product.presentations) : defaultRows(),
+        // Foto: archivo elegido ahora (la sube StorageController a S3) y si se quitó la que tenía
+        image: null as File | null,
+        remove_image: false as boolean,
     });
 
     // Al servidor va el índice de la fila que contiene ("auto" lo ignora: es solo de la pantalla)
+    // Con foto nueva al editar se manda POST + _method=put (PHP no lee archivos en un PUT)
     transform((d) => ({
         ...d,
         presentations: d.presentations.map(({ parent, ...row }) => ({ ...row, parent_index: parent })),
+        ...(isEdit && d.image ? { _method: 'put' } : {}),
     }));
 
     const err = errors as Record<string, string | undefined>;
@@ -83,8 +89,8 @@ export default function ProductForm({ product, categories, laboratories, generic
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        if (isEdit) put(route('admin.products.update', product.id));
-        else post(route('admin.products.store'));
+        if (isEdit && !data.image) put(route('admin.products.update', product.id));
+        else post(isEdit ? route('admin.products.update', product.id) : route('admin.products.store'));
     };
 
     const optional = (value: string) => (value === NONE ? '' : value);
@@ -106,6 +112,17 @@ export default function ProductForm({ product, categories, laboratories, generic
 
                 <Panel>
                     <PanelHeader title="Datos del producto" />
+                    <div className="border-b px-5 py-4">
+                        <ImageUpload
+                            current={product?.image}
+                            file={data.image}
+                            removed={data.remove_image}
+                            onChange={(file) => setData((d) => ({ ...d, image: file, remove_image: false }))}
+                            onRemove={() => setData((d) => ({ ...d, image: null, remove_image: true }))}
+                            error={err.image}
+                            hint="Foto del producto o de la caja · JPG, PNG, WEBP o AVIF · hasta 5 MB"
+                        />
+                    </div>
                     <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
                         <Field label="Nombre comercial" hint="La marca. Ej: Dolofen, Panadol" error={err.name}>
                             <Input value={data.name} onChange={(e) => setData('name', e.target.value)} placeholder="Dolofen" autoFocus />

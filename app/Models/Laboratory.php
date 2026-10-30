@@ -13,7 +13,7 @@ class Laboratory extends Model
 {
     use Auditable;
 
-    protected $fillable = ['name', 'country'];
+    protected $fillable = ['name', 'country', 'image'];
 
     public function products(): HasMany
     {

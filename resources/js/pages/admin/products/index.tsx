@@ -10,6 +10,7 @@
 import { BranchMenu } from '@/components/admin/common/branch-menu';
 import { ConfirmDialog } from '@/components/admin/common/confirm-dialog';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
+import { StoredImage } from '@/components/admin/common/image-upload';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
@@ -168,31 +169,42 @@ export default function ProductsIndex({ products, filters, branchOptions, canSee
                                             </button>
                                         </Td>
                                         <Td>
-                                            <p className="font-medium">
-                                                {product.name} <span className="text-muted-foreground font-normal">{product.concentration}</span>
-                                            </p>
-                                            <p className="text-muted-foreground text-xs">
-                                                {[product.generic_name, product.pharmaceutical_form, product.category?.name]
-                                                    .filter(Boolean)
-                                                    .join(' · ') || '—'}
-                                                {product.is_controlled && <span className="ml-2 font-medium text-red-600">Controlado</span>}
-                                                {!product.is_controlled && product.requires_prescription && (
-                                                    <span className="ml-2 font-medium text-amber-600">Con receta</span>
-                                                )}
-                                            </p>
-                                            {/* Para qué sirve */}
-                                            {!!product.indications?.length && (
-                                                <div className="mt-1 flex flex-wrap gap-1">
-                                                    {product.indications.map((i) => (
-                                                        <span
-                                                            key={i.id}
-                                                            className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-medium"
-                                                        >
-                                                            {i.name}
-                                                        </span>
-                                                    ))}
+                                            <div className="flex items-center gap-3">
+                                                <StoredImage
+                                                    path={product.image}
+                                                    alt={product.name}
+                                                    fallback={<Pill className="size-4" />}
+                                                    className="size-10"
+                                                />
+                                                <div className="min-w-0">
+                                                    <p className="font-medium">
+                                                        {product.name}{' '}
+                                                        <span className="text-muted-foreground font-normal">{product.concentration}</span>
+                                                    </p>
+                                                    <p className="text-muted-foreground text-xs">
+                                                        {[product.generic_name, product.pharmaceutical_form, product.category?.name]
+                                                            .filter(Boolean)
+                                                            .join(' · ') || '—'}
+                                                        {product.is_controlled && <span className="ml-2 font-medium text-red-600">Controlado</span>}
+                                                        {!product.is_controlled && product.requires_prescription && (
+                                                            <span className="ml-2 font-medium text-amber-600">Con receta</span>
+                                                        )}
+                                                    </p>
+                                                    {/* Para qué sirve */}
+                                                    {!!product.indications?.length && (
+                                                        <div className="mt-1 flex flex-wrap gap-1">
+                                                            {product.indications.map((i) => (
+                                                                <span
+                                                                    key={i.id}
+                                                                    className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                                                >
+                                                                    {i.name}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
+                                            </div>
                                         </Td>
                                         <Td className="text-muted-foreground">{product.laboratory?.name ?? '—'}</Td>
                                         <Td>

@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Schema;
  *   concentration            VARCHAR(60)                       Concentración. Ej: "500 mg", "120 mg/5 ml" (opcional).
  *   pharmaceutical_form      VARCHAR(60)                       Forma farmacéutica. Ej: Tableta, Jarabe, Cápsula (opcional).
  *   description              TEXT                              Para qué sirve, en palabras. También se busca por este texto (opcional).
+ *   image                    VARCHAR(255)                      Foto del producto: ruta del .avif en el disco (S3), la guarda StorageController (opcional).
  *   laboratory_id            BIGINT UNSIGNED, FK laboratories  Laboratorio que lo fabrica (opcional).
  *   category_id              BIGINT UNSIGNED, FK categories    Categoría (opcional).
  *   barcode                  VARCHAR(50), único                Código de barras del producto (opcional; las presentaciones tienen el suyo).
@@ -44,6 +45,7 @@ return new class extends Migration
             $table->string('concentration', 60)->nullable();
             $table->string('pharmaceutical_form', 60)->nullable();
             $table->text('description')->nullable();
+            $table->string('image')->nullable();
             $table->foreignId('laboratory_id')->nullable()->constrained();
             $table->foreignId('category_id')->nullable()->constrained();
             $table->string('barcode', 50)->nullable()->unique();

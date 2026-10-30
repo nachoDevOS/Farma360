@@ -11,14 +11,17 @@ interface PageHeaderProps {
     description?: React.ReactNode;
     actions?: React.ReactNode;
     icon?: LucideIcon;
+    /** Imagen en lugar del ícono (ej: la foto del producto). Si se pasa, no se muestra el ícono */
+    media?: React.ReactNode;
     className?: string;
 }
 
-export function PageHeader({ title, description, actions, icon: Icon, className }: PageHeaderProps) {
+export function PageHeader({ title, description, actions, icon: Icon, media, className }: PageHeaderProps) {
     return (
         <div className={cn('flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between', className)}>
             <div className="flex min-w-0 items-center gap-4">
-                {Icon && (
+                {media ? <div className="hidden shrink-0 sm:block">{media}</div> : null}
+                {!media && Icon && (
                     <div className="bg-primary/10 text-primary ring-primary/15 hidden size-12 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset sm:flex">
                         <Icon className="size-6" />
                     </div>

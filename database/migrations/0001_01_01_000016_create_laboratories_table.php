@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Schema;
  *   id                       BIGINT UNSIGNED, PK        Identificador (autoincremental).
  *   name                     VARCHAR(255), único        Nombre del laboratorio.
  *   country                  VARCHAR(60)                País de origen (opcional).
+ *   image                    VARCHAR(255)               Logo: ruta del .avif en el disco (S3), la guarda StorageController (opcional).
  *   created_at / updated_at  TIMESTAMP                  Fecha de registro y de la última modificación.
  *   registerUser_id          BIGINT UNSIGNED, FK users  Quién registró el registro (opcional).
  *   registerRole             VARCHAR(255)               Rol que tenía al registrarlo.
@@ -28,6 +29,7 @@ return new class extends Migration
             $table->id();
             $table->string('name')->unique();
             $table->string('country', 60)->nullable();
+            $table->string('image')->nullable();
             $table->timestamps();
             $table->auditable();
         });

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Schema;
  *   id                       BIGINT UNSIGNED, PK           Identificador (autoincremental).
  *   name                     VARCHAR(255)                  Nombre completo.
  *   email                    VARCHAR(255), único           Correo con el que inicia sesión.
+ *   avatar                   VARCHAR(255)                  Foto de perfil: ruta del .avif en el disco (S3), la guarda StorageController (opcional).
  *   email_verified_at        TIMESTAMP                     Cuándo verificó el correo (null = sin verificar).
  *   password                 VARCHAR(255)                  Contraseña cifrada (hash).
  *   is_active                BOOLEAN                       false = no puede iniciar sesión.
@@ -34,6 +35,7 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
+            $table->string('avatar')->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->boolean('is_active')->default(true);

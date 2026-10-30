@@ -14,6 +14,7 @@
  * Las tablas de presentaciones y stock son las mismas del desplegable de la lista (product-row-detail.tsx).
  */
 import { DataTable, Detail, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
+import { StoredImage } from '@/components/admin/common/image-upload';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { SegmentedControl } from '@/components/admin/common/segmented-control';
 import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
@@ -154,6 +155,11 @@ export default function ProductShow({
             <div className="flex w-full flex-1 flex-col gap-6 p-4 md:p-8">
                 <PageHeader
                     icon={Pill}
+                    media={
+                        product.image ? (
+                            <StoredImage path={product.image} alt={title} fallback={<Pill className="size-6" />} className="size-14 rounded-xl" />
+                        ) : undefined
+                    }
                     title={title}
                     description={
                         [product.generic_name, product.pharmaceutical_form, product.laboratory?.name, control, `#${product.id}`]

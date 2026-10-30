@@ -63,7 +63,11 @@ class UserController extends Controller
         $data = $request->validated();
 
         // La contraseña se encripta sola (cast 'hashed' en el modelo User). Lo marcamos verificado porque lo crea un admin.
-        $user = User::create(collect($data)->except('role')->all() + ['email_verified_at' => now()]);
+        $user = User::create(collect($data)->except(['role', 'avatar', 'remove_avatar'])->all() + [
+            'email_verified_at' => now(),
+            // Foto de perfil en S3 (StorageController)
+            'avatar' => $this->storeImage($request, 'avatar', 'users'),
+        ]);
         // El rol se guarda en las tablas de Spatie (no es una columna de users)
         $user->assignRole($data['role']);
 
@@ -84,7 +88,9 @@ class UserController extends Controller
             unset($data['password']);
         }
 
-        $user->update(collect($data)->except('role')->all());
+        $user->update(collect($data)->except(['role', 'avatar', 'remove_avatar'])->all() + [
+            'avatar' => $this->storeImage($request, 'avatar', 'users', $user->avatar),
+        ]);
         // syncRoles reemplaza el rol anterior: cada usuario tiene uno solo
         $user->syncRoles([$data['role']]);
 

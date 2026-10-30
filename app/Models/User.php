@@ -41,6 +41,8 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        // Foto de perfil: ruta del .avif en S3 (StorageController)
+        'avatar',
         // Campos del panel (ver migración create_users_table)
         'is_active',
         'last_login_at',

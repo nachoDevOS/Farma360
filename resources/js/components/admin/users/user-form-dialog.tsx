@@ -1,6 +1,7 @@
 /**
  * Pieza de Gestión de usuarios (se usa en pages/admin/users/index.tsx).
  */
+import { ImageUpload } from '@/components/admin/common/image-upload';
 import InputError from '@/components/shared/input-error';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -33,7 +34,7 @@ export function UserFormDialog({ open, onClose, user, roles, branches }: UserFor
     // Si recibimos un usuario estamos EDITANDO; si es null, CREANDO
     const isEdit = user !== null;
     // useForm de Inertia guarda: los campos (data), los errores de Laravel (errors) y si se está enviando (processing)
-    const { data, setData, post, put, processing, errors, reset, clearErrors } = useForm<UserForm>({
+    const { data, setData, post, put, processing, errors, reset, clearErrors, transform } = useForm<UserForm>({
         name: '',
         email: '',
         role: 'user',
@@ -41,6 +42,8 @@ export function UserFormDialog({ open, onClose, user, roles, branches }: UserFor
         branch_id: '',
         password: '',
         password_confirmation: '',
+        avatar: null,
+        remove_avatar: false,
     });
 
     // Cada vez que se abre el modal: cargamos los datos del usuario, o vaciamos el formulario
@@ -56,6 +59,8 @@ export function UserFormDialog({ open, onClose, user, roles, branches }: UserFor
             branch_id: user?.branch_id ? String(user.branch_id) : '',
             password: '',
             password_confirmation: '',
+            avatar: null,
+            remove_avatar: false,
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, user]);
@@ -70,8 +75,10 @@ export function UserFormDialog({ open, onClose, user, roles, branches }: UserFor
                 onClose();
             },
         };
-        if (isEdit) put(route('admin.users.update', user.id), options);
-        else post(route('admin.users.store'), options);
+        // Con foto nueva al editar: POST + _method=put (PHP no lee archivos en un PUT)
+        transform((d) => (isEdit && d.avatar ? { ...d, _method: 'put' } : d));
+        if (isEdit && !data.avatar) put(route('admin.users.update', user.id), options);
+        else post(isEdit ? route('admin.users.update', user.id) : route('admin.users.store'), options);
     };
 
     return (
@@ -86,6 +93,19 @@ export function UserFormDialog({ open, onClose, user, roles, branches }: UserFor
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={submit} className="grid gap-4">
+                    <div className="grid gap-2">
+                        <Label>Foto de perfil</Label>
+                        <ImageUpload
+                            shape="round"
+                            current={user?.avatar}
+                            file={data.avatar}
+                            removed={data.remove_avatar}
+                            onChange={(file) => setData((d) => ({ ...d, avatar: file, remove_avatar: false }))}
+                            onRemove={() => setData((d) => ({ ...d, avatar: null, remove_avatar: true }))}
+                            error={(errors as Record<string, string | undefined>).avatar}
+                            hint="Opcional · JPG, PNG, WEBP o AVIF · hasta 5 MB"
+                        />
+                    </div>
                     <div className="grid gap-2">
                         <Label htmlFor="name">Nombre completo</Label>
                         <Input id="name" value={data.name} onChange={(e) => setData('name', e.target.value)} placeholder="Juan Pérez" autoFocus />

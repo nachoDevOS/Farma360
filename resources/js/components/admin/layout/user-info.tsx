@@ -3,15 +3,17 @@
  */
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useInitials } from '@/hooks/use-initials';
+import { useStorageUrl } from '@/lib/storage';
 import { type User } from '@/types';
 
 export function UserInfo({ user, showEmail = false }: { user: User; showEmail?: boolean }) {
     const getInitials = useInitials();
+    const imageUrl = useStorageUrl();
 
     return (
         <>
             <Avatar className="size-8 shrink-0 overflow-hidden rounded-full">
-                <AvatarImage src={user.avatar} alt={user.name} />
+                <AvatarImage src={imageUrl(user.avatar) ?? undefined} alt={user.name} className="object-cover" />
                 <AvatarFallback className="bg-sidebar-primary/15 text-sidebar-primary rounded-full text-xs font-semibold">
                     {getInitials(user.name)}
                 </AvatarFallback>

@@ -38,6 +38,9 @@ class UpdateUserRequest extends FormRequest
             'branch_id' => ['nullable', Rule::exists('branches', 'id')->whereNull('deleted_at')],
             // nullable = se puede dejar vacía para no cambiarla
             'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
+            // Foto de perfil (la guarda StorageController en S3 como .avif). remove_avatar = quitar la que tiene
+            'avatar' => ['nullable', 'image', 'mimes:jpeg,jpg,png,bmp,webp,gif,avif', 'max:5120'],
+            'remove_avatar' => ['nullable', 'boolean'],
         ];
     }
 
@@ -79,6 +82,7 @@ class UpdateUserRequest extends FormRequest
             'role' => 'rol',
             'is_active' => 'estado',
             'branch_id' => 'sucursal',
+            'avatar' => 'foto',
         ];
     }
 }
