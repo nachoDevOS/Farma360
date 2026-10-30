@@ -9,6 +9,7 @@ use App\Models\StockMovement;
 use App\Models\Transfer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Collection;
 
 /**
  * REGISTRO DE CADA LOTE: de dónde vino, la cuenta (entró + ventas, transferencias, ajustes, bajas = queda hoy) y sus
@@ -33,15 +34,36 @@ class BatchHistory
      */
     public function for(int $productId, array $branchIds, bool $withRecentlyEmpty = true): array
     {
-        $batches = Batch::with(['activePromotion', 'registeredBy:id,name'])
+        return $this->describe(Batch::with(['activePromotion', 'registeredBy:id,name'])
             ->where('product_id', $productId)->whereIn('branch_id', $branchIds)
             ->where(fn ($q) => $q->where('quantity', '>', 0)->when($withRecentlyEmpty, fn ($q) => $q->orWhere('updated_at', '>=', now()->subDays(30))))
             ->orderBy('expires_at')
-            ->get();
+            ->get());
+    }
+
+    /**
+     * Los lotes pedidos (aunque estén vacíos), en ese orden, con su registro completo. Ej: los lotes de una compra.
+     *
+     * @param  list<int>  $batchIds
+     * @return list<array<string, mixed>>
+     */
+    public function forBatches(array $batchIds): array
+    {
+        $batches = Batch::with(['activePromotion', 'registeredBy:id,name'])->whereIn('id', $batchIds)->get()->keyBy('id');
+
+        return $this->describe(collect($batchIds)->map(fn (int $id) => $batches->get($id))->filter()->values());
+    }
+
+    /**
+     * @param  Collection<int, Batch>  $batches
+     * @return list<array<string, mixed>>
+     */
+    private function describe(Collection $batches): array
+    {
         if ($batches->isEmpty()) {
             return [];
         }
-        $ids = $batches->modelKeys();
+        $ids = $batches->pluck('id')->all();
         $withReference = fn (Builder $q) => $q->with([
             'registeredBy:id,name',
             'reference' => fn (MorphTo $morph) => $morph->morphWith([

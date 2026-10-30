@@ -114,4 +114,56 @@ class PurchaseTest extends TestCase
     {
         $this->actingAs($this->userWithRole('Cajero'))->get('/admin/purchases/create')->assertForbidden();
     }
+
+    public function test_purchase_list_shows_the_month_numbers_and_what_is_left_of_each_item()
+    {
+        $central = $this->branch(['name' => 'Central']);
+        $north = $this->branch(['name' => 'Norte']);
+        $product = $this->product();
+        $admin = $this->userWithRole('Administrador');
+        $box = $this->presentation($product, 100)->id;
+        $this->actingAs($admin)->post('/admin/purchases', ['supplier_id' => Supplier::factory()->create(['name' => 'Inti'])->id] + $this->payload($central->id, $box, ['cost' => 40]));
+        $this->actingAs($admin)->post('/admin/purchases', $this->payload($north->id, $box, ['cost' => 10]));
+
+        $this->actingAs($admin)->get('/admin/purchases')
+            ->assertInertia(fn ($page) => $page
+                // 2 cajas × Bs 40 + 2 cajas × Bs 10
+                ->where('month.total', 100)
+                ->where('month.count', 2)
+                ->where('month.top_supplier.name', 'Inti')
+                ->where('canSeeAllBranches', true)
+                ->where('purchases.data.0.items.0.batch.quantity', 200));
+
+        // Asignado a Central: la lista y los números son solo de su sucursal
+        $this->actingAs($this->userWithRole('Administrador', $central))->get("/admin/purchases?branch={$north->id}")
+            ->assertInertia(fn ($page) => $page
+                ->has('purchases.data', 1)
+                ->where('purchases.data.0.branch.name', 'Central')
+                ->where('month.total', 80)
+                ->where('canSeeAllBranches', false));
+    }
+
+    public function test_purchase_page_compares_cost_with_the_previous_purchase_and_shows_its_lots()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0);
+        $admin = $this->userWithRole('Administrador');
+        $box = $this->presentation($product, 100)->id;
+        $this->actingAs($admin)->post('/admin/purchases', $this->payload($branch->id, $box, ['cost' => 40, 'batch_number' => 'L-1']));
+        $this->actingAs($admin)->post('/admin/purchases', $this->payload($branch->id, $box, ['cost' => 50, 'batch_number' => 'L-2']));
+        $second = Purchase::latest('id')->firstOrFail();
+
+        $this->actingAs($admin)->get("/admin/purchases/{$second->id}")
+            ->assertInertia(fn ($page) => $page
+                ->component('admin/purchases/show')
+                ->where('purchase.items.0.unit_cost', '0.5000')
+                // La compra anterior costaba Bs 0,40 por tableta; se vende a Bs 1 la tableta
+                ->where('purchase.items.0.previous_unit_cost', 0.4)
+                ->where('purchase.items.0.sale_unit_price', 1)
+                ->where('purchase.items.0.remaining', 200)
+                ->has('lots', 1)
+                ->where('lots.0.batch_number', 'L-2')
+                ->where('lots.0.origin.kind', 'compra')
+                ->has('movementTypes'));
+    }
 }

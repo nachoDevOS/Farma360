@@ -177,8 +177,24 @@ export interface PurchaseItem {
     subtotal: string;
     batch_number: string;
     expires_at: string;
-    product: { id: number; name: string; concentration: string | null; pharmaceutical_form: string | null };
+    batch_id?: number;
+    product: {
+        id: number;
+        name: string;
+        concentration: string | null;
+        pharmaceutical_form?: string | null;
+        base_unit?: string;
+        presentations?: Presentation[];
+    };
     presentation: { id: number; name: string } | null;
+    /** Lista de compras: el lote que creó (cuánto queda en él hoy) */
+    batch?: { id: number; quantity: number } | null;
+    /** Ficha de la compra: lo que queda hoy en su lote */
+    remaining?: number;
+    /** Ficha de la compra: costo por unidad base en la compra anterior del mismo producto (null = es la primera) */
+    previous_unit_cost?: number | null;
+    /** Ficha de la compra: precio de venta de una unidad base (null = no se vende suelto) */
+    sale_unit_price?: number | null;
 }
 
 export interface Purchase {
@@ -194,8 +210,9 @@ export interface Purchase {
     created_at: string;
     items_count?: number;
     branch: Option;
-    supplier: Option & { nit?: string | null };
+    supplier: Option & { nit?: string | null; phone?: string | null };
     registered_by?: UserRef | null;
+    registerRole?: string | null;
     cancelled_by?: UserRef | null;
     items?: PurchaseItem[];
 }
