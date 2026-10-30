@@ -8,6 +8,7 @@
  *
  * tone: blue (normal) · green (dinero que entra / bueno) · amber (atención) · red (problema) · violet · slate
  * onClick: la tarjeta se vuelve un botón (ej: filtrar la tabla de abajo).
+ * compact: más chica (menos relleno, ícono y número más chicos), para fichas con mucha información (ej: ficha del producto).
  */
 import { cn } from '@/lib/utils';
 import { type LucideIcon } from 'lucide-react';
@@ -32,10 +33,11 @@ interface StatCardProps {
     /** Pinta el número con el color del tono (ej: rojo para "vencidos") */
     colorValue?: boolean;
     onClick?: () => void;
+    compact?: boolean;
     className?: string;
 }
 
-export function StatCard({ icon: Icon, label, value, hint, tone = 'blue', colorValue, onClick, className }: StatCardProps) {
+export function StatCard({ icon: Icon, label, value, hint, tone = 'blue', colorValue, onClick, compact, className }: StatCardProps) {
     const Tag = onClick ? 'button' : 'div';
 
     return (
@@ -43,20 +45,33 @@ export function StatCard({ icon: Icon, label, value, hint, tone = 'blue', colorV
             type={onClick ? 'button' : undefined}
             onClick={onClick}
             className={cn(
-                'surface flex min-w-0 flex-col gap-3 rounded-xl p-4 text-left sm:flex-row sm:items-start sm:gap-4 sm:p-5',
+                'surface flex min-w-0 flex-col rounded-xl text-left sm:flex-row sm:items-start',
+                compact ? 'gap-2 p-3 sm:gap-3 sm:p-3.5' : 'gap-3 p-4 sm:gap-4 sm:p-5',
                 onClick && 'hover:border-foreground/20 cursor-pointer transition-[border-color,box-shadow] hover:shadow-md',
                 className,
             )}
         >
-            <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-xl sm:size-11', tones[tone].icon)}>
-                <Icon className="size-[18px] sm:size-5" />
+            <div
+                className={cn(
+                    'flex shrink-0 items-center justify-center rounded-xl',
+                    compact ? 'size-8 rounded-lg sm:size-9' : 'size-9 sm:size-11',
+                    tones[tone].icon,
+                )}
+            >
+                <Icon className={compact ? 'size-4' : 'size-[18px] sm:size-5'} />
             </div>
             <div className="min-w-0 flex-1">
-                <p className="text-muted-foreground text-xs sm:text-sm">{label}</p>
-                <p className={cn('font-display num mt-1 truncate text-xl leading-tight font-bold sm:text-2xl', colorValue && tones[tone].value)}>
+                <p className={cn('text-muted-foreground truncate', compact ? 'text-xs' : 'text-xs sm:text-sm')}>{label}</p>
+                <p
+                    className={cn(
+                        'font-display num truncate leading-tight font-bold',
+                        compact ? 'mt-0.5 text-lg sm:text-xl' : 'mt-1 text-xl sm:text-2xl',
+                        colorValue && tones[tone].value,
+                    )}
+                >
                     {value}
                 </p>
-                {hint && <p className="text-muted-foreground mt-1 truncate text-xs">{hint}</p>}
+                {hint && <p className={cn('text-muted-foreground truncate', compact ? 'mt-0.5 text-[11px]' : 'mt-1 text-xs')}>{hint}</p>}
             </div>
         </Tag>
     );

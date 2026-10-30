@@ -1,75 +1,154 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="600" height="1200" viewBox="0 0 600 1200" fill="none">
-  <!-- Fondo del menú lateral · Solución Digital (soluciondigital.dev) -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="300" height="1100" viewBox="0 0 300 1100" fill="none">
+  <!-- Fondo del menú lateral · Farma360. Tiene la forma del menú (angosto y alto) para que no se recorte.
+       Jeringa con la aguja hacia arriba, cápsulas de dos colores y pastillas redondas, en la franja derecha
+       (a la izquierda va el texto de las opciones). El dibujo anterior (circuitos) quedó en sidebar-bg-circuitos.svg. -->
   <defs>
-    <radialGradient id="glowBottom" cx="20%" cy="100%" r="75%">
-      <stop offset="0" stop-color="#2563eb" stop-opacity="0.55"/>
-      <stop offset="0.5" stop-color="#1d4ed8" stop-opacity="0.15"/>
+    <radialGradient id="glowBottom" cx="10%" cy="100%" r="90%">
+      <stop offset="0" stop-color="#2563eb" stop-opacity="0.5"/>
+      <stop offset="0.5" stop-color="#1d4ed8" stop-opacity="0.14"/>
       <stop offset="1" stop-color="#1d4ed8" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="glowTop" cx="100%" cy="0%" r="60%">
+    <radialGradient id="glowTop" cx="100%" cy="0%" r="70%">
       <stop offset="0" stop-color="#60a5fa" stop-opacity="0.22"/>
       <stop offset="1" stop-color="#60a5fa" stop-opacity="0"/>
     </radialGradient>
-    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
-      <circle cx="2" cy="2" r="1.2" fill="#93c5fd" fill-opacity="0.22"/>
+    <!-- Brillo detrás de la jeringa -->
+    <radialGradient id="heroGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#3b82f6" stop-opacity="0.45"/>
+      <stop offset="0.6" stop-color="#2563eb" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#2563eb" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.1" fill="#93c5fd" fill-opacity="0.2"/>
     </pattern>
-    <!-- Los circuitos se ven más abajo y se desvanecen hacia arriba (donde están las opciones) -->
     <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff" stop-opacity="0.15"/>
-      <stop offset="0.45" stop-color="#fff" stop-opacity="0.45"/>
+      <stop offset="0" stop-color="#fff" stop-opacity="0.75"/>
       <stop offset="1" stop-color="#fff" stop-opacity="1"/>
     </linearGradient>
     <mask id="fadeMask">
-      <rect width="600" height="1200" fill="url(#fade)"/>
+      <rect width="300" height="1100" fill="url(#fade)"/>
     </mask>
-    <linearGradient id="trace" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#60a5fa"/>
-      <stop offset="1" stop-color="#3b82f6"/>
+
+    <linearGradient id="capsuleLight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dbeafe" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#60a5fa" stop-opacity="0.7"/>
     </linearGradient>
+    <linearGradient id="capsuleDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b82f6" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#1d4ed8" stop-opacity="0.9"/>
+    </linearGradient>
+    <radialGradient id="tabletFill" cx="38%" cy="32%" r="75%">
+      <stop offset="0" stop-color="#eff6ff" stop-opacity="0.85"/>
+      <stop offset="0.55" stop-color="#93c5fd" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#2563eb" stop-opacity="0.5"/>
+    </radialGradient>
+    <linearGradient id="syringeBarrel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e0f2fe" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#93c5fd" stop-opacity="0.22"/>
+    </linearGradient>
+    <linearGradient id="syringeLiquid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#60a5fa" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#2563eb" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="syringeMetal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eff6ff" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#93c5fd" stop-opacity="0.5"/>
+    </linearGradient>
+
+    <g id="capsuleL">
+      <path d="M0 -28.0 H-47.0 A28.0 28.0 0 0 0 -47.0 28.0 H0 Z" fill="url(#capsuleLight)"/>
+      <path d="M0 -28.0 H47.0 A28.0 28.0 0 0 1 47.0 28.0 H0 Z" fill="url(#capsuleDark)"/>
+      <rect x="-75.0" y="-28.0" width="150" height="56" rx="28.0" fill="none"/>
+      <path d="M0 -28.0 V28.0" fill="none" stroke-opacity="0.8"/>
+      <path d="M-56.8 -12.6 H-14.0" stroke="#ffffff" stroke-opacity="0.8" stroke-width="5.1" fill="none"/>
+      <path d="M16.8 -12.6 H47.0" stroke="#bfdbfe" stroke-opacity="0.45" stroke-width="3.7" fill="none"/>
+    </g>
+    <g id="capsuleM">
+      <path d="M0 -21.0 H-35.0 A21.0 21.0 0 0 0 -35.0 21.0 H0 Z" fill="url(#capsuleLight)"/>
+      <path d="M0 -21.0 H35.0 A21.0 21.0 0 0 1 35.0 21.0 H0 Z" fill="url(#capsuleDark)"/>
+      <rect x="-56.0" y="-21.0" width="112" height="42" rx="21.0" fill="none"/>
+      <path d="M0 -21.0 V21.0" fill="none" stroke-opacity="0.8"/>
+      <path d="M-42.4 -9.5 H-10.5" stroke="#ffffff" stroke-opacity="0.8" stroke-width="3.8" fill="none"/>
+      <path d="M12.6 -9.5 H35.0" stroke="#bfdbfe" stroke-opacity="0.45" stroke-width="2.8" fill="none"/>
+    </g>
+    <g id="capsuleS">
+      <path d="M0 -15.0 H-25.0 A15.0 15.0 0 0 0 -25.0 15.0 H0 Z" fill="url(#capsuleLight)"/>
+      <path d="M0 -15.0 H25.0 A15.0 15.0 0 0 1 25.0 15.0 H0 Z" fill="url(#capsuleDark)"/>
+      <rect x="-40.0" y="-15.0" width="80" height="30" rx="15.0" fill="none"/>
+      <path d="M0 -15.0 V15.0" fill="none" stroke-opacity="0.8"/>
+      <path d="M-30.2 -6.8 H-7.5" stroke="#ffffff" stroke-opacity="0.8" stroke-width="3.0" fill="none"/>
+      <path d="M9.0 -6.8 H25.0" stroke="#bfdbfe" stroke-opacity="0.45" stroke-width="2.0" fill="none"/>
+    </g>
+    <g id="tabletL">
+      <circle r="34" fill="url(#tabletFill)"/>
+      <circle r="25.2" fill="none" stroke-opacity="0.45"/>
+      <path d="M-20.4 0 H20.4" fill="none"/>
+      <path d="M-18.7 -17.0 A25.5 25.5 0 0 1 -1.7 -25.2" stroke="#ffffff" stroke-opacity="0.75" stroke-width="3.4" fill="none"/>
+    </g>
+    <g id="tabletM">
+      <circle r="25" fill="url(#tabletFill)"/>
+      <circle r="18.5" fill="none" stroke-opacity="0.45"/>
+      <path d="M-15.0 0 H15.0" fill="none"/>
+      <path d="M-13.8 -12.5 A18.8 18.8 0 0 1 -1.2 -18.5" stroke="#ffffff" stroke-opacity="0.75" stroke-width="2.5" fill="none"/>
+    </g>
+    <g id="tabletS">
+      <circle r="17" fill="url(#tabletFill)"/>
+      <circle r="12.6" fill="none" stroke-opacity="0.45"/>
+      <path d="M-10.2 0 H10.2" fill="none"/>
+      <path d="M-9.4 -8.5 A12.8 12.8 0 0 1 -0.9 -12.6" stroke="#ffffff" stroke-opacity="0.75" stroke-width="2.5" fill="none"/>
+    </g>
+    <g id="syringe">
+      <rect x="-99" y="-21" width="9" height="42" rx="3" fill="url(#syringeMetal)"/>
+      <rect x="-90" y="-5" width="44" height="10" rx="2" fill="url(#syringeMetal)"/>
+      <rect x="-61" y="-28" width="7" height="56" rx="3" fill="url(#syringeMetal)"/>
+      <rect x="-54" y="-17" width="106" height="34" rx="6" fill="url(#syringeBarrel)"/>
+      <rect x="-14" y="-13" width="62" height="26" rx="3" fill="url(#syringeLiquid)" stroke="none"/>
+      <g fill="#e0f2fe" fill-opacity="0.75" stroke="none">
+        <circle cx="4" cy="4" r="2.6"/><circle cx="18" cy="-4" r="1.8"/><circle cx="31" cy="5" r="2.2"/><circle cx="40" cy="-6" r="1.4"/>
+      </g>
+      <rect x="-49" y="-14" width="11" height="28" rx="2" fill="#1e40af" fill-opacity="0.95" stroke-opacity="0.7"/>
+      <path d="M-36 -16 V-8 M-28 -16 V-12 M-20 -16 V-8 M-12 -16 V-12 M-4 -16 V-8 M4 -16 V-12 M12 -16 V-8 M20 -16 V-12 M28 -16 V-8 M36 -16 V-12" fill="none" stroke-opacity="0.9" stroke-width="1.6"/>
+      <path d="M-46 10 H46" stroke="#ffffff" stroke-opacity="0.55" stroke-width="2.5" fill="none"/>
+      <path d="M52 -10 L68 -5 V5 L52 10 Z" fill="url(#syringeMetal)"/>
+      <path d="M68 0 H118" stroke="#e0f2fe" stroke-width="2.2" fill="none"/>
+      <path d="M113 -1.8 L120 0 L113 1.8" stroke="#ffffff" stroke-width="1.6" fill="none"/>
+      <path d="M124 -5 C128 -1 131 0 131 3 C131 6 128 7 126 7 C123 7 121 5 122 2 C122 0 123 -2 124 -5 Z" fill="#bfdbfe" fill-opacity="0.95" stroke-width="1.2"/>
+    </g>
+    <g id="cross">
+      <path d="M-6 -18 H6 V-6 H18 V6 H6 V18 H-6 V6 H-18 V-6 H-6 Z" fill="#3b82f6" fill-opacity="0.35"/>
+    </g>
+    <g id="spark">
+      <path d="M0 -5 V5 M-5 0 H5"/>
+    </g>
   </defs>
 
-  <rect width="600" height="1200" fill="url(#glowBottom)"/>
-  <rect width="600" height="1200" fill="url(#glowTop)"/>
-  <rect width="600" height="1200" fill="url(#dots)" mask="url(#fadeMask)"/>
+  <rect width="300" height="1100" fill="url(#glowBottom)"/>
+  <rect width="300" height="1100" fill="url(#glowTop)"/>
+  <rect width="300" height="1100" fill="url(#dots)" mask="url(#fadeMask)"/>
+  <ellipse cx="246" cy="525" rx="100" ry="190" fill="url(#heroGlow)"/>
 
-  <!-- Líneas de circuito -->
-  <g mask="url(#fadeMask)" stroke="url(#trace)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55">
-    <path d="M-10 1060 H120 L180 1000 H330 L390 940 V820"/>
-    <path d="M-10 1120 H210 L260 1070 H470 L530 1010 H610"/>
-    <path d="M60 1210 V1150 L110 1100 H250"/>
-    <path d="M300 1210 V1160 L340 1120 H560"/>
-    <path d="M610 880 H500 L450 830 V700 L400 650 H300"/>
-    <path d="M-10 900 H70 L120 850 V720"/>
-    <path d="M610 1080 H560 L520 1040 V960"/>
-    <path d="M200 1000 V880 L240 840 H330"/>
-    <path d="M610 600 H530 L480 550 V430"/>
-    <path d="M-10 640 H40 L90 590 H180"/>
+  <!-- Cruces de farmacia -->
+  <g mask="url(#fadeMask)" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round" stroke-opacity="0.75">
+    <use href="#cross" xlink:href="#cross" transform="translate(272 62)"/>
+    <use href="#cross" xlink:href="#cross" transform="translate(205 440)"/>
   </g>
 
-  <!-- Nodos (terminales de los circuitos) -->
-  <g mask="url(#fadeMask)" fill="#0b1b33" stroke="#60a5fa" stroke-width="2" stroke-opacity="0.8">
-    <circle cx="390" cy="820" r="6"/>
-    <circle cx="250" cy="1100" r="6"/>
-    <circle cx="560" cy="1120" r="6"/>
-    <circle cx="300" cy="650" r="6"/>
-    <circle cx="120" cy="720" r="6"/>
-    <circle cx="520" cy="960" r="6"/>
-    <circle cx="330" cy="840" r="6"/>
-    <circle cx="480" cy="430" r="6"/>
-    <circle cx="180" cy="590" r="6"/>
-  </g>
-  <g mask="url(#fadeMask)" fill="#93c5fd">
-    <circle cx="390" cy="820" r="2.2"/>
-    <circle cx="250" cy="1100" r="2.2"/>
-    <circle cx="560" cy="1120" r="2.2"/>
-    <circle cx="330" cy="840" r="2.2"/>
-    <circle cx="520" cy="960" r="2.2"/>
+  <!-- Jeringa, cápsulas y pastillas -->
+  <g mask="url(#fadeMask)" stroke="#bfdbfe" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <use href="#capsuleM" xlink:href="#capsuleM" transform="translate(252 178) rotate(55)"/>
+    <use href="#tabletM" xlink:href="#tabletM" transform="translate(265 300)"/>
+    <use href="#syringe" xlink:href="#syringe" transform="translate(246 530) rotate(-80) scale(1.45)"/>
+    <use href="#tabletS" xlink:href="#tabletS" transform="translate(212 742)"/>
+    <use href="#capsuleL" xlink:href="#capsuleL" transform="translate(246 865) rotate(-62)"/>
+    <use href="#tabletL" xlink:href="#tabletL" transform="translate(258 1012) rotate(15)"/>
   </g>
 
-  <!-- Símbolo de código, grande y muy tenue -->
-  <g mask="url(#fadeMask)" stroke="#60a5fa" stroke-opacity="0.18" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M255 935 L195 1000 L255 1065"/>
-    <path d="M345 935 L405 1000 L345 1065"/>
-    <path d="M318 920 L282 1080"/>
+  <!-- Destellos -->
+  <g mask="url(#fadeMask)" stroke="#dbeafe" stroke-width="2" stroke-linecap="round" stroke-opacity="0.75">
+    <use href="#spark" xlink:href="#spark" transform="translate(214 372)"/>
+    <use href="#spark" xlink:href="#spark" transform="translate(290 700)"/>
+    <use href="#spark" xlink:href="#spark" transform="translate(196 965)"/>
+    <use href="#spark" xlink:href="#spark" transform="translate(286 430)"/>
+    <use href="#spark" xlink:href="#spark" transform="translate(205 610)"/>
   </g>
 </svg>

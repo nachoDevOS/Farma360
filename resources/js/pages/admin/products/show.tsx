@@ -5,11 +5,12 @@
  * Arriba a la derecha se elige la sucursal (branch-picker.tsx, ?branch= como en el inventario): "Todas" o una. Cambia el
  * stock, el "alcanza para", las compras y todo el Rendimiento. Precios, costos e historial de precios son de todas.
  *
- * Lo importante primero: para qué sirve (usos), indicadores (stock, precio, último costo, ganancia) y presentaciones
+ * Lo importante primero: indicadores (stock, precio, último costo, ganancia) y presentaciones
  * con su costo, ganancia y "alcanza para". El resto en pestañas, una a la vez: Rendimiento (la que se abre: cómo le va
  * al negocio con indicadores, resumen automático y gráficos de ventas, precio contra costo, sucursales, presentaciones,
- * horas y vencimientos; product-performance.tsx) · Stock por sucursal (con enlace a los lotes) · Compras · Historial de precios
- * · Datos (datos del producto, para qué sirve y registro).
+ * horas y vencimientos; product-performance.tsx) · Stock por sucursal (detallado, con lotes y su registro:
+ * branch-stock-detail.tsx) · Compras · Historial de precios
+ * · Datos (datos del producto, para qué sirve —usos— y registro).
  * Las tablas de presentaciones y stock son las mismas del desplegable de la lista (product-row-detail.tsx).
  */
 import { DataTable, Detail, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
@@ -18,11 +19,13 @@ import { SegmentedControl } from '@/components/admin/common/segmented-control';
 import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
 import { StatusBadge } from '@/components/admin/common/user-badges';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
+import { type BatchWithDetail } from '@/components/admin/inventory/batch-detail';
 import { BranchPicker, useBranchSwitch } from '@/components/admin/products/branch-picker';
+import { BranchStockDetail } from '@/components/admin/products/branch-stock-detail';
 import { plural } from '@/components/admin/products/presentation-levels';
 import { type MonthSales, type PriceSeries, type PurchaseCost } from '@/components/admin/products/product-charts';
 import { type Performance, ProductPerformance, type Scope } from '@/components/admin/products/product-performance';
-import { BranchStockTable, PresentationsTable, RegisteredBy, SaleType, StockScopeBadge } from '@/components/admin/products/product-row-detail';
+import { PresentationsTable, RegisteredBy, SaleType, StockScopeBadge } from '@/components/admin/products/product-row-detail';
 import { StockBreakdown } from '@/components/admin/products/stock-breakdown';
 import { Button } from '@/components/ui/button';
 import { useCan } from '@/hooks/use-can';
@@ -45,7 +48,6 @@ import {
     Tag,
     TrendingUp,
     Truck,
-    Warehouse,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -93,6 +95,9 @@ interface Props {
     branchFilter: number | null;
     branchOptions: { id: number; name: string }[];
     canSeeAllBranches: boolean;
+    /** Pestaña "Stock por sucursal": lotes con stock y su registro (vacío sin inventario.ver) */
+    branchLots: BatchWithDetail[];
+    movementTypes: Record<string, string>;
 }
 
 export default function ProductShow({
@@ -106,6 +111,8 @@ export default function ProductShow({
     branchFilter,
     branchOptions,
     canSeeAllBranches,
+    branchLots,
+    movementTypes,
 }: Props) {
     const can = useCan();
     const units = plural(product.base_unit);
@@ -183,19 +190,6 @@ export default function ProductShow({
                         </>
                     }
                 />
-
-                {/* Para qué sirve, a la vista (es lo primero que pregunta un cliente) */}
-                {!!product.indications?.length && (
-                    <div className="-mt-3 flex flex-wrap items-center gap-1.5">
-                        <span className="text-muted-foreground mr-1 text-xs">Sirve para:</span>
-                        {product.indications.map((i) => (
-                            <span key={i.id} className="bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
-                                {i.name}
-                            </span>
-                        ))}
-                    </div>
-                )}
-
                 {/* Todo lo de abajo depende de la sucursal elegida: se atenúa mientras cambia */}
                 <div
                     className={cn('flex flex-col gap-6 transition-opacity duration-200', loading && 'pointer-events-none opacity-50')}
@@ -203,6 +197,7 @@ export default function ProductShow({
                 >
                     <StatGrid>
                         <StatCard
+                            compact
                             icon={Boxes}
                             label={scope.branchId ? `Stock · ${scope.label}` : 'Stock total · todas las sucursales'}
                             value={`${stock.toLocaleString('es')} ${units}`}
@@ -218,6 +213,7 @@ export default function ProductShow({
                             colorValue={stock <= product.min_stock}
                         />
                         <StatCard
+                            compact
                             icon={Tag}
                             label={`Precio por ${product.base_unit.toLowerCase()}`}
                             value={unitPrice !== null ? money(unitPrice) : '—'}
@@ -225,6 +221,7 @@ export default function ProductShow({
                             tone="violet"
                         />
                         <StatCard
+                            compact
                             icon={Truck}
                             label="Último costo"
                             value={lastUnitCost !== null ? money(lastUnitCost) : 'Sin compras'}
@@ -232,6 +229,7 @@ export default function ProductShow({
                             tone="slate"
                         />
                         <StatCard
+                            compact
                             icon={TrendingUp}
                             label="Ganancia"
                             value={margin !== null ? `${margin.toFixed(1)}%` : '—'}
@@ -273,7 +271,13 @@ export default function ProductShow({
                             className="w-fit"
                             options={[
                                 { value: 'rendimiento', label: 'Rendimiento' },
-                                { value: 'stock', label: 'Stock por sucursal', count: branches.length },
+                                scope.branchId
+                                    ? {
+                                          value: 'stock',
+                                          label: 'Stock y lotes',
+                                          count: branches.find((b) => b.branch_id === scope.branchId)?.batches ?? 0,
+                                      }
+                                    : { value: 'stock', label: 'Stock por sucursal', count: branches.length },
                                 { value: 'compras', label: 'Compras', count: purchases.length },
                                 { value: 'precios', label: 'Historial de precios', count: priceHistory.length },
                                 { value: 'datos', label: 'Datos' },
@@ -282,19 +286,17 @@ export default function ProductShow({
 
                         {tab === 'stock' && (
                             <Panel>
-                                <PanelHeader
-                                    icon={Warehouse}
-                                    title="Stock por sucursal"
-                                    description="Lotes con stock en cada sucursal (resaltada, la elegida arriba). En rojo: bajo el mínimo o vence en 30 días o menos."
+                                <BranchStockDetail
+                                    key={scope.branchId ?? 'todas'}
+                                    product={product}
+                                    lots={branchLots}
+                                    sales={performance.branches}
+                                    selected={scope.branchId}
+                                    scopeLabel={scope.label}
+                                    units={units}
+                                    movementTypes={movementTypes}
+                                    inventoryLink={can('inventario.ver')}
                                 />
-                                <div className="p-5">
-                                    <BranchStockTable
-                                        product={product}
-                                        inventoryLink={can('inventario.ver')}
-                                        highlightBranchId={scope.branchId}
-                                        className="text-[13px]"
-                                    />
-                                </div>
                             </Panel>
                         )}
                         {tab === 'compras' && (

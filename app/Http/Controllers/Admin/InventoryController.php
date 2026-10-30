@@ -9,6 +9,7 @@ use App\Models\Branch;
 use App\Models\Product;
 use App\Models\ProductPresentation;
 use App\Models\StockMovement;
+use App\Services\BatchHistory;
 use App\Services\InventoryService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -25,7 +26,7 @@ use Inertia\Response;
  */
 class InventoryController extends Controller
 {
-    public function __construct(private InventoryService $inventory) {}
+    public function __construct(private InventoryService $inventory, private BatchHistory $batchHistory) {}
 
     /** GET /admin/inventory — stock de cada producto en la sucursal elegida. */
     public function index(Request $request): Response
@@ -102,10 +103,7 @@ class InventoryController extends Controller
             'stockValue' => round((float) Batch::where('product_id', $product->id)->where('branch_id', $branchId)->sum(DB::raw('quantity * unit_cost')), 2),
             'otherBranches' => $otherBranches,
             'alertDays' => (int) config('farmacia.expiry_alert_days'),
-            'batches' => Batch::with('activePromotion')
-                ->where('product_id', $product->id)->where('branch_id', $branchId)
-                ->where(fn ($q) => $q->where('quantity', '>', 0)->orWhere('updated_at', '>=', now()->subDays(30)))
-                ->orderBy('expires_at')->get(),
+            'batches' => $this->batchHistory->for($product->id, [$branchId]),
             'movements' => StockMovement::with('batch:id,batch_number', 'registeredBy:id,name')
                 ->where('product_id', $product->id)->where('branch_id', $branchId)
                 ->latest('id')
@@ -176,11 +174,12 @@ class InventoryController extends Controller
             'batch_number' => ['nullable', 'string', 'max:50'],
             'expires_at' => ['required_if:mode,new', 'nullable', 'date'],
             // Solo en mode=new: líneas por presentación y costo de compra de una presentación
-            'items' => ['required_if:mode,new', 'nullable', 'array', 'min:1'],
-            'items.*.product_presentation_id' => ['required', 'distinct', $ownPresentation],
-            'items.*.quantity' => ['required', 'integer', 'min:1'],
-            'cost' => ['required_if:mode,new', 'nullable', 'numeric', 'min:0'],
-            'cost_presentation_id' => ['required_if:mode,new', 'nullable', $ownPresentation],
+            // exclude_unless: en entradas, salidas y bajas la ventana manda estos campos vacíos; se ignoran
+            'items' => ['exclude_unless:mode,new', 'required', 'array', 'min:1'],
+            'items.*.product_presentation_id' => ['exclude_unless:mode,new', 'required', 'distinct', $ownPresentation],
+            'items.*.quantity' => ['exclude_unless:mode,new', 'required', 'integer', 'min:1'],
+            'cost' => ['exclude_unless:mode,new', 'required', 'numeric', 'min:0'],
+            'cost_presentation_id' => ['exclude_unless:mode,new', 'required', $ownPresentation],
         ], [
             'required_if' => 'El campo :attribute es obligatorio.',
             'required_unless' => 'El campo :attribute es obligatorio.',

@@ -14,6 +14,8 @@ use App\Models\Product;
 use App\Models\ProductPresentation;
 use App\Models\ProductPriceHistory;
 use App\Models\PurchaseItem;
+use App\Models\StockMovement;
+use App\Services\BatchHistory;
 use App\Services\ProductAnalytics;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -73,7 +75,7 @@ class ProductController extends Controller
      * Precios, costos de compra y el stock de cada sucursal son siempre de todas (el precio es único).
      * Al cambiar de sucursal la pantalla pide solo purchases, salesByMonth, performance y branchFilter.
      */
-    public function show(Request $request, Product $product, ProductAnalytics $analytics): Response
+    public function show(Request $request, Product $product, ProductAnalytics $analytics, BatchHistory $batchHistory): Response
     {
         $product->load(['laboratory:id,name', 'category:id,name', 'presentations', 'indications:id,name', 'registeredBy:id,name']);
         $product->setAttribute('branch_stock', $this->branchStock([$product->id])->get($product->id, []));
@@ -100,6 +102,9 @@ class ProductController extends Controller
             'product' => $product,
             'purchases' => fn () => $this->lastPurchases($product, $branchId),
             'priceHistory' => fn () => $this->priceHistory($product),
+            // Pestaña "Stock por sucursal": lotes con stock de cada sucursal permitida, con su registro (solo con inventario.ver)
+            'branchLots' => fn () => $request->user()->can('inventario.ver') ? $batchHistory->for($product->id, $allowed, false) : [],
+            'movementTypes' => StockMovement::TYPES,
             // Sucursal que se mira (null = todas), las que se pueden elegir y si se puede elegir "Todas"
             'branchFilter' => $branchId,
             'branchOptions' => fn () => Branch::whereIn('id', $allowed)->orderBy('name')->get(['id', 'name']),
@@ -366,17 +371,17 @@ class ProductController extends Controller
     }
 
     /**
-     * Stock con lotes > 0, agrupado por producto y sucursal: unidades, cantidad de lotes y el vencimiento más próximo.
+     * Stock con lotes > 0, agrupado por producto y sucursal: unidades, valor al costo, cantidad de lotes y el vencimiento más próximo.
      *
      * @param  array<int, int>  $productIds
-     * @return Collection<int, list<array{branch_id: int, branch: ?string, stock: int, batches: int, next_expiry: ?string}>>
+     * @return Collection<int, list<array{branch_id: int, branch: ?string, stock: int, value: float, batches: int, next_expiry: ?string}>>
      */
     private function branchStock(array $productIds): Collection
     {
         return Batch::query()
             ->whereIn('product_id', $productIds)
             ->where('quantity', '>', 0)
-            ->selectRaw('product_id, branch_id, SUM(quantity) as stock, COUNT(*) as batches, MIN(expires_at) as next_expiry')
+            ->selectRaw('product_id, branch_id, SUM(quantity) as stock, SUM(quantity * unit_cost) as value, COUNT(*) as batches, MIN(expires_at) as next_expiry')
             ->groupBy('product_id', 'branch_id')
             ->with('branch:id,name')
             ->get()
@@ -385,6 +390,7 @@ class ProductController extends Controller
                 'branch_id' => $row->branch_id,
                 'branch' => $row->branch?->name,
                 'stock' => (int) $row->stock,
+                'value' => round((float) $row->value, 2),
                 'batches' => (int) $row->batches,
                 'next_expiry' => $row->next_expiry ? Carbon::parse($row->next_expiry)->toDateString() : null,
             ])->sortBy('branch')->values()->all());

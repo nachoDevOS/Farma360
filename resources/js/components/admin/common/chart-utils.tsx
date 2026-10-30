@@ -7,6 +7,7 @@
  *   <ChartCard title="…" description="…">…</ChartCard> → tarjeta con título de un gráfico
  */
 import { formatDay } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { useLayoutEffect, useRef, useState } from 'react';
 
 /** Ancho real del contenedor (los gráficos se dibujan en píxeles para que las líneas no se deformen). */
@@ -38,9 +39,19 @@ export const compact = (n: number) =>
 export const shortDay = (date: string) => formatDay(date).replace(/ \d{4}$/, '');
 
 /** Tarjeta de un gráfico: título, descripción y el gráfico. */
-export function ChartCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+export function ChartCard({
+    title,
+    description,
+    className,
+    children,
+}: {
+    title: string;
+    description: string;
+    className?: string;
+    children: React.ReactNode;
+}) {
     return (
-        <div className="surface min-w-0 rounded-xl">
+        <div className={cn('surface min-w-0 rounded-xl', className)}>
             <div className="border-b px-5 py-4">
                 <p className="text-sm font-semibold">{title}</p>
                 <p className="text-muted-foreground text-xs">{description}</p>

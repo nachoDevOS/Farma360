@@ -78,6 +78,8 @@ export interface BranchStock {
     branch_id: number;
     branch: string | null;
     stock: number;
+    /** Valor al costo (Σ unidades × costo del lote) */
+    value: number;
     batches: number;
     next_expiry: string | null;
 }

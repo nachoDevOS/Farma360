@@ -167,21 +167,8 @@ export function PresentationsTable({
     );
 }
 
-/**
- * Stock por sucursal (lotes con stock). inventoryLink: enlace a los lotes y kardex de cada sucursal.
- * highlightBranchId: sucursal elegida en la ficha del producto (fila resaltada).
- */
-export function BranchStockTable({
-    product,
-    inventoryLink,
-    highlightBranchId,
-    className,
-}: {
-    product: Product;
-    inventoryLink?: boolean;
-    highlightBranchId?: number | null;
-    className?: string;
-}) {
+/** Stock por sucursal (lotes con stock). inventoryLink: enlace a los lotes y kardex de cada sucursal. */
+export function BranchStockTable({ product, inventoryLink, className }: { product: Product; inventoryLink?: boolean; className?: string }) {
     const stocks = product.branch_stock ?? [];
     const total = stocks.reduce((sum, s) => sum + s.stock, 0);
 
@@ -203,7 +190,7 @@ export function BranchStockTable({
                         </thead>
                         <tbody className="divide-y">
                             {stocks.map((s) => (
-                                <tr key={s.branch_id} className={cn(highlightBranchId === s.branch_id && 'bg-primary/[0.06]')}>
+                                <tr key={s.branch_id}>
                                     <td className="py-1.5 pr-3 font-medium">{s.branch ?? '—'}</td>
                                     <td className={cn('num py-1.5 pr-3 text-right', s.stock <= product.min_stock && 'font-semibold text-red-600')}>
                                         {s.stock.toLocaleString('es')}

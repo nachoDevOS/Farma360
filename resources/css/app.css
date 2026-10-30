@@ -413,16 +413,17 @@
 
 /* Imagen de fondo del menú lateral.
    - FOTO: guarda una foto en public/images/sidebar-bg.jpg (vertical, ej. 800×1600 px). Si existe, se usa la foto.
-   - Si no hay foto, se ve el dibujo public/images/sidebar-bg.svg (circuitos azules).
+   - Si no hay foto, se ve el dibujo public/images/sidebar-bg.svg (cápsulas, tabletas y cruz de farmacia en azul;
+     el de circuitos quedó en sidebar-bg-circuitos.svg).
    Encima va una capa oscura del color del menú para que el texto se lea bien:
    sube los % para oscurecer más la foto, bájalos para que se vea más. */
 [data-sidebar='sidebar'] {
     background-image:
         linear-gradient(
             to bottom,
-            color-mix(in oklab, var(--sidebar-background) 78%, transparent),
-            color-mix(in oklab, var(--sidebar-background) 70%, transparent) 50%,
-            color-mix(in oklab, var(--sidebar-background) 88%, transparent)
+            color-mix(in oklab, var(--sidebar-background) 76%, transparent),
+            color-mix(in oklab, var(--sidebar-background) 64%, transparent) 50%,
+            color-mix(in oklab, var(--sidebar-background) 74%, transparent)
         ),
         url('/images/sidebar-bg.jpg'), url('/images/sidebar-bg.svg');
     background-size: cover;

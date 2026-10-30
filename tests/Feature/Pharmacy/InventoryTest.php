@@ -3,7 +3,9 @@
 namespace Tests\Feature\Pharmacy;
 
 use App\Exceptions\BusinessException;
+use App\Models\Batch;
 use App\Models\StockMovement;
+use App\Models\Supplier;
 use App\Services\InventoryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -110,6 +112,27 @@ class InventoryTest extends TestCase
         $this->assertDatabaseHas('stock_movements', ['batch_id' => $batch->id, 'type' => 'baja', 'quantity' => -10, 'note' => 'Cajas mojadas']);
     }
 
+    public function test_lot_adjustments_work_with_everything_the_screen_sends()
+    {
+        $branch = $this->branch();
+        $product = $this->product();
+        $batch = $this->batch($product, $branch, 110);
+        $admin = $this->userWithRole('Administrador');
+        // La ventana manda también los campos del "Ingreso sin compra" vacíos: no deben impedir el ajuste
+        $screen = fn (string $mode, int $quantity) => [
+            'mode' => $mode, 'batch_id' => (string) $batch->id, 'product_id' => (string) $product->id, 'branch_id' => (string) $branch->id,
+            'batch_number' => '', 'expires_at' => '', 'items' => [['product_presentation_id' => (string) $this->presentation($product, 100)->id, 'quantity' => '']],
+            'cost' => '', 'cost_presentation_id' => (string) $this->presentation($product, 100)->id, 'quantity' => (string) $quantity, 'note' => 'pruebas',
+        ];
+
+        $this->actingAs($admin)->post('/admin/inventory/adjust', $screen('in', 3))->assertSessionHasNoErrors()->assertSessionHas('success');
+        $this->actingAs($admin)->post('/admin/inventory/adjust', $screen('out', 5))->assertSessionHasNoErrors()->assertSessionHas('success');
+        $this->actingAs($admin)->post('/admin/inventory/adjust', $screen('writeoff', 2))->assertSessionHasNoErrors()->assertSessionHas('success');
+
+        // 110 + 3 − 5 − 2
+        $this->assertSame(106, $batch->fresh()->quantity);
+    }
+
     public function test_initial_stock_only_accepts_presentations_of_the_same_product()
     {
         $branch = $this->branch();
@@ -208,6 +231,49 @@ class InventoryTest extends TestCase
                 ->where('otherBranches.0.name', 'Norte')
                 ->where('otherBranches.0.stock', 50)
                 ->has('alertDays'));
+    }
+
+    public function test_each_batch_shows_where_it_came_from_and_everything_that_happened_to_it()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0);
+        $admin = $this->userWithRole('Administrador');
+        $supplier = Supplier::factory()->create(['name' => 'Droguería Inti']);
+        // Compra: 1 caja x100 → 100 tabletas
+        $this->actingAs($admin)->post('/admin/purchases', [
+            'branch_id' => $branch->id, 'supplier_id' => $supplier->id, 'invoice_number' => 'F-9', 'purchased_at' => today()->toDateString(),
+            'items' => [['product_presentation_id' => $this->presentation($product, 100)->id, 'quantity' => 1, 'cost' => 40, 'batch_number' => 'L-1', 'expires_at' => today()->addYear()->toDateString()]],
+        ]);
+        $batch = Batch::firstOrFail();
+        // Venta de 7, baja de 3 y ajuste de entrada de 2
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+        $this->actingAs($cashier)->post('/admin/sales', [
+            'items' => [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 7]],
+            'payments' => [['method' => 'efectivo', 'amount' => 10]],
+        ]);
+        $this->actingAs($admin)->post('/admin/inventory/adjust', ['mode' => 'writeoff', 'batch_id' => $batch->id, 'quantity' => 3, 'note' => 'Blíster roto']);
+        $this->actingAs($admin)->post('/admin/inventory/adjust', ['mode' => 'in', 'batch_id' => $batch->id, 'quantity' => 2, 'note' => 'Conteo']);
+
+        $this->actingAs($admin)->get("/admin/inventory/{$product->id}?branch={$branch->id}")
+            ->assertInertia(fn ($page) => $page
+                ->where('batches.0.quantity', 92)
+                ->where('batches.0.origin.kind', 'compra')
+                ->where('batches.0.origin.document.kind', 'compra')
+                ->where('batches.0.origin.document.label', fn (string $label) => str_contains($label, 'factura F-9') && str_contains($label, 'Droguería Inti'))
+                ->where('batches.0.initial', 100)
+                // 100 − 7 + 2 − 3 = 92
+                ->where('batches.0.summary', fn ($summary) => collect($summary)->pluck('units', 'key')->all() === ['ventas' => -7, 'ajustes' => 2, 'bajas' => -3])
+                ->where('batches.0.movements_count', 4)
+                // El más reciente primero, con el saldo del lote después de cada movimiento
+                ->where('batches.0.movements.0.type', 'ajuste_entrada')
+                ->where('batches.0.movements.0.batch_balance', 92)
+                ->where('batches.0.movements.1.type', 'baja')
+                ->where('batches.0.movements.1.note', 'Blíster roto')
+                ->where('batches.0.movements.1.batch_balance', 90)
+                ->where('batches.0.movements.2.document.kind', 'venta')
+                ->where('batches.0.movements.2.batch_balance', 93)
+                ->where('batches.0.movements.3.batch_balance', 100));
     }
 
     public function test_users_only_adjust_batches_of_their_branch()

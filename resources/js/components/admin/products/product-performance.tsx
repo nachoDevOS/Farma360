@@ -7,14 +7,13 @@
  *
  * La sucursal se elige arriba de la página (branch-picker.tsx) o tocando una fila de "Por sucursal"; scope dice qué se
  * mira. El precio y los costos de compra son siempre de todas las sucursales (el precio es único).
- * "Por sucursal" compara todas las que el usuario puede ver, resaltando la elegida.
+ * "Por sucursal" (comparar sucursales) solo aparece con "Todas las sucursales"; tocar una fila elige esa sucursal.
  *
  * De arriba a abajo:
  * 1. Indicadores de los últimos 30 días contra los 30 anteriores (con la forma de cada día) y para cuántos días alcanza el stock.
- * 2. "Lo que dicen los números": frases armadas con los datos (tendencia, mejor momento, sucursales, riesgo de vencimiento…).
- * 3. Ventas por mes y precio contra costo (product-charts.tsx).
- * 4. Por sucursal (vendido, stock y para cuántos días alcanza) y cómo lo compran (suelto, blíster, caja…).
- * 5. Cuándo se vende (día y hora) y vencimientos: cuánto se vencería sin venderse al ritmo actual.
+ * 2. Ventas por mes y precio contra costo (product-charts.tsx).
+ * 3. Por sucursal (vendido, stock y para cuántos días alcanza) y cómo lo compran (suelto, blíster, caja…).
+ * 4. Cuándo se vende (día y hora) y vencimientos: cuánto se vencería sin venderse al ritmo actual.
  * Colores: azul (--chart-1) = ventas; por presentación, SERIES de product-charts.tsx; vencimientos con colores de estado
  * (rojo vencido, naranja ≤ 30 días, ámbar ≤ 90, verde) siempre con su texto al lado.
  */
@@ -22,7 +21,6 @@ import { ChartCard, compact } from '@/components/admin/common/chart-utils';
 import { plural } from '@/components/admin/products/presentation-levels';
 import {
     EmptyChart,
-    monthName,
     type MonthSales,
     type PriceSeries,
     type PurchaseCost,
@@ -32,25 +30,7 @@ import {
 import { formatDay, money } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type Product } from '@/types/admin/pharmacy';
-import {
-    AlertTriangle,
-    ArrowDownRight,
-    ArrowUpRight,
-    CalendarClock,
-    Check,
-    Clock,
-    Coins,
-    Layers,
-    type LucideIcon,
-    Minus,
-    Package,
-    Sparkles,
-    Store,
-    TrendingDown,
-    TrendingUp,
-    Truck,
-    Wallet,
-} from 'lucide-react';
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarClock, Check, Coins, type LucideIcon, Minus, Package, Wallet } from 'lucide-react';
 import { useState } from 'react';
 
 /** Un día de ventas. Ver ProductAnalytics@byDay. */
@@ -154,14 +134,6 @@ export function ProductPerformance({ product, performance, salesByMonth, priceSe
     return (
         <div className="grid gap-6">
             <Kpis performance={performance} scope={scope} units={units} />
-            <Insights
-                product={product}
-                performance={performance}
-                salesByMonth={salesByMonth}
-                purchaseCosts={purchaseCosts}
-                scope={scope}
-                units={units}
-            />
             <SalesAndPriceCharts
                 salesByMonth={salesByMonth}
                 priceSeries={priceSeries}
@@ -171,13 +143,17 @@ export function ProductPerformance({ product, performance, salesByMonth, priceSe
                 colorOf={colorOf}
             />
             <div className="grid gap-6 xl:grid-cols-2">
+                {/* Comparar sucursales solo tiene sentido mirando todas; con una elegida, "Cómo lo compran" ocupa la fila */}
+                {scope.branchId === null && (
+                    <ChartCard
+                        title="Por sucursal"
+                        description="Lo vendido en 90 días, el stock de hoy y para cuántos días alcanza. Toca una para verla sola."
+                    >
+                        <BranchBars branches={performance.branches} units={units} selected={current} onChoose={onChooseBranch} />
+                    </ChartCard>
+                )}
                 <ChartCard
-                    title="Por sucursal"
-                    description="Todas las sucursales: lo vendido en 90 días, el stock de hoy y para cuántos días alcanza. Toca una para verla sola."
-                >
-                    <BranchBars branches={performance.branches} units={units} selected={current} onChoose={onChooseBranch} />
-                </ChartCard>
-                <ChartCard
+                    className={scope.branchId !== null ? 'xl:col-span-2' : undefined}
                     title="Cómo lo compran"
                     description={`Qué presentación eligen los clientes en ${scope.label} (últimos 90 días), contado en unidades.`}
                 >
@@ -193,7 +169,7 @@ export function ProductPerformance({ product, performance, salesByMonth, priceSe
                 </ChartCard>
                 <ChartCard
                     title="Vencimientos"
-                    description={`Stock de hoy en ${scope.label} según cuándo vence, y cuánto se vencería sin venderse si cada sucursal sigue a su ritmo.`}
+                    description={`Stock de hoy en ${scope.label} según cuándo vence, y cuánto se vencería sin venderse si ${scope.branchId ? 'sigue vendiendo' : 'cada sucursal sigue'} a su ritmo.`}
                 >
                     <ExpiryRisk batches={performance.batches} units={units} />
                 </ChartCard>
@@ -214,7 +190,7 @@ function Kpis({ performance, scope, units }: { performance: Performance; scope: 
     const profit = total(current, 'profit');
 
     return (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <KpiTile
                 icon={Wallet}
                 label="Vendido · últimos 30 días"
@@ -266,17 +242,17 @@ function KpiTile({
 }) {
     const max = Math.max(0, ...spark);
     return (
-        <div className="surface flex min-w-0 flex-col gap-3 rounded-xl p-4 sm:p-5">
+        <div className="surface flex min-w-0 flex-col gap-1.5 rounded-xl p-3 sm:p-3.5">
             <div className="flex items-start justify-between gap-2">
-                <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs sm:text-sm">
-                    <Icon className="size-4 shrink-0" />
+                <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                    <Icon className="size-3.5 shrink-0" />
                     <span className="truncate">{label}</span>
                 </p>
                 <Delta now={now} before={before} />
             </div>
-            <p className="font-display num truncate text-xl leading-tight font-bold sm:text-2xl">{value}</p>
+            <p className="font-display num truncate text-lg leading-tight font-bold sm:text-xl">{value}</p>
             {/* Cada día de los últimos 30 (el último es hoy) */}
-            <div className="flex h-8 items-end gap-px" aria-hidden>
+            <div className="flex h-6 items-end gap-px" aria-hidden>
                 {spark.map((v, i) => (
                     <div
                         key={i}
@@ -285,7 +261,7 @@ function KpiTile({
                     />
                 ))}
             </div>
-            <p className="text-muted-foreground truncate text-xs">{hint} · contra los 30 días anteriores</p>
+            <p className="text-muted-foreground truncate text-[11px]">{hint} · contra los 30 días anteriores</p>
         </div>
     );
 }
@@ -320,10 +296,10 @@ function CoverageTile({ coverage, stock, units, rate }: { coverage: number | nul
     // La barra se llena a los 60 días: más que eso ya es "de sobra"
     const fill = coverage === null ? 0 : Math.min(100, (coverage / 60) * 100);
     return (
-        <div className="surface flex min-w-0 flex-col gap-3 rounded-xl p-4 sm:p-5">
+        <div className="surface flex min-w-0 flex-col gap-1.5 rounded-xl p-3 sm:p-3.5">
             <div className="flex items-start justify-between gap-2">
-                <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs sm:text-sm">
-                    <CalendarClock className="size-4 shrink-0" />
+                <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                    <CalendarClock className="size-3.5 shrink-0" />
                     <span className="truncate">El stock alcanza para</span>
                 </p>
                 <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold', TONE_SOFT[tone])}>
@@ -338,11 +314,11 @@ function CoverageTile({ coverage, stock, units, rate }: { coverage: number | nul
                             : 'Bien'}
                 </span>
             </div>
-            <p className={cn('font-display num truncate text-xl leading-tight font-bold sm:text-2xl', coverage !== null && TONE_TEXT[tone])}>
+            <p className={cn('font-display num truncate text-lg leading-tight font-bold sm:text-xl', coverage !== null && TONE_TEXT[tone])}>
                 {coverage === null ? '—' : daysText(coverage)}
             </p>
-            <div className="flex h-8 flex-col justify-end gap-1.5" aria-hidden>
-                <div className="bg-muted relative h-2 overflow-hidden rounded-full">
+            <div className="flex h-6 flex-col justify-end gap-1" aria-hidden>
+                <div className="bg-muted relative h-1.5 overflow-hidden rounded-full">
                     <div
                         className={cn(
                             'absolute inset-y-0 left-0 rounded-full',
@@ -357,347 +333,13 @@ function CoverageTile({ coverage, stock, units, rate }: { coverage: number | nul
                     <span>60+</span>
                 </div>
             </div>
-            <p className="text-muted-foreground truncate text-xs">
+            <p className="text-muted-foreground truncate text-[11px]">
                 {coverage === null
                     ? `${stock.toLocaleString('es')} ${units} sin ventas en 90 días`
                     : `${stock.toLocaleString('es')} ${units} · hasta ~${inDays(coverage)} a ${rate.toLocaleString('es')}/día`}
             </p>
         </div>
     );
-}
-
-/* ───────────────────────── 2. Lo que dicen los números ───────────────────────── */
-
-interface Insight {
-    icon: LucideIcon;
-    tone: keyof typeof TONE_SOFT;
-    text: React.ReactNode;
-}
-
-function Insights({
-    product,
-    performance,
-    salesByMonth,
-    purchaseCosts,
-    scope,
-    units,
-}: {
-    product: Product;
-    performance: Performance;
-    salesByMonth: MonthSales[];
-    purchaseCosts: PurchaseCost[];
-    scope: Scope;
-    units: string;
-}) {
-    const insights = buildInsights(product, performance, salesByMonth, purchaseCosts, scope, units);
-    return (
-        <div className="surface min-w-0 rounded-xl">
-            <div className="flex items-center gap-3 border-b px-5 py-4">
-                <div className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-lg">
-                    <Sparkles className="size-4" />
-                </div>
-                <div className="min-w-0">
-                    <h2 className="text-sm font-semibold">Lo que dicen los números</h2>
-                    <p className="text-muted-foreground mt-0.5 text-xs">Resumen automático con las ventas y el stock de {scope.label}.</p>
-                </div>
-            </div>
-            <ul className="grid gap-x-6 gap-y-3 p-5 md:grid-cols-2">
-                {insights.map((insight, i) => (
-                    <li key={i} className="flex items-start gap-3 text-sm">
-                        <span className={cn('mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg', TONE_SOFT[insight.tone])}>
-                            <insight.icon className="size-4" />
-                        </span>
-                        <span className="min-w-0 pt-1 leading-snug">{insight.text}</span>
-                    </li>
-                ))}
-            </ul>
-        </div>
-    );
-}
-
-const B = ({ children }: { children: React.ReactNode }) => <strong className="num font-semibold">{children}</strong>;
-
-function buildInsights(product: Product, p: Performance, months: MonthSales[], costs: PurchaseCost[], scope: Scope, units: string): Insight[] {
-    const list: Insight[] = [];
-    const current = sum(p.daily.slice(30), (d) => d.amount);
-    const previous = sum(p.daily.slice(0, 30), (d) => d.amount);
-    const stock = scope.stock;
-    const soldRecently = sum(p.branches, (b) => b.units);
-
-    if (months.every((m) => m.units === 0)) {
-        list.push({
-            icon: Sparkles,
-            tone: 'slate',
-            text: scope.branchId
-                ? `${scope.label} no vendió este producto en los últimos 12 meses.`
-                : 'Este producto todavía no tiene ventas: los gráficos se llenan solos a medida que se venda.',
-        });
-    }
-
-    // Tendencia
-    if (current > 0 || previous > 0) {
-        if (previous === 0) {
-            list.push({
-                icon: TrendingUp,
-                tone: 'blue',
-                text: (
-                    <>
-                        Empezó a venderse hace poco: <B>{money(current)}</B> en los últimos 30 días.
-                    </>
-                ),
-            });
-        } else {
-            const change = ((current - previous) / previous) * 100;
-            list.push(
-                change >= 0
-                    ? {
-                          icon: TrendingUp,
-                          tone: 'green',
-                          text: (
-                              <>
-                                  Las ventas <B>subieron {Math.round(change)}%</B> frente a los 30 días anteriores ({money(previous)} →{' '}
-                                  {money(current)}).
-                              </>
-                          ),
-                      }
-                    : {
-                          icon: TrendingDown,
-                          tone: 'red',
-                          text: (
-                              <>
-                                  Las ventas <B>bajaron {Math.round(-change)}%</B> frente a los 30 días anteriores ({money(previous)} →{' '}
-                                  {money(current)}).
-                              </>
-                          ),
-                      },
-            );
-        }
-    }
-
-    // Mejor mes
-    const best = months.reduce<MonthSales | null>((top, m) => (m.amount > (top?.amount ?? 0) ? m : top), null);
-    if (best) {
-        list.push({
-            icon: Sparkles,
-            tone: 'blue',
-            text: (
-                <>
-                    Su mejor mes fue <B>{monthName(best.month, true)}</B>: {best.units.toLocaleString('es')} {units} por {money(best.amount)}{' '}
-                    (ganancia {money(best.profit)}).
-                </>
-            ),
-        });
-    }
-
-    // Cuándo se vende más
-    if (p.hours.length) {
-        const byDay = DAYS.map((_, d) =>
-            sum(
-                p.hours.filter((h) => h.day === d + 1),
-                (h) => h.units,
-            ),
-        );
-        const topDay = byDay.indexOf(Math.max(...byDay));
-        const byHour = Array.from({ length: 24 }, (_, h) =>
-            sum(
-                p.hours.filter((c) => c.hour === h || c.hour === h + 1),
-                (c) => c.units,
-            ),
-        );
-        const topHour = byHour.indexOf(Math.max(...byHour));
-        list.push({
-            icon: Clock,
-            tone: 'blue',
-            text: (
-                <>
-                    Se vende más los <B>{DAYS[topDay]}</B> y en general entre las{' '}
-                    <B>
-                        {topHour}:00 y {Math.min(24, topHour + 2)}:00
-                    </B>
-                    : buen momento para tener stock en mostrador y personal en caja.
-                </>
-            ),
-        });
-    }
-
-    // Cómo lo compran
-    const mixUnits = sum(p.mix, (m) => m.units);
-    if (mixUnits > 0 && p.mix.length > 1) {
-        const top = [...p.mix].sort((a, b) => b.units - a.units)[0];
-        list.push({
-            icon: Layers,
-            tone: 'blue',
-            text: (
-                <>
-                    El <B>{Math.round((top.units / mixUnits) * 100)}%</B> de lo vendido sale como «{top.name}».
-                </>
-            ),
-        });
-    }
-
-    // Una sucursal: su lugar entre las demás, o su stock quieto mientras otra lo vende
-    const leader = p.branches[0];
-    if (scope.branchId && soldRecently > 0) {
-        const myUnits = p.branches.find((b) => b.branch_id === scope.branchId)?.units ?? 0;
-        const rank = p.branches.filter((b) => b.units > myUnits).length + 1;
-        const share = Math.round((myUnits / soldRecently) * 100);
-        if (myUnits > 0) {
-            list.push({
-                icon: Store,
-                tone: 'blue',
-                text:
-                    rank === 1 ? (
-                        <>
-                            <B>{scope.label}</B> es la sucursal que más lo vende: el <B>{share}%</B> del total en 90 días.
-                        </>
-                    ) : (
-                        <>
-                            <B>{scope.label}</B> vende el <B>{share}%</B> del total (puesto {rank} de {p.branches.length}). La que más vende es{' '}
-                            {leader.branch} ({Math.round((leader.units / soldRecently) * 100)}%).
-                        </>
-                    ),
-            });
-        } else if (stock > 0) {
-            list.push({
-                icon: Store,
-                tone: 'amber',
-                text: (
-                    <>
-                        <B>{scope.label}</B> tiene{' '}
-                        <B>
-                            {stock.toLocaleString('es')} {units}
-                        </B>{' '}
-                        sin ventas en 90 días, mientras <B>{leader.branch}</B> vende {leader.daily_rate.toLocaleString('es')} por día: conviene
-                        trasladarlas.
-                    </>
-                ),
-            });
-        }
-    }
-
-    // Todas: dónde se vende y dónde sobra
-    if (!scope.branchId && soldRecently > 0 && p.branches.length > 1) {
-        const top = p.branches[0];
-        const idle = p.branches.filter((b) => b.units === 0 && b.stock > 0);
-        list.push({
-            icon: Store,
-            tone: idle.length ? 'amber' : 'blue',
-            text: (
-                <>
-                    <B>{top.branch ?? 'Una sucursal'}</B> vende el {Math.round((top.units / soldRecently) * 100)}% del producto.
-                    {idle.length > 0 && (
-                        <>
-                            {' '}
-                            {idle.map((b) => b.branch).join(', ')} {idle.length === 1 ? 'tiene' : 'tienen'}{' '}
-                            <B>
-                                {sum(idle, (b) => b.stock).toLocaleString('es')} {units}
-                            </B>{' '}
-                            sin vender en 90 días: conviene trasladarlas.
-                        </>
-                    )}
-                </>
-            ),
-        });
-    }
-
-    // Stock: cuándo se acaba
-    if (p.dailyRate > 0) {
-        const days = stock / p.dailyRate;
-        const tone = coverageTone(days);
-        const shortBranch = scope.branchId ? undefined : p.branches.find((b) => b.daily_rate > 0 && b.stock / b.daily_rate < 7);
-        list.push({
-            icon: tone === 'green' ? Package : AlertTriangle,
-            tone,
-            text: (
-                <>
-                    Al ritmo actual ({p.dailyRate.toLocaleString('es')} {units} por día) el stock alcanza para <B>{daysText(days)}</B>
-                    {days < 365 && <> (hasta ~{inDays(days)})</>}.{tone === 'red' && ' Conviene comprar ya.'}
-                    {tone === 'amber' && ' Conviene ir pidiendo.'}
-                    {shortBranch && tone === 'green' && (
-                        <>
-                            {' '}
-                            Pero <B>{shortBranch.branch}</B> se queda sin stock en ~{daysText(shortBranch.stock / shortBranch.daily_rate)}.
-                        </>
-                    )}
-                </>
-            ),
-        });
-    } else if (stock > 0 && months.some((m) => m.units > 0)) {
-        list.push({
-            icon: AlertTriangle,
-            tone: 'amber',
-            text: (
-                <>
-                    No se vendió nada en los últimos 90 días y hay{' '}
-                    <B>
-                        {stock.toLocaleString('es')} {units}
-                    </B>{' '}
-                    en stock.
-                </>
-            ),
-        });
-    }
-
-    // Vencimientos
-    const expired = p.batches.filter((b) => b.days_left < 0);
-    const atRisk = p.batches.filter((b) => b.days_left >= 0 && (b.units_at_risk ?? 0) > 0);
-    if (expired.length) {
-        list.push({
-            icon: AlertTriangle,
-            tone: 'red',
-            text: (
-                <>
-                    Hay{' '}
-                    <B>
-                        {sum(expired, (b) => b.quantity).toLocaleString('es')} {units} vencidas
-                    </B>{' '}
-                    ({money(sum(expired, (b) => b.quantity * b.unit_cost))} al costo) todavía en stock: sacarlas de la venta.
-                </>
-            ),
-        });
-    }
-    if (atRisk.length) {
-        list.push({
-            icon: CalendarClock,
-            tone: 'amber',
-            text: (
-                <>
-                    Al ritmo actual se vencerían sin venderse{' '}
-                    <B>
-                        ~{sum(atRisk, (b) => b.units_at_risk ?? 0).toLocaleString('es')} {units}
-                    </B>{' '}
-                    ({money(sum(atRisk, (b) => (b.units_at_risk ?? 0) * b.unit_cost))} al costo). Una promoción o un traslado puede salvarlas.
-                </>
-            ),
-        });
-    } else if (p.batches.length && p.batches.every((b) => b.days_left >= 0 && b.units_at_risk === 0)) {
-        list.push({ icon: CalendarClock, tone: 'green', text: 'Todo el stock alcanza a venderse antes de vencer al ritmo actual.' });
-    }
-
-    // Costo de compra: ¿subió?
-    if (costs.length >= 2) {
-        const last = costs[costs.length - 1];
-        const before = costs[costs.length - 2];
-        const change = before.unit_cost > 0 ? ((last.unit_cost - before.unit_cost) / before.unit_cost) * 100 : 0;
-        if (Math.abs(change) >= 1) {
-            list.push({
-                icon: Truck,
-                tone: change > 0 ? 'amber' : 'green',
-                text: (
-                    <>
-                        El costo de la última compra{' '}
-                        <B>
-                            {change > 0 ? 'subió' : 'bajó'} {Math.abs(Math.round(change))}%
-                        </B>{' '}
-                        ({money(before.unit_cost)} → {money(last.unit_cost)} por {product.base_unit.toLowerCase()})
-                        {change > 0 ? ': revisa si el precio de venta sigue dejando ganancia.' : '.'}
-                    </>
-                ),
-            });
-        }
-    }
-
-    return list;
 }
 
 /* ───────────────────────── 4. Por sucursal y cómo lo compran ───────────────────────── */
@@ -923,6 +565,9 @@ function HoursHeatmap({ hours, units }: { hours: Performance['hours']; units: st
         </div>
     );
 }
+
+/** Texto resaltado dentro de una frase. */
+const B = ({ children }: { children: React.ReactNode }) => <strong className="num font-semibold">{children}</strong>;
 
 const EXPIRY_BUCKETS = [
     { key: 'expired', label: 'Vencido', test: (d: number) => d < 0, bar: 'bg-red-600', soft: TONE_SOFT.red },

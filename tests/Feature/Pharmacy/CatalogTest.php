@@ -179,7 +179,15 @@ class CatalogTest extends TestCase
                 ->where('purchases.0.supplier', 'Droguería Inti')
                 ->where('purchases.0.invoice_number', 'F-9')
                 ->where('purchases.0.quantity', 2)
-                ->where('purchases.0.unit_cost', 0.4));
+                ->where('purchases.0.unit_cost', 0.4)
+                // Pestaña "Stock por sucursal": valor al costo de cada sucursal y sus lotes con el registro
+                ->where('product.branch_stock.0.value', 80)
+                ->has('branchLots', 1)
+                ->where('branchLots.0.batch_number', 'L-1')
+                ->where('branchLots.0.branch_id', $branch->id)
+                ->where('branchLots.0.origin.kind', 'compra')
+                ->where('branchLots.0.initial', 200)
+                ->has('movementTypes'));
     }
 
     public function test_product_page_sends_monthly_sales_and_price_series_for_the_charts()
@@ -320,7 +328,10 @@ class CatalogTest extends TestCase
                 ->has('performance.branches', 1)
                 ->where('performance.branches.0.branch', 'Norte')
                 // El stock de cada sucursal se sigue viendo: sirve para saber dónde hay
-                ->has('product.branch_stock', 2));
+                ->has('product.branch_stock', 2)
+                // Pero los lotes (costos y movimientos) solo de la suya, como en el inventario
+                ->has('branchLots', 1)
+                ->where('branchLots.0.branch_id', $north->id));
 
         // Sin sucursal asignada: las compras de todas
         $this->actingAs($admin)->get("/admin/products/{$product->id}")->assertInertia(fn ($page) => $page->has('purchases', 2));
