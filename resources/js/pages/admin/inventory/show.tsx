@@ -87,7 +87,9 @@ export default function InventoryShow({ product, branches, branchId, stock, batc
                         </span>
                     </Detail>
                     <Detail label="Stock mínimo">{product.min_stock.toLocaleString('es')}</Detail>
-                    <Detail label="Presentaciones">{product.presentations.map((p) => `${p.name} (${money(p.sale_price)})`).join(' · ')}</Detail>
+                    <Detail label="Presentaciones">
+                        {product.presentations.map((p) => `${p.name} (${p.is_sellable ? money(p.sale_price) : 'solo compra'})`).join(' · ')}
+                    </Detail>
                     <Detail label="Control">
                         {product.is_controlled ? 'Controlado' : product.requires_prescription ? 'Con receta' : 'Venta libre'}
                     </Detail>

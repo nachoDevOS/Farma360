@@ -82,7 +82,7 @@ class SaleController extends Controller
         // Busca también por uso / síntoma: "dolor de cabeza" trae todo lo que sirve para eso
         $products = Product::where('is_active', true)
             ->search($search)
-            ->with('presentations', 'indications:id,name')
+            ->with(['presentations' => fn ($q) => $q->sellable(), 'indications:id,name'])
             ->orderBy('name')
             ->limit(20)
             ->get();
@@ -122,7 +122,7 @@ class SaleController extends Controller
     {
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_presentation_id' => ['required', Rule::exists('product_presentations', 'id')->whereNull('deleted_at')],
+            'items.*.product_presentation_id' => ['required', Rule::exists('product_presentations', 'id')->whereNull('deleted_at')->where('is_sellable', true)],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'payments' => ['required', 'array', 'min:1'],
             'payments.*.method' => ['required', Rule::in(array_keys(config('farmacia.payment_methods')))],

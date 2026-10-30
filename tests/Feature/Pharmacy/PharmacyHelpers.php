@@ -22,7 +22,7 @@ trait PharmacyHelpers
         return Branch::factory()->create($attributes);
     }
 
-    /** Producto con presentaciones Unidad (factor 1) y Caja x100. */
+    /** Producto con presentaciones unidad base (factor 1) y Caja x100. */
     protected function product(float $unitPrice = 1.0, array $attributes = []): Product
     {
         return Product::factory()->withPresentations($unitPrice)->create($attributes)->load('presentations');
@@ -64,9 +64,9 @@ trait PharmacyHelpers
         return Denomination::where('value', $value)->firstOrFail();
     }
 
-    /** Presentación por nombre: 'Unidad' o 'Caja x100'. */
-    protected function presentation(Product $product, string $name = 'Unidad')
+    /** Presentación por cantidad de unidades base: 1 (la unidad) o 100 (la caja). */
+    protected function presentation(Product $product, int $factor = 1)
     {
-        return $product->presentations->firstWhere('name', $name);
+        return $product->presentations->firstWhere('factor', $factor);
     }
 }

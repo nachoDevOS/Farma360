@@ -16,11 +16,22 @@ export interface UserRef {
     name: string;
 }
 
+/** Presentación por niveles: la unidad base (parent_id null) o un empaque que contiene a otra. Ver ProductPresentation. */
 export interface Presentation {
     id?: number;
+    /** Presentación que contiene (la Caja contiene Blísteres). Null = unidad base */
+    parent_id?: number | null;
+    /** Tipo de empaque: Blíster, Caja… (en la unidad base: tableta) */
+    package: string;
+    /** Cuántas del nivel de adentro trae. Null en la unidad base */
+    contains?: number | null;
+    /** Nombre armado por el sistema: "Caja x10 blísteres (100 tabletas)" */
     name: string;
     factor: number;
-    sale_price: string;
+    /** Null si no se vende */
+    sale_price: string | null;
+    is_sellable: boolean;
+    is_purchasable: boolean;
     barcode?: string | null;
 }
 
@@ -53,6 +64,22 @@ export interface Product {
     stock?: string | number | null;
     stock_value?: string | number | null;
     next_expiry?: string | null;
+    /** Lista de productos: stock por sucursal para el detalle desplegable de la fila */
+    branch_stock?: BranchStock[];
+    /** Quién lo registró y con qué rol (columnas de auditoría) */
+    registered_by?: UserRef | null;
+    registerRole?: string | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
+/** Stock de un producto en una sucursal (suma de sus lotes con stock). Ver ProductController@index. */
+export interface BranchStock {
+    branch_id: number;
+    branch: string | null;
+    stock: number;
+    batches: number;
+    next_expiry: string | null;
 }
 
 /** Fila del buscador de productos (una por presentación). Ver ProductController@lookup. */

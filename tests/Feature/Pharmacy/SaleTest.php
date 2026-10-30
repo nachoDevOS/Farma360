@@ -73,7 +73,7 @@ class SaleTest extends TestCase
 
         // 1 caja (100) + 6 unidades = 106 > 105
         $this->sell($cashier, [
-            ['product_presentation_id' => $this->presentation($product, 'Caja x100')->id, 'quantity' => 1],
+            ['product_presentation_id' => $this->presentation($product, 100)->id, 'quantity' => 1],
             ['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 6],
         ], [['method' => 'efectivo', 'amount' => 200]])->assertSessionHas('error');
 
@@ -185,5 +185,23 @@ class SaleTest extends TestCase
             ->assertOk()
             ->assertJsonPath('0.product_id', $product->id)
             ->assertJsonPath('0.indications', ['Dolor de cabeza', 'Fiebre']);
+    }
+
+    public function test_presentations_that_are_not_sold_stay_out_of_the_pos()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0, ['name' => 'Febrax']);
+        $this->batch($product, $branch, 300);
+        $this->presentation($product, 100)->update(['is_sellable' => false]);
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+
+        $this->actingAs($cashier)->getJson('/admin/pos/search?q=Febrax')
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.factor', 1);
+        $this->sell($cashier, [['product_presentation_id' => $this->presentation($product, 100)->id, 'quantity' => 1]], [['method' => 'efectivo', 'amount' => 100]])
+            ->assertSessionHasErrors('items.0.product_presentation_id');
+        $this->assertSame(0, Sale::count());
     }
 }

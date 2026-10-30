@@ -66,11 +66,12 @@ class PromotionService
             ->values();
     }
 
-    /** ¿Con ese descuento alguna presentación se vendería por debajo del costo del lote? */
+    /** ¿Con ese descuento alguna presentación que se vende quedaría por debajo del costo del lote? */
     public function isBelowCost(Batch $batch, float $percent): bool
     {
         return $batch->product->presentations->contains(
-            fn ($presentation) => ($presentation->sale_price / $presentation->factor) * (1 - $percent / 100) < (float) $batch->unit_cost,
+            fn ($presentation) => $presentation->is_sellable && $presentation->sale_price !== null
+                && ($presentation->sale_price / $presentation->factor) * (1 - $percent / 100) < (float) $batch->unit_cost,
         );
     }
 

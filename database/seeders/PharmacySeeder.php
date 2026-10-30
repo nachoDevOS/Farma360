@@ -10,6 +10,7 @@ use App\Models\Denomination;
 use App\Models\Indication;
 use App\Models\Laboratory;
 use App\Models\Product;
+use App\Models\ProductPresentation;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Services\CashService;
@@ -115,19 +116,20 @@ class PharmacySeeder extends Seeder
             'clonazepam' => ['Ansiolítico. Medicamento controlado: venta con receta retenida.', ['Ansiedad', 'Insomnio']],
         ];
 
-        // [clave, nombre comercial, nombre genérico, concentración, forma, categoría, unidad base, [presentación => [unidades, precio]], controlado]
+        // [clave, nombre comercial, nombre genérico, concentración, forma, categoría, unidad base, niveles, controlado]
+        // Niveles de adentro hacia afuera: [empaque, cuántas del anterior trae, precio, se vende, se compra]. El primero es la unidad base.
         $rows = [
-            ['paracetamol', 'Dolofen', 'Paracetamol', '500 mg', 'Tableta', 'Analgésicos', 'tableta', ['Unidad' => [1, 0.50], 'Blíster x10' => [10, 4.50], 'Caja x100' => [100, 40]], false],
-            ['paracetamol_gen', 'Paracetamol genérico', 'Paracetamol', '500 mg', 'Tableta', 'Analgésicos', 'tableta', ['Unidad' => [1, 0.30], 'Caja x100' => [100, 25]], false],
-            ['ibuprofeno', 'Ibufen', 'Ibuprofeno', '400 mg', 'Tableta', 'Analgésicos', 'tableta', ['Unidad' => [1, 0.80], 'Blíster x10' => [10, 7.50]], false],
-            ['diclofenaco', 'Diclofen', 'Diclofenaco', '50 mg', 'Tableta', 'Analgésicos', 'tableta', ['Unidad' => [1, 0.60], 'Blíster x10' => [10, 5.50]], false],
-            ['amoxicilina', 'Amoxil', 'Amoxicilina', '500 mg', 'Cápsula', 'Antibióticos', 'cápsula', ['Unidad' => [1, 1.50], 'Caja x21' => [21, 30]], false],
-            ['loratadina', 'Alergin', 'Loratadina', '10 mg', 'Tableta', 'Antialérgicos', 'tableta', ['Unidad' => [1, 1.00], 'Caja x10' => [10, 9]], false],
-            ['omeprazol', 'Gastrozol', 'Omeprazol', '20 mg', 'Cápsula', 'Gastrointestinales', 'cápsula', ['Unidad' => [1, 1.20], 'Caja x14' => [14, 15]], false],
-            ['vitamina_c', 'Vitacé', 'Ácido ascórbico', '1 g', 'Tableta efervescente', 'Vitaminas', 'tableta', ['Unidad' => [1, 2.00], 'Tubo x10' => [10, 18]], false],
-            ['salbutamol', 'Respirol', 'Salbutamol', '100 mcg/dosis', 'Inhalador', 'Respiratorios', 'inhalador', ['Unidad' => [1, 45]], false],
-            ['jarabe_tos', 'Tosfin jarabe', 'Dextrometorfano', '15 mg/5 ml', 'Jarabe', 'Respiratorios', 'frasco', ['Frasco 120 ml' => [1, 28]], false],
-            ['clonazepam', 'Calmazep', 'Clonazepam', '2 mg', 'Tableta', 'Psicotrópicos', 'tableta', ['Unidad' => [1, 2.50], 'Caja x30' => [30, 70]], true],
+            ['paracetamol', 'Dolofen', 'Paracetamol', '500 mg', 'Tableta', 'Analgésicos', 'Tableta', [['Tableta', null, 0.50, true, false], ['Blíster', 10, 4.50, true, false], ['Caja', 10, 40, true, true]], false],
+            ['paracetamol_gen', 'Paracetamol genérico', 'Paracetamol', '500 mg', 'Tableta', 'Analgésicos', 'Tableta', [['Tableta', null, 0.30, true, false], ['Caja', 100, 25, true, true]], false],
+            ['ibuprofeno', 'Ibufen', 'Ibuprofeno', '400 mg', 'Tableta', 'Analgésicos', 'Tableta', [['Tableta', null, 0.80, true, false], ['Blíster', 10, 7.50, true, true]], false],
+            ['diclofenaco', 'Diclofen', 'Diclofenaco', '50 mg', 'Tableta', 'Analgésicos', 'Tableta', [['Tableta', null, 0.60, true, false], ['Blíster', 10, 5.50, true, true]], false],
+            ['amoxicilina', 'Amoxil', 'Amoxicilina', '500 mg', 'Cápsula', 'Antibióticos', 'Cápsula', [['Cápsula', null, 1.50, true, false], ['Caja', 21, 30, true, true]], false],
+            ['loratadina', 'Alergin', 'Loratadina', '10 mg', 'Tableta', 'Antialérgicos', 'Tableta', [['Tableta', null, 1.00, true, false], ['Caja', 10, 9, true, true]], false],
+            ['omeprazol', 'Gastrozol', 'Omeprazol', '20 mg', 'Cápsula', 'Gastrointestinales', 'Cápsula', [['Cápsula', null, 1.20, true, false], ['Caja', 14, 15, true, true]], false],
+            ['vitamina_c', 'Vitacé', 'Ácido ascórbico', '1 g', 'Tableta efervescente', 'Vitaminas', 'Tableta', [['Tableta', null, 2.00, true, false], ['Tubo', 10, 18, true, true]], false],
+            ['salbutamol', 'Respirol', 'Salbutamol', '100 mcg/dosis', 'Inhalador', 'Respiratorios', 'Inhalador', [['Inhalador', null, 45, true, true]], false],
+            ['jarabe_tos', 'Tosfin jarabe', 'Dextrometorfano', '15 mg/5 ml', 'Jarabe', 'Respiratorios', 'Frasco', [['Frasco', null, 28, true, true]], false],
+            ['clonazepam', 'Calmazep', 'Clonazepam', '2 mg', 'Tableta', 'Psicotrópicos', 'Tableta', [['Tableta', null, 2.50, true, false], ['Caja', 30, 70, true, true]], true],
         ];
 
         $products = [];
@@ -144,10 +146,17 @@ class PharmacySeeder extends Seeder
                 'base_unit' => $unit,
                 'requires_prescription' => $controlled || $category === 'Antibióticos',
                 'is_controlled' => $controlled,
-                'min_stock' => $unit === 'tableta' || $unit === 'cápsula' ? 100 : 5,
+                'min_stock' => $unit === 'Tableta' || $unit === 'Cápsula' ? 100 : 5,
             ]);
-            foreach ($presentations as $presentation => [$factor, $price]) {
-                $product->presentations()->create(['name' => $presentation, 'factor' => $factor, 'sale_price' => $price]);
+            $inner = null;
+            foreach ($presentations as [$package, $contains, $price, $sells, $buys]) {
+                $inner = $product->presentations()->create([
+                    ...ProductPresentation::arrange($inner, $contains, $package, $unit),
+                    'parent_id' => $inner?->id,
+                    'sale_price' => $price,
+                    'is_sellable' => $sells,
+                    'is_purchasable' => $buys,
+                ]);
             }
             $product->indications()->sync(Indication::idsFor($uses[$key][1]));
             $products[$key] = $product->load('presentations');
@@ -182,44 +191,44 @@ class PharmacySeeder extends Seeder
     private function stock(Branch $central, Branch $norte, Branch $almacen, array $p, array $suppliers): void
     {
         $purchases = app(PurchaseService::class);
-        $line = fn (Product $product, string $presentation, int $qty, float $cost, string $batch, int $days) => [
-            'product_presentation_id' => $product->presentations->firstWhere('name', $presentation)->id,
+        $line = fn (Product $product, int $factor, int $qty, float $cost, string $batch, int $days) => [
+            'product_presentation_id' => $product->presentations->firstWhere('factor', $factor)->id,
             'quantity' => $qty, 'cost' => $cost, 'batch_number' => $batch, 'expires_at' => today()->addDays($days)->toDateString(),
         ];
 
         $purchases->create([
             'branch_id' => $central->id, 'supplier_id' => $suppliers[0]->id, 'invoice_number' => 'F-1001', 'purchased_at' => today()->subDays(20)->toDateString(),
             'items' => [
-                $line($p['paracetamol'], 'Caja x100', 3, 22, 'DOL-2401', 25),   // vence en 25 días → promo 30%
-                $line($p['paracetamol'], 'Caja x100', 5, 22, 'DOL-2405', 400),
-                $line($p['ibuprofeno'], 'Blíster x10', 30, 4, 'IBU-118', 55),   // promo 20%
-                $line($p['amoxicilina'], 'Caja x21', 10, 18, 'AMX-77', 300),
-                $line($p['loratadina'], 'Caja x10', 15, 5, 'LOR-09', 85),       // promo 10%
-                $line($p['omeprazol'], 'Caja x14', 12, 8, 'OME-31', 500),
-                $line($p['vitamina_c'], 'Tubo x10', 10, 10, 'VTC-5', 200),
-                $line($p['salbutamol'], 'Unidad', 8, 30, 'SAL-2', 365),
-                $line($p['jarabe_tos'], 'Frasco 120 ml', 12, 16, 'TOS-44', 150),
-                $line($p['clonazepam'], 'Caja x30', 4, 40, 'CLZ-3', 600),
-                $line($p['diclofenaco'], 'Blíster x10', 20, 3, 'DIC-12', 700),
-                $line($p['paracetamol_gen'], 'Caja x100', 4, 12, 'PGN-1', 365),
+                $line($p['paracetamol'], 100, 3, 22, 'DOL-2401', 25),   // vence en 25 días → promo 30%
+                $line($p['paracetamol'], 100, 5, 22, 'DOL-2405', 400),
+                $line($p['ibuprofeno'], 10, 30, 4, 'IBU-118', 55),   // promo 20%
+                $line($p['amoxicilina'], 21, 10, 18, 'AMX-77', 300),
+                $line($p['loratadina'], 10, 15, 5, 'LOR-09', 85),       // promo 10%
+                $line($p['omeprazol'], 14, 12, 8, 'OME-31', 500),
+                $line($p['vitamina_c'], 10, 10, 10, 'VTC-5', 200),
+                $line($p['salbutamol'], 1, 8, 30, 'SAL-2', 365),
+                $line($p['jarabe_tos'], 1, 12, 16, 'TOS-44', 150),
+                $line($p['clonazepam'], 30, 4, 40, 'CLZ-3', 600),
+                $line($p['diclofenaco'], 10, 20, 3, 'DIC-12', 700),
+                $line($p['paracetamol_gen'], 100, 4, 12, 'PGN-1', 365),
             ],
         ]);
 
         $purchases->create([
             'branch_id' => $norte->id, 'supplier_id' => $suppliers[1]->id, 'invoice_number' => 'N-552', 'purchased_at' => today()->subDays(10)->toDateString(),
             'items' => [
-                $line($p['paracetamol'], 'Caja x100', 2, 22, 'DOL-2405', 400),
-                $line($p['ibuprofeno'], 'Blíster x10', 10, 4, 'IBU-130', 380),
-                $line($p['loratadina'], 'Caja x10', 5, 5, 'LOR-12', 420),
+                $line($p['paracetamol'], 100, 2, 22, 'DOL-2405', 400),
+                $line($p['ibuprofeno'], 10, 10, 4, 'IBU-130', 380),
+                $line($p['loratadina'], 10, 5, 5, 'LOR-12', 420),
             ],
         ]);
 
         $purchases->create([
             'branch_id' => $almacen->id, 'supplier_id' => $suppliers[2]->id, 'invoice_number' => 'IS-9001', 'purchased_at' => today()->subDays(5)->toDateString(),
             'items' => [
-                $line($p['paracetamol'], 'Caja x100', 20, 21, 'DOL-2410', 540),
-                $line($p['amoxicilina'], 'Caja x21', 40, 17, 'AMX-80', 480),
-                $line($p['omeprazol'], 'Caja x14', 30, 7.5, 'OME-35', 520),
+                $line($p['paracetamol'], 100, 20, 21, 'DOL-2410', 540),
+                $line($p['amoxicilina'], 21, 40, 17, 'AMX-80', 480),
+                $line($p['omeprazol'], 14, 30, 7.5, 'OME-35', 520),
             ],
         ]);
 
@@ -242,14 +251,14 @@ class PharmacySeeder extends Seeder
         $session = app(CashService::class)->open($register, $cashier, [$bill(100) => 2, $bill(20) => 5, $bill(10) => 5, $bill(1) => 10]);
 
         $sell = fn (array $items, array $payments, array $extra = []) => app(SaleService::class)->create($session, $cashier, [
-            'items' => collect($items)->map(fn ($i) => ['product_presentation_id' => $p[$i[0]]->presentations->firstWhere('name', $i[1])->id, 'quantity' => $i[2]])->all(),
+            'items' => collect($items)->map(fn ($i) => ['product_presentation_id' => $p[$i[0]]->presentations->firstWhere('factor', $i[1])->id, 'quantity' => $i[2]])->all(),
             'payments' => $payments,
         ] + $extra);
 
-        $sell([['paracetamol', 'Blíster x10', 2], ['vitamina_c', 'Tubo x10', 1]], [['method' => 'efectivo', 'amount' => 50]]);
-        $sell([['ibuprofeno', 'Blíster x10', 1]], [['method' => 'qr', 'amount' => 6]]);
-        $sell([['amoxicilina', 'Caja x21', 1], ['omeprazol', 'Unidad', 7]], [['method' => 'efectivo', 'amount' => 20], ['method' => 'tarjeta', 'amount' => 18.40]], ['customer_name' => 'Juan Pérez', 'customer_document' => '4567890']);
-        $sell([['clonazepam', 'Unidad', 10]], [['method' => 'efectivo', 'amount' => 25]], ['prescription_number' => 'RC-5521', 'prescription_doctor' => 'Dr. Hugo Salazar']);
+        $sell([['paracetamol', 10, 2], ['vitamina_c', 10, 1]], [['method' => 'efectivo', 'amount' => 50]]);
+        $sell([['ibuprofeno', 10, 1]], [['method' => 'qr', 'amount' => 6]]);
+        $sell([['amoxicilina', 21, 1], ['omeprazol', 1, 7]], [['method' => 'efectivo', 'amount' => 20], ['method' => 'tarjeta', 'amount' => 18.40]], ['customer_name' => 'Juan Pérez', 'customer_document' => '4567890']);
+        $sell([['clonazepam', 1, 10]], [['method' => 'efectivo', 'amount' => 25]], ['prescription_number' => 'RC-5521', 'prescription_doctor' => 'Dr. Hugo Salazar']);
 
         app(CashService::class)->addMovement($session, 'egreso', 15, 'Pago de delivery');
     }

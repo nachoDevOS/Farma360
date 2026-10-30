@@ -134,7 +134,8 @@ class PromotionController extends Controller
     /** @return array<string, mixed> */
     private function batchRow(Batch $batch): array
     {
-        $presentations = $batch->product->presentations;
+        // La presentación más chica que se vende (las presentaciones vienen ordenadas por factor)
+        $smallest = $batch->product->presentations->first(fn ($p) => $p->is_sellable && $p->sale_price !== null);
 
         return [
             'batch_id' => $batch->id,
@@ -147,7 +148,7 @@ class PromotionController extends Controller
             'base_unit' => $batch->product->base_unit,
             'unit_cost' => (float) $batch->unit_cost,
             // Precio normal de una unidad base (de la presentación más chica)
-            'unit_price' => $presentations->isNotEmpty() ? round($presentations->first()->sale_price / $presentations->first()->factor, 4) : null,
+            'unit_price' => $smallest ? round($smallest->sale_price / $smallest->factor, 4) : null,
         ];
     }
 }

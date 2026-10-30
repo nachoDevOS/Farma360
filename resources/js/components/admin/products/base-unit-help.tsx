@@ -1,7 +1,7 @@
 /**
  * AYUDA "¿Cómo se cuenta el stock?" del formulario de producto (pages/admin/products/form.tsx).
- * Explica en tres pasos: la unidad base es solo el NOMBRE de la unidad más chica; el CÁLCULO lo hacen las
- * "Unidades" de cada presentación; y qué hace el sistema solo con eso al comprar y vender.
+ * Explica en tres pasos: la unidad base es solo el NOMBRE de la unidad más chica; el CÁLCULO sale de lo que
+ * "Contiene" cada empaque; y qué hace el sistema solo con eso al comprar y vender.
  *
  *   <BaseUnitHelp />                         → enlace "¿Qué es esto?"
  *   <BaseUnitHelp label="¿Cómo lleno esto?" />
@@ -21,15 +21,19 @@ import { cn } from '@/lib/utils';
 import { AlertTriangle, ArrowRight, Calculator, CircleHelp, Minus, Plus, Tag } from 'lucide-react';
 
 /** Unidades base más comunes (se sugieren al escribir el campo). */
-export const COMMON_BASE_UNITS = ['tableta', 'cápsula', 'comprimido', 'frasco', 'ampolla', 'vial', 'tubo', 'sobre', 'inhalador', 'unidad'];
+export const COMMON_BASE_UNITS = ['Tableta', 'Cápsula', 'Comprimido', 'Frasco', 'Ampolla', 'Vial', 'Tubo', 'Sobre', 'Inhalador', 'Unidad'];
 
 const examples: { product: string; baseUnit: string; presentations: string }[] = [
-    { product: 'Caja con 10 blísteres de 10 tabletas', baseUnit: 'tableta', presentations: 'Unidad 1 · Blíster x10 = 10 · Caja = 100' },
-    { product: 'Frasco con 30 tabletas', baseUnit: 'tableta', presentations: 'Unidad 1 · Frasco x30 = 30' },
-    { product: 'Caja de 21 cápsulas', baseUnit: 'cápsula', presentations: 'Unidad 1 · Caja x21 = 21' },
-    { product: 'Caja de 5 ampollas', baseUnit: 'ampolla', presentations: 'Unidad 1 · Caja x5 = 5' },
-    { product: 'Jarabe (se vende el frasco entero)', baseUnit: 'frasco', presentations: 'Frasco 1 · Caja x12 = 12' },
-    { product: 'Crema o pomada', baseUnit: 'tubo', presentations: 'Tubo 1' },
+    {
+        product: 'Caja con 10 blísteres de 10 tabletas',
+        baseUnit: 'tableta',
+        presentations: 'Blíster contiene 10 tabletas · Caja contiene 10 blísteres',
+    },
+    { product: 'Frasco con 30 tabletas', baseUnit: 'tableta', presentations: 'Frasco contiene 30 tabletas' },
+    { product: 'Caja de 21 cápsulas', baseUnit: 'cápsula', presentations: 'Caja contiene 21 cápsulas' },
+    { product: 'Caja de 5 ampollas', baseUnit: 'ampolla', presentations: 'Caja contiene 5 ampollas' },
+    { product: 'Jarabe (se vende el frasco entero)', baseUnit: 'frasco', presentations: 'Caja contiene 12 frascos (si la compras así)' },
+    { product: 'Crema o pomada', baseUnit: 'tubo', presentations: 'Ninguno: solo la unidad base' },
 ];
 
 export function BaseUnitHelp({ label = '¿Qué es esto?' }: { label?: string }) {
@@ -61,11 +65,11 @@ export function BaseUnitHelp({ label = '¿Qué es esto?' }: { label?: string }) 
                         <Piece
                             step={2}
                             icon={Calculator}
-                            title="«Unidades» de cada presentación"
+                            title="«Contiene» de cada empaque"
                             subtitle="Es el que CALCULA"
                             tone="primary"
-                            text="Cuántas unidades base trae cada forma de venta. Con este número el sistema suma y resta el stock."
-                            example="Caja = 100"
+                            text="Qué trae cada empaque: el blíster trae tabletas, la caja trae blísteres. El sistema multiplica y con eso suma y resta el stock."
+                            example="Caja contiene 10 blísteres"
                         />
                     </div>
 
@@ -94,29 +98,23 @@ export function BaseUnitHelp({ label = '¿Qué es esto?' }: { label?: string }) 
                                         <td className="px-3 py-2 font-semibold">tableta</td>
                                     </tr>
                                     <tr>
-                                        <td className="px-3 py-2">Presentación «Unidad»</td>
+                                        <td className="px-3 py-2">Empaque «Blíster»</td>
                                         <td className="px-3 py-2">
-                                            Unidades: <span className="num font-semibold">1</span>
+                                            Contiene <span className="num font-semibold">10</span> tabletas
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td className="px-3 py-2">Presentación «Blíster x10»</td>
+                                        <td className="px-3 py-2">Empaque «Caja»</td>
                                         <td className="px-3 py-2">
-                                            Unidades: <span className="num font-semibold">10</span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td className="px-3 py-2">Presentación «Caja x100»</td>
-                                        <td className="px-3 py-2">
-                                            Unidades: <span className="num font-semibold">100</span>{' '}
-                                            <span className="text-muted-foreground">(10 blísteres × 10 tabletas, no pongas 10)</span>
+                                            Contiene <span className="num font-semibold">10</span> blísteres{' '}
+                                            <span className="text-muted-foreground">(el sistema calcula 100 tabletas)</span>
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                         <p className="text-muted-foreground mt-2 text-[13px]">
-                            Si nunca vendes sueltas, no agregues «Unidad»: la unidad base sigue siendo tableta y puedes agregarla el día que quieras.
+                            Si nunca vendes sueltas, desmarca «Se vende» en la unidad base: el stock se sigue contando en tabletas.
                         </p>
                     </div>
 
@@ -126,9 +124,9 @@ export function BaseUnitHelp({ label = '¿Qué es esto?' }: { label?: string }) 
                             <StepNumber step={3} /> Lo que el sistema calcula solo
                         </p>
                         <ul className="grid gap-2">
-                            <Calc sign="+" text="Compras 2 «Caja x100»" result="entran 200 tabletas" />
-                            <Calc sign="-" text="Vendes 1 «Blíster x10»" result="salen 10 · quedan 190" />
-                            <Calc sign="-" text="Vendes 3 «Unidad»" result="salen 3 · quedan 187" />
+                            <Calc sign="+" text="Compras 2 cajas" result="entran 200 tabletas" />
+                            <Calc sign="-" text="Vendes 1 blíster" result="salen 10 · quedan 190" />
+                            <Calc sign="-" text="Vendes 3 tabletas" result="salen 3 · quedan 187" />
                             <Calc text="La caja cuesta Bs 25 al comprar" result="cada tableta cuesta Bs 0,25 (para la ganancia)" />
                         </ul>
                     </div>
@@ -155,7 +153,7 @@ export function BaseUnitHelp({ label = '¿Qué es esto?' }: { label?: string }) 
                                     <tr>
                                         <th className="px-3 py-2 text-left">Cómo viene</th>
                                         <th className="px-3 py-2 text-left">Unidad base</th>
-                                        <th className="hidden px-3 py-2 text-left sm:table-cell">Presentaciones (Unidades)</th>
+                                        <th className="hidden px-3 py-2 text-left sm:table-cell">Empaques</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">

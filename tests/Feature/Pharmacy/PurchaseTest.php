@@ -39,7 +39,7 @@ class PurchaseTest extends TestCase
         $admin = $this->userWithRole('Administrador');
 
         $this->actingAs($admin)
-            ->post('/admin/purchases', $this->payload($branch->id, $this->presentation($product, 'Caja x100')->id))
+            ->post('/admin/purchases', $this->payload($branch->id, $this->presentation($product, 100)->id))
             ->assertRedirect();
 
         $purchase = Purchase::firstOrFail();

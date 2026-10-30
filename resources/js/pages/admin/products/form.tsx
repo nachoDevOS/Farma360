@@ -6,24 +6,36 @@
  *   se sugieren los que ya usan otros productos.
  * PARA QUÉ SIRVE: usos / síntomas como etiquetas ("Dolor de cabeza", "Fiebre") + un detalle en texto.
  *   Se buscan en Productos, Inventario y el Punto de venta.
- * PRESENTACIONES: formas de vender el producto. "Unidades" = cuántas unidades base trae.
- *   Unidad = 1 · Blíster x10 = 10 · Caja x100 = 100. El stock siempre se cuenta en unidades base.
+ * PRESENTACIONES POR NIVELES: la unidad base (tableta) y empaques que contienen al anterior
+ *   (Blíster contiene 10 tabletas, Caja contiene 10 blísteres). El sistema calcula las unidades y el nombre.
+ *   Escribiendo un precio se sugieren los demás
+ *   (precio unitario × cantidad), y se pueden cambiar a mano. Cada una dice si se vende y/o se compra.
+ *   Lógica: components/admin/products/presentation-levels.ts. El stock siempre se cuenta en unidades base.
  */
 import { PageHeader } from '@/components/admin/common/page-header';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { TagInput } from '@/components/admin/common/tag-input';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
-import { BaseUnitHelp, COMMON_BASE_UNITS } from '@/components/admin/products/base-unit-help';
+import { BaseUnitHelp } from '@/components/admin/products/base-unit-help';
+import {
+    defaultRows,
+    type LevelRow,
+    PHARMACEUTICAL_FORMS,
+    plural,
+    rowsFromPresentations,
+    withSuggestedPrices,
+} from '@/components/admin/products/presentation-levels';
+import { PresentationLevelsEditor } from '@/components/admin/products/presentation-levels-editor';
 import InputError from '@/components/shared/input-error';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AdminLayout from '@/layouts/admin/admin-layout';
-import { money } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { type Option, type Product } from '@/types/admin/pharmacy';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { HeartPulse, LoaderCircle, Pill, Plus, Trash2 } from 'lucide-react';
+import { HeartPulse, LoaderCircle, Pill } from 'lucide-react';
 import { FormEventHandler } from 'react';
 
 interface Props {
@@ -36,20 +48,11 @@ interface Props {
     indications: Option[];
 }
 
-// "type" (no "interface"): useForm de Inertia necesita tipos que acepten cualquier clave
-type PresentationRow = {
-    id?: number;
-    name: string;
-    factor: string;
-    sale_price: string;
-    barcode: string;
-};
-
 const NONE = 'all';
 
 export default function ProductForm({ product, categories, laboratories, genericNames, indications }: Props) {
     const isEdit = product !== null;
-    const { data, setData, post, put, processing, errors } = useForm({
+    const { data, setData, transform, post, put, processing, errors } = useForm({
         name: product?.name ?? '',
         generic_name: product?.generic_name ?? '',
         description: product?.description ?? '',
@@ -60,26 +63,23 @@ export default function ProductForm({ product, categories, laboratories, generic
         category_id: product?.category_id ? String(product.category_id) : '',
         barcode: product?.barcode ?? '',
         health_registry: product?.health_registry ?? '',
-        base_unit: product?.base_unit ?? 'tableta',
+        base_unit: product?.base_unit ?? 'Unidad',
         requires_prescription: product?.requires_prescription ?? false,
         is_controlled: product?.is_controlled ?? false,
         min_stock: String(product?.min_stock ?? 0),
         is_active: product?.is_active ?? true,
-        presentations: (product?.presentations.map((p) => ({
-            id: p.id,
-            name: p.name,
-            factor: String(p.factor),
-            sale_price: p.sale_price,
-            barcode: p.barcode ?? '',
-        })) ?? [{ name: 'Unidad', factor: '1', sale_price: '', barcode: '' }]) as PresentationRow[],
+        presentations: product ? rowsFromPresentations(product.presentations) : defaultRows(),
     });
 
+    // Al servidor va el índice de la fila que contiene ("auto" lo ignora: es solo de la pantalla)
+    transform((d) => ({
+        ...d,
+        presentations: d.presentations.map(({ parent, ...row }) => ({ ...row, parent_index: parent })),
+    }));
+
     const err = errors as Record<string, string | undefined>;
-    const setPresentation = (index: number, field: keyof PresentationRow, value: string) =>
-        setData(
-            'presentations',
-            data.presentations.map((p, i) => (i === index ? { ...p, [field]: value } : p)),
-        );
+
+    const updateRows = (next: LevelRow[]) => setData('presentations', withSuggestedPrices(next));
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -128,10 +128,16 @@ export default function ProductForm({ product, categories, laboratories, generic
                         </Field>
                         <Field label="Forma farmacéutica" error={err.pharmaceutical_form}>
                             <Input
+                                list="pharmaceutical-forms"
                                 value={data.pharmaceutical_form}
                                 onChange={(e) => setData('pharmaceutical_form', e.target.value)}
                                 placeholder="Tableta, Jarabe, Cápsula…"
                             />
+                            <datalist id="pharmaceutical-forms">
+                                {PHARMACEUTICAL_FORMS.map((form) => (
+                                    <option key={form} value={form} />
+                                ))}
+                            </datalist>
                         </Field>
                         <Field label="Laboratorio" error={err.laboratory_id}>
                             <SimpleSelect
@@ -157,23 +163,7 @@ export default function ProductForm({ product, categories, laboratories, generic
                         <Field label="Registro sanitario" error={err.health_registry}>
                             <Input value={data.health_registry} onChange={(e) => setData('health_registry', e.target.value)} />
                         </Field>
-                        <Field label="Unidad base" hint={<BaseUnitHelp />} error={err.base_unit}>
-                            <Input
-                                list="base-units"
-                                value={data.base_unit}
-                                onChange={(e) => setData('base_unit', e.target.value)}
-                                placeholder="tableta, frasco, ampolla…"
-                            />
-                            <datalist id="base-units">
-                                {COMMON_BASE_UNITS.map((unit) => (
-                                    <option key={unit} value={unit} />
-                                ))}
-                            </datalist>
-                            <p className="text-muted-foreground text-xs">
-                                Lo más pequeño que vendes. Ej: tableta (si vendes sueltas), frasco (jarabe).
-                            </p>
-                        </Field>
-                        <Field label={`Stock mínimo (en ${data.base_unit || 'unidades'})`} error={err.min_stock}>
+                        <Field label={`Stock mínimo (en ${plural(data.base_unit) || 'unidades'})`} error={err.min_stock}>
                             <Input type="number" min={0} value={data.min_stock} onChange={(e) => setData('min_stock', e.target.value)} />
                         </Field>
                         <div className="flex flex-col gap-2 md:col-span-2">
@@ -229,73 +219,17 @@ export default function ProductForm({ product, categories, laboratories, generic
                 <Panel>
                     <PanelHeader
                         title="Presentaciones y precios"
-                        description={`"Unidades" = cuántas ${data.base_unit || 'unidades'} trae cada presentación (una caja de 10 blísteres de 10 = 100).`}
-                        aside={
-                            <div className="flex items-center gap-3">
-                                <BaseUnitHelp label="¿Cómo lleno esto?" />
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() =>
-                                        setData('presentations', [...data.presentations, { name: '', factor: '', sale_price: '', barcode: '' }])
-                                    }
-                                >
-                                    <Plus /> Agregar
-                                </Button>
-                            </div>
-                        }
+                        description="Cómo viene el producto, de lo más chico a lo más grande. Solo di qué contiene cada empaque: las unidades y el nombre se calculan solos."
+                        aside={<BaseUnitHelp label="¿Cómo lleno esto?" />}
                     />
                     <div className="grid gap-3 p-5">
-                        {data.presentations.map((p, i) => {
-                            const unitPrice = Number(p.sale_price) / Number(p.factor || 1);
-                            return (
-                                <div key={i} className="grid items-start gap-3 rounded-lg border p-3 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
-                                    <Field label="Nombre" error={err[`presentations.${i}.name`]}>
-                                        <Input value={p.name} onChange={(e) => setPresentation(i, 'name', e.target.value)} placeholder="Caja x100" />
-                                    </Field>
-                                    <Field label="Unidades" error={err[`presentations.${i}.factor`]}>
-                                        <Input
-                                            type="number"
-                                            min={1}
-                                            value={p.factor}
-                                            onChange={(e) => setPresentation(i, 'factor', e.target.value)}
-                                        />
-                                    </Field>
-                                    <Field label="Precio de venta" error={err[`presentations.${i}.sale_price`]}>
-                                        <Input
-                                            type="number"
-                                            min={0}
-                                            step="0.01"
-                                            value={p.sale_price}
-                                            onChange={(e) => setPresentation(i, 'sale_price', e.target.value)}
-                                        />
-                                        {Number(p.factor) > 1 && p.sale_price && (
-                                            <p className="text-muted-foreground text-xs">{money(unitPrice)} c/u</p>
-                                        )}
-                                    </Field>
-                                    <Field label="Código de barras" error={err[`presentations.${i}.barcode`]}>
-                                        <Input value={p.barcode} onChange={(e) => setPresentation(i, 'barcode', e.target.value)} />
-                                    </Field>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="mt-6"
-                                        disabled={data.presentations.length === 1}
-                                        onClick={() =>
-                                            setData(
-                                                'presentations',
-                                                data.presentations.filter((_, j) => j !== i),
-                                            )
-                                        }
-                                        aria-label="Quitar presentación"
-                                    >
-                                        <Trash2 className="size-4" />
-                                    </Button>
-                                </div>
-                            );
-                        })}
+                        <PresentationLevelsEditor
+                            rows={data.presentations}
+                            baseUnit={data.base_unit}
+                            errors={err}
+                            onRowsChange={updateRows}
+                            onBaseUnitChange={(value) => setData('base_unit', value)}
+                        />
                         <InputError message={err.presentations} />
                     </div>
                 </Panel>
@@ -314,9 +248,21 @@ export default function ProductForm({ product, categories, laboratories, generic
     );
 }
 
-function Field({ label, hint, error, children }: { label: string; hint?: React.ReactNode; error?: string; children: React.ReactNode }) {
+function Field({
+    label,
+    hint,
+    error,
+    className,
+    children,
+}: {
+    label: string;
+    hint?: React.ReactNode;
+    error?: string;
+    className?: string;
+    children: React.ReactNode;
+}) {
     return (
-        <div className="grid content-start gap-2">
+        <div className={cn('grid content-start gap-2', className)}>
             <div className="flex items-baseline justify-between gap-2">
                 <Label>{label}</Label>
                 {hint && <span className="text-muted-foreground shrink-0 truncate text-xs">{hint}</span>}
