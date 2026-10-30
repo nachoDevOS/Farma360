@@ -2,13 +2,14 @@
  * PÁGINA: Ver producto  (ruta /admin/products/{id})
  * Datos: app/Http/Controllers/Admin/ProductController.php -> show()
  *
- * Ficha completa: indicadores (stock, precio, último costo, ganancia), presentaciones con su ganancia
- * según el último costo de compra, stock por sucursal (con enlace a los lotes), últimas compras,
- * historial de precios, datos del producto, para qué sirve y quién lo registró.
+ * Lo importante primero: para qué sirve (usos), indicadores (stock, precio, último costo, ganancia) y presentaciones
+ * con su costo, ganancia y "alcanza para". El resto en pestañas, una a la vez: Stock por sucursal (con enlace a los
+ * lotes) · Compras · Historial de precios · Datos (datos del producto, para qué sirve y registro).
  * Las tablas de presentaciones y stock son las mismas del desplegable de la lista (product-row-detail.tsx).
  */
 import { DataTable, Detail, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
 import { PageHeader } from '@/components/admin/common/page-header';
+import { SegmentedControl } from '@/components/admin/common/segmented-control';
 import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
 import { StatusBadge } from '@/components/admin/common/user-badges';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
@@ -38,6 +39,7 @@ import {
     Truck,
     Warehouse,
 } from 'lucide-react';
+import { useState } from 'react';
 
 /** Línea de una compra del producto. Ver ProductController@show. */
 interface PurchaseRow {
@@ -89,6 +91,9 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
     const lastUnitCost = last ? last.unit_cost : null;
     const margin = unitPrice && lastUnitCost !== null ? ((unitPrice - lastUnitCost) / unitPrice) * 100 : null;
     const title = [product.name, product.concentration].filter(Boolean).join(' ');
+    const control = product.is_controlled ? 'Controlado' : product.requires_prescription ? 'Con receta' : 'Venta libre';
+    // Lo importante arriba (indicadores y precios); el resto en pestañas, una a la vez
+    const [tab, setTab] = useState<'stock' | 'compras' | 'precios' | 'datos'>('stock');
 
     return (
         <AdminLayout
@@ -103,8 +108,9 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
                     icon={Pill}
                     title={title}
                     description={
-                        [product.generic_name, product.pharmaceutical_form, product.laboratory?.name, `#${product.id}`].filter(Boolean).join(' · ') ||
-                        undefined
+                        [product.generic_name, product.pharmaceutical_form, product.laboratory?.name, control, `#${product.id}`]
+                            .filter(Boolean)
+                            .join(' · ') || undefined
                     }
                     actions={
                         <>
@@ -123,6 +129,18 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
                         </>
                     }
                 />
+
+                {/* Para qué sirve, a la vista (es lo primero que pregunta un cliente) */}
+                {!!product.indications?.length && (
+                    <div className="-mt-3 flex flex-wrap items-center gap-1.5">
+                        <span className="text-muted-foreground mr-1 text-xs">Sirve para:</span>
+                        {product.indications.map((i) => (
+                            <span key={i.id} className="bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
+                                {i.name}
+                            </span>
+                        ))}
+                    </div>
+                )}
 
                 <StatGrid>
                     <StatCard
@@ -162,23 +180,38 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
                     />
                 </StatGrid>
 
-                <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-                    <div className="grid content-start gap-6">
-                        <Panel>
-                            <PanelHeader
-                                icon={Layers}
-                                title="Presentaciones y precios"
-                                description={
-                                    lastUnitCost !== null
-                                        ? 'Costo y ganancia calculados con la última compra.'
-                                        : 'Sin compras todavía: no hay costo para calcular la ganancia.'
-                                }
-                            />
-                            <div className="p-5">
-                                <PresentationsTable product={product} unitCost={lastUnitCost} className="text-[13px]" />
-                            </div>
-                        </Panel>
+                {/* Ancho completo: es la tabla más ancha (precio, costo, ganancia, alcanza para…) */}
+                <Panel>
+                    <PanelHeader
+                        icon={Layers}
+                        title="Presentaciones y precios"
+                        description={`${
+                            lastUnitCost !== null
+                                ? 'Costo y ganancia calculados con la última compra.'
+                                : 'Sin compras todavía: no hay costo para calcular la ganancia.'
+                        } «Alcanza para»: cuántas completas se pueden vender con el stock de todas las sucursales.`}
+                    />
+                    <div className="p-5">
+                        <PresentationsTable product={product} unitCost={lastUnitCost} stock={stock} className="text-[13px]" />
+                    </div>
+                </Panel>
 
+                {/* El resto, una sección a la vez */}
+                <div className="grid gap-3">
+                    <SegmentedControl
+                        label="Secciones del producto"
+                        value={tab}
+                        onChange={setTab}
+                        className="w-fit"
+                        options={[
+                            { value: 'stock', label: 'Stock por sucursal', count: branches.length },
+                            { value: 'compras', label: 'Compras', count: purchases.length },
+                            { value: 'precios', label: 'Historial de precios', count: priceHistory.length },
+                            { value: 'datos', label: 'Datos' },
+                        ]}
+                    />
+
+                    {tab === 'stock' && (
                         <Panel>
                             <PanelHeader
                                 icon={Warehouse}
@@ -189,7 +222,8 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
                                 <BranchStockTable product={product} inventoryLink={can('inventario.ver')} className="text-[13px]" />
                             </div>
                         </Panel>
-
+                    )}
+                    {tab === 'compras' && (
                         <Panel>
                             <PanelHeader icon={ShoppingCart} title="Últimas compras" description="Las 10 más recientes (sin las anuladas)." />
                             <DataTable
@@ -235,7 +269,8 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
                                 {purchases.length === 0 && <EmptyRow colSpan={9} text="Este producto todavía no tiene compras." />}
                             </DataTable>
                         </Panel>
-
+                    )}
+                    {tab === 'precios' && (
                         <Panel>
                             <PanelHeader
                                 icon={BadgeDollarSign}
@@ -284,81 +319,83 @@ export default function ProductShow({ product, purchases, priceHistory }: Props)
                                 {priceHistory.length === 0 && <EmptyRow colSpan={6} text="Todavía no hay cambios de precio." />}
                             </DataTable>
                         </Panel>
-                    </div>
-
-                    <div className="grid content-start gap-6">
-                        <Panel>
-                            <PanelHeader icon={Info} title="Datos del producto" aside={<StatusBadge active={product.is_active} />} />
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-5">
-                                <Detail label="Nombre comercial">{product.name}</Detail>
-                                <Detail label="Nombre genérico">{product.generic_name || '—'}</Detail>
-                                <Detail label="Concentración">{product.concentration || '—'}</Detail>
-                                <Detail label="Forma farmacéutica">{product.pharmaceutical_form || '—'}</Detail>
-                                <Detail label="Laboratorio">{product.laboratory?.name ?? '—'}</Detail>
-                                <Detail label="Categoría">{product.category?.name ?? '—'}</Detail>
-                                <Detail label="Código de barras">{product.barcode || '—'}</Detail>
-                                <Detail label="Registro sanitario">{product.health_registry || '—'}</Detail>
-                                <Detail label="Unidad base">{product.base_unit}</Detail>
-                                <Detail label="Stock mínimo">
-                                    {product.min_stock.toLocaleString('es')} {units}
-                                </Detail>
-                                <Detail label="Venta">
-                                    <SaleType product={product} />
-                                </Detail>
-                            </div>
-                        </Panel>
-
-                        <Panel>
-                            <PanelHeader icon={HeartPulse} title="¿Para qué sirve?" />
-                            <div className="grid gap-3 p-5">
-                                {product.indications?.length ? (
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {product.indications.map((i) => (
-                                            <span key={i.id} className="bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium">
-                                                {i.name}
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="text-muted-foreground text-sm">Sin usos / síntomas registrados.</p>
-                                )}
-                                {product.description && <p className="text-sm">{product.description}</p>}
-                            </div>
-                        </Panel>
-
-                        <Panel>
-                            <PanelHeader icon={History} title="Registro" />
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-5">
-                                <div className="col-span-2">
-                                    <Detail label="Registrado por">
-                                        <RegisteredBy product={product} />
+                    )}
+                    {tab === 'datos' && (
+                        <div className="grid gap-6 lg:grid-cols-3">
+                            <Panel>
+                                <PanelHeader icon={Info} title="Datos del producto" aside={<StatusBadge active={product.is_active} />} />
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-5">
+                                    <Detail label="Nombre comercial">{product.name}</Detail>
+                                    <Detail label="Nombre genérico">{product.generic_name || '—'}</Detail>
+                                    <Detail label="Concentración">{product.concentration || '—'}</Detail>
+                                    <Detail label="Forma farmacéutica">{product.pharmaceutical_form || '—'}</Detail>
+                                    <Detail label="Laboratorio">{product.laboratory?.name ?? '—'}</Detail>
+                                    <Detail label="Categoría">{product.category?.name ?? '—'}</Detail>
+                                    <Detail label="Código de barras">{product.barcode || '—'}</Detail>
+                                    <Detail label="Registro sanitario">{product.health_registry || '—'}</Detail>
+                                    <Detail label="Unidad base">{product.base_unit}</Detail>
+                                    <Detail label="Stock mínimo">
+                                        {product.min_stock.toLocaleString('es')} {units}
+                                    </Detail>
+                                    <Detail label="Venta">
+                                        <SaleType product={product} />
                                     </Detail>
                                 </div>
-                                <Detail label="Fecha de registro">
-                                    {product.created_at
-                                        ? formatDate(product.created_at, {
-                                              day: '2-digit',
-                                              month: 'short',
-                                              year: 'numeric',
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                          })
-                                        : '—'}
-                                </Detail>
-                                <Detail label="Última modificación">
-                                    {product.updated_at
-                                        ? formatDate(product.updated_at, {
-                                              day: '2-digit',
-                                              month: 'short',
-                                              year: 'numeric',
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                          })
-                                        : '—'}
-                                </Detail>
-                            </div>
-                        </Panel>
-                    </div>
+                            </Panel>
+                            <Panel>
+                                <PanelHeader icon={HeartPulse} title="¿Para qué sirve?" />
+                                <div className="grid gap-3 p-5">
+                                    {product.indications?.length ? (
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {product.indications.map((i) => (
+                                                <span
+                                                    key={i.id}
+                                                    className="bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium"
+                                                >
+                                                    {i.name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-muted-foreground text-sm">Sin usos / síntomas registrados.</p>
+                                    )}
+                                    {product.description && <p className="text-sm">{product.description}</p>}
+                                </div>
+                            </Panel>
+                            <Panel>
+                                <PanelHeader icon={History} title="Registro" />
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-5">
+                                    <div className="col-span-2">
+                                        <Detail label="Registrado por">
+                                            <RegisteredBy product={product} />
+                                        </Detail>
+                                    </div>
+                                    <Detail label="Fecha de registro">
+                                        {product.created_at
+                                            ? formatDate(product.created_at, {
+                                                  day: '2-digit',
+                                                  month: 'short',
+                                                  year: 'numeric',
+                                                  hour: '2-digit',
+                                                  minute: '2-digit',
+                                              })
+                                            : '—'}
+                                    </Detail>
+                                    <Detail label="Última modificación">
+                                        {product.updated_at
+                                            ? formatDate(product.updated_at, {
+                                                  day: '2-digit',
+                                                  month: 'short',
+                                                  year: 'numeric',
+                                                  hour: '2-digit',
+                                                  minute: '2-digit',
+                                              })
+                                            : '—'}
+                                    </Detail>
+                                </div>
+                            </Panel>
+                        </div>
+                    )}
                 </div>
             </div>
         </AdminLayout>

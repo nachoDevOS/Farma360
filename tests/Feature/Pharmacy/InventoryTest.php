@@ -191,6 +191,25 @@ class InventoryTest extends TestCase
                 ->where('history.89.in', 0));
     }
 
+    public function test_inventory_page_shows_stock_value_and_stock_in_other_branches()
+    {
+        $central = $this->branch(['name' => 'Central']);
+        $norte = $this->branch(['name' => 'Norte']);
+        $product = $this->product();
+        $this->batch($product, $central, 100, '+1 year', 0.4);
+        $this->batch($product, $central, 10, '+1 year', 1.0);
+        $this->batch($product, $norte, 50);
+
+        $this->actingAs($this->userWithRole('Administrador'))->get("/admin/inventory/{$product->id}?branch={$central->id}")
+            ->assertInertia(fn ($page) => $page
+                ->where('stock', 110)
+                ->where('stockValue', 50)
+                ->has('otherBranches', 1)
+                ->where('otherBranches.0.name', 'Norte')
+                ->where('otherBranches.0.stock', 50)
+                ->has('alertDays'));
+    }
+
     public function test_users_only_adjust_batches_of_their_branch()
     {
         $mine = $this->branch();

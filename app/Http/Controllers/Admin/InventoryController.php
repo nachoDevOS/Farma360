@@ -72,18 +72,36 @@ class InventoryController extends Controller
         ]);
     }
 
-    /** GET /admin/inventory/{product}?branch= — lotes del producto, su kardex y la historia del stock (gráficos) en la sucursal. */
+    /**
+     * GET /admin/inventory/{product}?branch= — ficha de inventario del producto en la sucursal: indicadores (stock,
+     * valor, vencimiento, otras sucursales), presentaciones, gráficos, lotes y kardex.
+     */
     public function show(Request $request, Product $product): Response
     {
         $branches = Branch::whereIn('id', $request->user()->allowedBranchIds())->orderBy('name')->get(['id', 'name']);
         $branchId = (int) ($request->input('branch') ?: $request->user()->branch_id ?: $branches->first()?->id);
         abort_unless($branches->contains('id', $branchId), 403);
 
+        // Stock del producto en las demás sucursales (para decidir una transferencia)
+        $stockByBranch = Batch::where('product_id', $product->id)->groupBy('branch_id')->selectRaw('branch_id, SUM(quantity) as stock')->pluck('stock', 'branch_id');
+        $otherBranches = Branch::where('id', '!=', $branchId)->orderBy('name')->get(['id', 'name'])
+            ->map(fn (Branch $branch) => [
+                'id' => $branch->id,
+                'name' => $branch->name,
+                'stock' => (int) ($stockByBranch[$branch->id] ?? 0),
+                // Solo se enlaza a las sucursales que el usuario puede ver
+                'allowed' => $branches->contains('id', $branch->id),
+            ]);
+
         return Inertia::render('admin/inventory/show', [
             'product' => $product->load('presentations', 'laboratory:id,name'),
             'branches' => $branches,
             'branchId' => $branchId,
             'stock' => $this->inventory->stock($product->id, $branchId),
+            // Plata invertida en el stock de la sucursal (costo de cada lote × sus unidades)
+            'stockValue' => round((float) Batch::where('product_id', $product->id)->where('branch_id', $branchId)->sum(DB::raw('quantity * unit_cost')), 2),
+            'otherBranches' => $otherBranches,
+            'alertDays' => (int) config('farmacia.expiry_alert_days'),
             'batches' => Batch::with('activePromotion')
                 ->where('product_id', $product->id)->where('branch_id', $branchId)
                 ->where(fn ($q) => $q->where('quantity', '>', 0)->orWhere('updated_at', '>=', now()->subDays(30)))

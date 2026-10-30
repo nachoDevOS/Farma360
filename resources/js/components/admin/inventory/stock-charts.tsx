@@ -11,6 +11,7 @@
  * Colores: azul = entradas / stock (--chart-1), ámbar = salidas (amber-600 en claro, --chart-4 en oscuro):
  * validados para daltonismo y contraste en claro y oscuro.
  */
+import { SegmentedControl } from '@/components/admin/common/segmented-control';
 import { plural } from '@/components/admin/products/presentation-levels';
 import { formatDay } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -47,22 +48,12 @@ export function StockCharts({ history, minStock, baseUnit, movementTypes }: Prop
             {/* Un solo filtro, arriba de los dos gráficos */}
             <div className="flex flex-wrap items-center gap-2">
                 <span className="text-muted-foreground text-sm">Período:</span>
-                <div className="bg-muted inline-flex rounded-md p-0.5">
-                    {RANGES.map((r) => (
-                        <button
-                            key={r}
-                            type="button"
-                            onClick={() => setRange(r)}
-                            aria-pressed={range === r}
-                            className={cn(
-                                'rounded px-3 py-1 text-[13px] font-medium transition-colors',
-                                range === r ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-                            )}
-                        >
-                            Últimos {r} días
-                        </button>
-                    ))}
-                </div>
+                <SegmentedControl
+                    label="Período"
+                    value={range}
+                    onChange={setRange}
+                    options={RANGES.map((r) => ({ value: r, label: `Últimos ${r} días` }))}
+                />
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
@@ -108,7 +99,8 @@ function useWidth<T extends HTMLElement>() {
 function niceMax(value: number): number {
     if (value <= 4) return 4;
     const step = Math.pow(10, Math.floor(Math.log10(value / 4)));
-    const nice = [1, 2, 2.5, 5, 10].map((m) => m * step).find((s) => s * 4 >= value) ?? step * 10;
+    // Pasos finos (110 → 120, no 200) para no dejar aire de más arriba
+    const nice = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * step).find((s) => s * 4 >= value) ?? step * 10;
     return nice * 4;
 }
 
@@ -316,8 +308,15 @@ function FlowChart({ days, units, movementTypes }: { days: StockDay[]; units: st
     const weeks = toWeeks(days);
     const totalIn = weeks.reduce((s, w) => s + w.in, 0);
     const totalOut = weeks.reduce((s, w) => s + w.out, 0);
-    const max = niceMax(Math.max(1, ...weeks.map((w) => Math.max(w.in, w.out))));
-    const pct = (v: number) => (v / max) * 50;
+    // Una sola escala: arriba lo que entró, abajo lo que salió. El cero se ubica según los datos
+    // (si no hubo salidas, toda la altura es para las entradas).
+    const maxIn = Math.max(0, ...weeks.map((w) => w.in));
+    const maxOut = Math.max(0, ...weeks.map((w) => w.out));
+    const top = maxIn > 0 ? niceMax(maxIn) : 0;
+    const bottom = maxOut > 0 ? niceMax(maxOut) : 0;
+    const span = top + bottom || 1;
+    const pct = (v: number) => (v / span) * 100;
+    const zero = pct(top);
     const HEIGHT = 200;
 
     return (
@@ -344,16 +343,18 @@ function FlowChart({ days, units, movementTypes }: { days: StockDay[]; units: st
                 <div className="flex gap-3">
                     {/* Eje Y: arriba entra, abajo sale */}
                     <div className="text-muted-foreground num relative w-8 shrink-0 text-right text-[11px]" style={{ height: HEIGHT }}>
-                        <span className="absolute top-0 right-0 -translate-y-1/2">{compact(max)}</span>
-                        <span className="absolute top-1/2 right-0 -translate-y-1/2">0</span>
-                        <span className="absolute right-0 bottom-0 translate-y-1/2">−{compact(max)}</span>
+                        {top > 0 && <span className="absolute top-0 right-0 -translate-y-1/2">{compact(top)}</span>}
+                        <span className="absolute right-0 -translate-y-1/2" style={{ top: `${zero}%` }}>
+                            0
+                        </span>
+                        {bottom > 0 && <span className="absolute right-0 bottom-0 translate-y-1/2">−{compact(bottom)}</span>}
                     </div>
 
                     <div className="min-w-0 flex-1">
                         <div className="relative" style={{ height: HEIGHT }} onMouseLeave={() => setHover(null)}>
-                            <div className="border-border absolute inset-x-0 top-0 border-t" />
-                            <div className="border-foreground/25 absolute inset-x-0 top-1/2 border-t" />
-                            <div className="border-border absolute inset-x-0 bottom-0 border-t" />
+                            {top > 0 && <div className="border-border absolute inset-x-0 top-0 border-t" />}
+                            <div className="border-foreground/25 absolute inset-x-0 border-t" style={{ top: `${zero}%` }} />
+                            {bottom > 0 && <div className="border-border absolute inset-x-0 bottom-0 border-t" />}
 
                             <div className="absolute inset-0 flex gap-1">
                                 {weeks.map((w, i) => (
@@ -374,13 +375,23 @@ function FlowChart({ days, units, movementTypes }: { days: StockDay[]; units: st
                                         />
                                         {/* Entró: hacia arriba desde el cero */}
                                         <div
-                                            className="bg-chart-1 absolute bottom-1/2 left-1/2 w-full max-w-6 -translate-x-1/2 rounded-t-[4px] transition-[height] duration-500"
-                                            style={{ height: `${pct(w.in)}%`, minHeight: w.in > 0 ? 2 : 0, marginBottom: w.in > 0 ? 1 : 0 }}
+                                            className="bg-chart-1 absolute left-1/2 w-full max-w-6 -translate-x-1/2 rounded-t-[4px] transition-[height] duration-500"
+                                            style={{
+                                                bottom: `${100 - zero}%`,
+                                                height: `${pct(w.in)}%`,
+                                                minHeight: w.in > 0 ? 2 : 0,
+                                                marginBottom: w.in > 0 ? 1 : 0,
+                                            }}
                                         />
                                         {/* Salió: hacia abajo desde el cero */}
                                         <div
-                                            className="dark:bg-chart-4 absolute top-1/2 left-1/2 w-full max-w-6 -translate-x-1/2 rounded-b-[4px] bg-amber-600 transition-[height] duration-500"
-                                            style={{ height: `${pct(w.out)}%`, minHeight: w.out > 0 ? 2 : 0, marginTop: w.out > 0 ? 1 : 0 }}
+                                            className="dark:bg-chart-4 absolute left-1/2 w-full max-w-6 -translate-x-1/2 rounded-b-[4px] bg-amber-600 transition-[height] duration-500"
+                                            style={{
+                                                top: `${zero}%`,
+                                                height: `${pct(w.out)}%`,
+                                                minHeight: w.out > 0 ? 2 : 0,
+                                                marginTop: w.out > 0 ? 1 : 0,
+                                            }}
                                         />
 
                                         {hover === i && (

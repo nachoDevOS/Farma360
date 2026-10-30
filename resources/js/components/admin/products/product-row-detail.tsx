@@ -4,6 +4,9 @@
  *
  *   <ProductRowDetail product={product} />                      → desplegable de la fila (3 bloques)
  *   <PresentationsTable product={product} unitCost={0.35} />     → presentaciones; con unitCost agrega la ganancia
+ *   <PresentationsTable product={product} stock={110} />         → con "Alcanza para" (2 cajas, 11 blísteres…)
+ *   <PresentationsTable product={product} stock={110} compact /> → solo presentación, contiene, precio y alcanza para
+ *   (la columna "Precio por tableta" muestra el ahorro frente a comprar suelto: "Bs 1,00 · 33% menos")
  *   <BranchStockTable product={product} inventoryLink />         → stock por sucursal; con enlace a sus lotes
  */
 import { Detail } from '@/components/admin/common/data-table';
@@ -63,8 +66,26 @@ const th = 'py-1.5 pr-3 text-[10px] font-semibold tracking-wider uppercase';
  * Presentaciones del producto. Con unitCost (costo de una unidad base en la última compra) agrega
  * el costo de cada presentación y la ganancia sobre el precio de venta.
  */
-export function PresentationsTable({ product, unitCost, className }: { product: Product; unitCost?: number | null; className?: string }) {
+export function PresentationsTable({
+    product,
+    unitCost,
+    stock,
+    compact = false,
+    className,
+}: {
+    product: Product;
+    unitCost?: number | null;
+    /** Stock en unidades base: agrega "Alcanza para" (cuántas de cada presentación completas se pueden vender) */
+    stock?: number;
+    /** Solo presentación, contiene, precio y "alcanza para" (para la ficha de inventario: lo demás está en la del producto) */
+    compact?: boolean;
+    className?: string;
+}) {
     const withCost = unitCost !== undefined && unitCost !== null;
+    const withStock = stock !== undefined;
+    // Precio de una unidad base comprando suelto (la presentación más chica que se vende): contra este se mide el ahorro
+    const smallest = product.presentations.find((p) => p.is_sellable && p.sale_price);
+    const looseUnitPrice = smallest ? Number(smallest.sale_price) / smallest.factor : null;
     return (
         <div className="overflow-x-auto">
             <table className={cn('w-full text-xs', className)}>
@@ -72,14 +93,15 @@ export function PresentationsTable({ product, unitCost, className }: { product: 
                     <tr className="border-b">
                         <th className={cn(th, 'text-left')}>Presentación</th>
                         <th className={cn(th, 'text-left')}>Contiene</th>
-                        <th className={cn(th, 'text-right')}>Unidades</th>
+                        {!compact && <th className={cn(th, 'text-right')}>Unidades</th>}
                         <th className={cn(th, 'text-right')}>Precio</th>
-                        <th className={cn(th, 'text-right')}>c/{product.base_unit.toLowerCase()}</th>
+                        {!compact && <th className={cn(th, 'text-right')}>Precio por {product.base_unit.toLowerCase()}</th>}
                         {withCost && <th className={cn(th, 'text-right')}>Costo</th>}
                         {withCost && <th className={cn(th, 'text-right')}>Ganancia</th>}
-                        <th className={cn(th, 'text-center')}>Vende</th>
-                        <th className={cn(th, 'text-center')}>Compra</th>
-                        <th className={cn(th, 'pr-0 text-left')}>Código</th>
+                        {!compact && <th className={cn(th, 'text-center')}>Vende</th>}
+                        {!compact && <th className={cn(th, 'text-center')}>Compra</th>}
+                        {withStock && <th className={cn(th, 'text-right')}>Alcanza para</th>}
+                        {!compact && <th className={cn(th, 'pr-0 text-left')}>Código</th>}
                     </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -91,9 +113,16 @@ export function PresentationsTable({ product, unitCost, className }: { product: 
                             <tr key={p.id}>
                                 <td className="py-1.5 pr-3 font-medium">{p.name}</td>
                                 <td className="text-muted-foreground py-1.5 pr-3">{containsText(product, p)}</td>
-                                <td className="num py-1.5 pr-3 text-right">{p.factor}</td>
+                                {!compact && <td className="num py-1.5 pr-3 text-right">{p.factor}</td>}
                                 <td className="num py-1.5 pr-3 text-right">{price !== null ? money(price) : '—'}</td>
-                                <td className="num text-muted-foreground py-1.5 pr-3 text-right">{price !== null ? money(price / p.factor) : '—'}</td>
+                                {!compact && (
+                                    <td className="num text-muted-foreground py-1.5 pr-3 text-right whitespace-nowrap">
+                                        {price !== null ? money(price / p.factor) : '—'}
+                                        {price !== null && looseUnitPrice !== null && smallest && p.factor > smallest.factor && (
+                                            <VolumeSaving unitPrice={price / p.factor} looseUnitPrice={looseUnitPrice} />
+                                        )}
+                                    </td>
+                                )}
                                 {withCost && <td className="num text-muted-foreground py-1.5 pr-3 text-right">{money(cost)}</td>}
                                 {withCost && (
                                     <td
@@ -105,13 +134,22 @@ export function PresentationsTable({ product, unitCost, className }: { product: 
                                         {margin !== null ? `${margin.toFixed(1)}%` : '—'}
                                     </td>
                                 )}
-                                <td className="py-1.5 pr-3">
-                                    <YesNo value={p.is_sellable} />
-                                </td>
-                                <td className="py-1.5 pr-3">
-                                    <YesNo value={p.is_purchasable} />
-                                </td>
-                                <td className="text-muted-foreground py-1.5">{p.barcode || '—'}</td>
+                                {!compact && (
+                                    <td className="py-1.5 pr-3">
+                                        <YesNo value={p.is_sellable} />
+                                    </td>
+                                )}
+                                {!compact && (
+                                    <td className="py-1.5 pr-3">
+                                        <YesNo value={p.is_purchasable} />
+                                    </td>
+                                )}
+                                {withStock && (
+                                    <td className="num py-1.5 pr-3 text-right font-medium whitespace-nowrap">
+                                        <EnoughFor count={Math.floor(stock / p.factor)} presentation={p} product={product} />
+                                    </td>
+                                )}
+                                {!compact && <td className="text-muted-foreground py-1.5">{p.barcode || '—'}</td>}
                             </tr>
                         );
                     })}
@@ -181,6 +219,34 @@ export function BranchStockTable({ product, inventoryLink, className }: { produc
                 sucursal <span className="num">{product.min_stock.toLocaleString('es')}</span>
             </p>
         </div>
+    );
+}
+
+/** "2 cajas", "1 blíster", "110 unidades" (o "—" si no alcanza para ninguna). */
+function EnoughFor({ count, presentation, product }: { count: number; presentation: Presentation; product: Product }) {
+    if (count === 0) return <span className="text-muted-foreground font-normal">—</span>;
+    const word = presentation.parent_id ? presentation.package : product.base_unit;
+    return (
+        <>
+            {count.toLocaleString('es')} <span className="text-muted-foreground font-normal">{count === 1 ? word.toLowerCase() : plural(word)}</span>
+        </>
+    );
+}
+
+/**
+ * Ahorro por comprar en cantidad frente a comprar suelto: "· 33% menos" (verde).
+ * Si sale MÁS caro que suelto, lo marca en rojo: casi siempre es un precio mal puesto.
+ */
+function VolumeSaving({ unitPrice, looseUnitPrice }: { unitPrice: number; looseUnitPrice: number }) {
+    const percent = Math.round((1 - unitPrice / looseUnitPrice) * 100);
+    if (percent === 0) return null;
+    return percent > 0 ? (
+        <span className="text-emerald-700 dark:text-emerald-400"> · {percent}% menos</span>
+    ) : (
+        <span className="text-red-600" title="Sale más caro por unidad que comprando suelto: revisa el precio">
+            {' '}
+            · {-percent}% más
+        </span>
     );
 }
 

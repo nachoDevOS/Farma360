@@ -1,18 +1,23 @@
 /*
  * PÁGINA: Inventario de un producto  (ruta /admin/inventory/{producto}?branch=)
- * Lotes (con vencimiento, costo y promoción), gráficos del stock (stock-charts.tsx), kardex y ajustes manuales.
+ * Indicadores (stock con su desglose, valor del stock, próximo vencimiento, stock en otras sucursales), presentaciones
+ * con "Alcanza para" y, en pestañas (una a la vez): Lotes (vencimiento, costo, promoción, ajustes) · Movimientos (kardex)
+ * · Gráficos (stock-charts.tsx).
  * "Ingreso sin compra" (inventario inicial) se carga por presentación, como una compra: 3 Caja x100 a Bs 40 → 300 tabletas.
  * Datos: InventoryController@show · Ajustes: InventoryController@adjust
  */
-import { DataTable, Detail, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
+import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
 import { ExpiryBadge, PromoBadge } from '@/components/admin/common/doc-status';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { QuantityInput } from '@/components/admin/common/quantity-input';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
+import { SegmentedControl } from '@/components/admin/common/segmented-control';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
+import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import { StockCharts, type StockDay } from '@/components/admin/inventory/stock-charts';
 import { plural } from '@/components/admin/products/presentation-levels';
+import { PresentationsTable } from '@/components/admin/products/product-row-detail';
 import { StockBreakdown } from '@/components/admin/products/stock-breakdown';
 import InputError from '@/components/shared/input-error';
 import { Pagination } from '@/components/shared/pagination';
@@ -22,12 +27,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCan } from '@/hooks/use-can';
 import AdminLayout from '@/layouts/admin/admin-layout';
-import { formatDate, money, today } from '@/lib/format';
+import { formatDate, formatDay, money, today } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type Paginated } from '@/types';
 import { type Batch, type Option, type Product, type StockMovement } from '@/types/admin/pharmacy';
-import { Head, router, useForm } from '@inertiajs/react';
-import { Boxes, LoaderCircle, Minus, PackageX, Plus, X } from 'lucide-react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Boxes, CalendarClock, Eye, Layers, LoaderCircle, Minus, PackageX, Pencil, Plus, Wallet, Warehouse, X } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
 
 interface Props {
@@ -40,6 +45,12 @@ interface Props {
     movementTypes: Record<string, string>;
     /** Últimos 90 días del stock en la sucursal, un día por fila (para los gráficos) */
     history: StockDay[];
+    /** Costo de lo que hay en la sucursal (Σ unidades × costo del lote) */
+    stockValue: number;
+    /** Stock del producto en las demás sucursales (allowed = el usuario puede abrirla) */
+    otherBranches: { id: number; name: string; stock: number; allowed: boolean }[];
+    /** Días antes del vencimiento en que se avisa (config farmacia.expiry_alert_days) */
+    alertDays: number;
 }
 
 type Mode = 'new' | 'in' | 'out' | 'writeoff';
@@ -51,9 +62,30 @@ const modeTitles: Record<Mode, string> = {
     writeoff: 'Baja por vencimiento o daño',
 };
 
-export default function InventoryShow({ product, branches, branchId, stock, batches, movements, movementTypes, history }: Props) {
+export default function InventoryShow({
+    product,
+    branches,
+    branchId,
+    stock,
+    batches,
+    movements,
+    movementTypes,
+    history,
+    stockValue,
+    otherBranches,
+    alertDays,
+}: Props) {
     const can = useCan();
     const [adjust, setAdjust] = useState<{ mode: Mode; batch: Batch | null } | null>(null);
+    // Una sección a la vez (la paginación del kardex conserva la pestaña elegida)
+    const [tab, setTab] = useState<'lotes' | 'kardex' | 'graficos'>('lotes');
+
+    const units = plural(product.base_unit);
+    const lots = batches.filter((b) => b.quantity > 0);
+    const nextExpiry = lots.map((b) => b.expires_at.slice(0, 10)).sort()[0] ?? null;
+    const daysLeft = nextExpiry ? daysUntil(nextExpiry) : null;
+    const otherTotal = otherBranches.reduce((sum, b) => sum + b.stock, 0);
+    const control = product.is_controlled ? 'Controlado' : product.requires_prescription ? 'Con receta' : 'Venta libre';
 
     return (
         <AdminLayout
@@ -67,7 +99,7 @@ export default function InventoryShow({ product, branches, branchId, stock, batc
                 <PageHeader
                     icon={Boxes}
                     title={`${product.name} ${product.concentration ?? ''}`}
-                    description={[product.generic_name, product.pharmaceutical_form, product.laboratory?.name].filter(Boolean).join(' · ')}
+                    description={[product.generic_name, product.pharmaceutical_form, product.laboratory?.name, control].filter(Boolean).join(' · ')}
                     actions={
                         <>
                             {branches.length > 1 && (
@@ -87,113 +119,220 @@ export default function InventoryShow({ product, branches, branchId, stock, batc
                     }
                 />
 
-                <Panel className="grid gap-4 p-5 sm:grid-cols-4">
-                    <Detail label="Stock en la sucursal">
-                        <span className={cn('num text-lg', stock <= product.min_stock && 'text-red-600')}>
-                            {stock.toLocaleString('es')} {product.base_unit}
-                            <StockBreakdown units={stock} product={product} />
-                        </span>
-                    </Detail>
-                    <Detail label="Stock mínimo">{product.min_stock.toLocaleString('es')}</Detail>
-                    <Detail label="Presentaciones">
-                        {product.presentations.map((p) => `${p.name} (${p.is_sellable ? money(p.sale_price) : 'solo compra'})`).join(' · ')}
-                    </Detail>
-                    <Detail label="Control">
-                        {product.is_controlled ? 'Controlado' : product.requires_prescription ? 'Con receta' : 'Venta libre'}
-                    </Detail>
-                </Panel>
-
-                <StockCharts history={history} minStock={product.min_stock} baseUnit={product.base_unit} movementTypes={movementTypes} />
-
-                <Panel className="overflow-hidden">
-                    <PanelHeader title="Lotes" description="Se venden primero los que vencen antes (FEFO). Los vencidos no se pueden vender." />
-                    <DataTable
-                        head={
+                <StatGrid>
+                    <StatCard
+                        icon={Boxes}
+                        label="Stock en la sucursal"
+                        value={`${stock.toLocaleString('es')} ${units}`}
+                        tone={product.min_stock === 0 ? 'amber' : stock <= product.min_stock ? 'red' : 'blue'}
+                        colorValue={product.min_stock > 0 && stock <= product.min_stock}
+                        hint={
                             <>
-                                <Th>Lote</Th>
-                                <Th>Vencimiento</Th>
-                                <Th align="right">Cantidad</Th>
-                                <Th align="right">Costo c/u</Th>
-                                <Th>Promoción</Th>
-                                {can('inventario.ajustar') && <Th align="right">Ajustar</Th>}
-                            </>
-                        }
-                    >
-                        {batches.map((batch) => (
-                            <tr key={batch.id} className={cn(batch.quantity === 0 && 'opacity-50')}>
-                                <Td className="num font-medium">{batch.batch_number}</Td>
-                                <Td>
-                                    <ExpiryBadge date={batch.expires_at} />
-                                </Td>
-                                <Td align="right">{batch.quantity.toLocaleString('es')}</Td>
-                                <Td align="right">{money(batch.unit_cost)}</Td>
-                                <Td>{batch.active_promotion ? <PromoBadge percent={batch.active_promotion.discount_percent} /> : '—'}</Td>
-                                {can('inventario.ajustar') && (
-                                    <Td align="right">
-                                        <RowActions>
-                                            <ActionButton
-                                                icon={Plus}
-                                                label="Entrada"
-                                                tone="success"
-                                                onClick={() => setAdjust({ mode: 'in', batch })}
-                                            />
-                                            <ActionButton
-                                                icon={Minus}
-                                                label="Salida"
-                                                tone="warning"
-                                                onClick={() => setAdjust({ mode: 'out', batch })}
-                                                disabled={batch.quantity === 0}
-                                            />
-                                            <ActionButton
-                                                icon={PackageX}
-                                                label="Dar de baja"
-                                                tone="danger"
-                                                onClick={() => setAdjust({ mode: 'writeoff', batch })}
-                                                disabled={batch.quantity === 0}
-                                            />
-                                        </RowActions>
-                                    </Td>
+                                <StockBreakdown units={stock} product={product} className="text-foreground text-xs" />
+                                {product.min_stock === 0 ? (
+                                    <span className="text-amber-700 dark:text-amber-400">Sin stock mínimo configurado</span>
+                                ) : stock <= product.min_stock ? (
+                                    <span className="text-red-600">Bajo el mínimo ({product.min_stock.toLocaleString('es')})</span>
+                                ) : (
+                                    `Mínimo ${product.min_stock.toLocaleString('es')}`
                                 )}
-                            </tr>
-                        ))}
-                        {batches.length === 0 && <EmptyRow colSpan={6} text="No hay lotes en esta sucursal." />}
-                    </DataTable>
-                </Panel>
-
-                <Panel className="overflow-hidden">
-                    <PanelHeader title="Kardex" description="Cada entrada y salida del producto en esta sucursal. No se edita ni se borra." />
-                    <DataTable
-                        head={
-                            <>
-                                <Th>Fecha</Th>
-                                <Th>Movimiento</Th>
-                                <Th>Lote</Th>
-                                <Th align="right">Cantidad</Th>
-                                <Th align="right">Saldo</Th>
-                                <Th>Usuario</Th>
-                                <Th>Nota</Th>
                             </>
                         }
-                    >
-                        {movements.data.map((m) => (
-                            <tr key={m.id}>
-                                <Td className="num text-muted-foreground whitespace-nowrap">
-                                    {formatDate(m.created_at, { dateStyle: 'short', timeStyle: 'short' })}
-                                </Td>
-                                <Td>{movementTypes[m.type] ?? m.type}</Td>
-                                <Td className="num">{m.batch?.batch_number}</Td>
-                                <Td align="right" className={cn('font-medium', m.quantity > 0 ? 'text-emerald-600' : 'text-red-600')}>
-                                    {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
-                                </Td>
-                                <Td align="right">{m.balance.toLocaleString('es')}</Td>
-                                <Td className="text-muted-foreground">{m.registered_by?.name ?? 'Sistema'}</Td>
-                                <Td className="text-muted-foreground">{m.note ?? '—'}</Td>
-                            </tr>
-                        ))}
-                        {movements.data.length === 0 && <EmptyRow colSpan={7} text="Sin movimientos." />}
-                    </DataTable>
-                    <Pagination paginator={movements} itemName="movimientos" />
+                    />
+                    <StatCard
+                        icon={Wallet}
+                        label="Valor del stock"
+                        value={money(stockValue)}
+                        tone="violet"
+                        hint={stock > 0 ? `Costo promedio ${money(stockValue / stock)} c/${product.base_unit.toLowerCase()}` : 'Sin stock'}
+                    />
+                    <StatCard
+                        icon={CalendarClock}
+                        label="Próximo vencimiento"
+                        value={nextExpiry ? formatDay(nextExpiry) : '—'}
+                        tone={daysLeft === null ? 'slate' : daysLeft < 0 ? 'red' : daysLeft <= alertDays ? 'amber' : 'green'}
+                        colorValue={daysLeft !== null && daysLeft <= alertDays}
+                        hint={
+                            daysLeft === null
+                                ? 'Sin lotes con stock'
+                                : `${daysLeft < 0 ? `Vencido hace ${-daysLeft} días` : daysLeft === 0 ? 'Vence hoy' : `En ${daysLeft} días`} · ${lots.length} ${lots.length === 1 ? 'lote' : 'lotes'}`
+                        }
+                    />
+                    <StatCard
+                        icon={Warehouse}
+                        label="En otras sucursales"
+                        value={`${otherTotal.toLocaleString('es')} ${units}`}
+                        tone="slate"
+                        hint={
+                            otherBranches.length === 0 ? (
+                                'No hay otras sucursales'
+                            ) : (
+                                <span className="flex flex-wrap gap-x-2">
+                                    {otherBranches.map((b) => (
+                                        <span key={b.id}>
+                                            {b.allowed ? (
+                                                <Link
+                                                    href={route('admin.inventory.show', { product: product.id, branch: b.id })}
+                                                    className="text-primary hover:underline"
+                                                >
+                                                    {b.name}
+                                                </Link>
+                                            ) : (
+                                                b.name
+                                            )}
+                                            : <span className="num">{b.stock.toLocaleString('es')}</span>
+                                        </span>
+                                    ))}
+                                </span>
+                            )
+                        }
+                    />
+                </StatGrid>
+
+                <Panel>
+                    <PanelHeader
+                        icon={Layers}
+                        title="Presentaciones"
+                        description="Cuántas completas alcanzan con el stock de esta sucursal. Precios y códigos: en «Ver producto»."
+                        aside={
+                            <div className="flex gap-2">
+                                <Button asChild variant="outline" size="sm">
+                                    <Link href={route('admin.products.show', product.id)}>
+                                        <Eye /> Ver producto
+                                    </Link>
+                                </Button>
+                                {can('productos.editar') && (
+                                    <Button asChild variant="outline" size="sm">
+                                        <Link href={route('admin.products.edit', product.id)}>
+                                            <Pencil /> Editar
+                                        </Link>
+                                    </Button>
+                                )}
+                            </div>
+                        }
+                    />
+                    <div className="p-5">
+                        <PresentationsTable product={product} stock={stock} compact className="text-[13px]" />
+                    </div>
                 </Panel>
+
+                <div className="grid gap-3">
+                    <SegmentedControl
+                        label="Secciones del inventario"
+                        value={tab}
+                        onChange={setTab}
+                        className="w-fit"
+                        options={[
+                            { value: 'lotes', label: 'Lotes', count: lots.length },
+                            { value: 'kardex', label: 'Movimientos', count: movements.total },
+                            { value: 'graficos', label: 'Gráficos' },
+                        ]}
+                    />
+
+                    {tab === 'lotes' && (
+                        <Panel className="overflow-hidden">
+                            <PanelHeader
+                                title="Lotes"
+                                description="Se venden primero los que vencen antes (FEFO). Los vencidos no se pueden vender."
+                            />
+                            <DataTable
+                                head={
+                                    <>
+                                        <Th>Lote</Th>
+                                        <Th>Vencimiento</Th>
+                                        <Th align="right">Cantidad</Th>
+                                        <Th align="right">Costo c/u</Th>
+                                        <Th>Promoción</Th>
+                                        {can('inventario.ajustar') && <Th align="right">Ajustar</Th>}
+                                    </>
+                                }
+                            >
+                                {batches.map((batch) => (
+                                    <tr key={batch.id} className={cn(batch.quantity === 0 && 'opacity-50')}>
+                                        <Td className="num font-medium">{batch.batch_number}</Td>
+                                        <Td>
+                                            <ExpiryBadge date={batch.expires_at} />
+                                        </Td>
+                                        <Td align="right">{batch.quantity.toLocaleString('es')}</Td>
+                                        <Td align="right">{money(batch.unit_cost)}</Td>
+                                        <Td>{batch.active_promotion ? <PromoBadge percent={batch.active_promotion.discount_percent} /> : '—'}</Td>
+                                        {can('inventario.ajustar') && (
+                                            <Td align="right">
+                                                <RowActions>
+                                                    <ActionButton
+                                                        icon={Plus}
+                                                        label="Entrada"
+                                                        tone="success"
+                                                        onClick={() => setAdjust({ mode: 'in', batch })}
+                                                    />
+                                                    <ActionButton
+                                                        icon={Minus}
+                                                        label="Salida"
+                                                        tone="warning"
+                                                        onClick={() => setAdjust({ mode: 'out', batch })}
+                                                        disabled={batch.quantity === 0}
+                                                    />
+                                                    <ActionButton
+                                                        icon={PackageX}
+                                                        label="Dar de baja"
+                                                        tone="danger"
+                                                        onClick={() => setAdjust({ mode: 'writeoff', batch })}
+                                                        disabled={batch.quantity === 0}
+                                                    />
+                                                </RowActions>
+                                            </Td>
+                                        )}
+                                    </tr>
+                                ))}
+                                {batches.length === 0 && <EmptyRow colSpan={6} text="No hay lotes en esta sucursal." />}
+                            </DataTable>
+                        </Panel>
+                    )}
+
+                    {tab === 'kardex' && (
+                        <Panel className="overflow-hidden">
+                            <PanelHeader
+                                title="Movimientos (kardex)"
+                                description="Cada entrada y salida del producto en esta sucursal. No se edita ni se borra."
+                            />
+                            <DataTable
+                                head={
+                                    <>
+                                        <Th>Fecha</Th>
+                                        <Th>Movimiento</Th>
+                                        <Th>Lote</Th>
+                                        <Th align="right">Cantidad</Th>
+                                        <Th align="right">Saldo</Th>
+                                        <Th>Usuario</Th>
+                                        <Th>Nota</Th>
+                                    </>
+                                }
+                            >
+                                {movements.data.map((m) => (
+                                    <tr key={m.id}>
+                                        <Td className="num text-muted-foreground whitespace-nowrap">
+                                            {formatDate(m.created_at, { dateStyle: 'short', timeStyle: 'short' })}
+                                        </Td>
+                                        <Td>{movementTypes[m.type] ?? m.type}</Td>
+                                        <Td className="num">{m.batch?.batch_number}</Td>
+                                        <Td align="right" className={cn('font-medium', m.quantity > 0 ? 'text-emerald-600' : 'text-red-600')}>
+                                            {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
+                                        </Td>
+                                        <Td align="right">{m.balance.toLocaleString('es')}</Td>
+                                        <Td className="text-muted-foreground">{m.registered_by?.name ?? 'Sistema'}</Td>
+                                        <Td className="text-muted-foreground">{m.note ?? '—'}</Td>
+                                    </tr>
+                                ))}
+                                {movements.data.length === 0 && <EmptyRow colSpan={7} text="Sin movimientos." />}
+                            </DataTable>
+                            <Pagination paginator={movements} itemName="movimientos" />
+                        </Panel>
+                    )}
+
+                    {tab === 'graficos' && (
+                        <StockCharts history={history} minStock={product.min_stock} baseUnit={product.base_unit} movementTypes={movementTypes} />
+                    )}
+                </div>
             </div>
 
             <AdjustDialog product={product} branchId={branchId} adjust={adjust} onClose={() => setAdjust(null)} />
@@ -452,4 +591,12 @@ function AdjustDialog({
             </DialogContent>
         </Dialog>
     );
+}
+
+/** Días que faltan para una fecha "Y-m-d" (negativo = ya pasó). */
+function daysUntil(date: string): number {
+    const [y, m, d] = date.split('-').map(Number);
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.round((new Date(y, m - 1, d).getTime() - start.getTime()) / 86_400_000);
 }
