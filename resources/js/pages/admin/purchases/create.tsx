@@ -13,6 +13,7 @@ import { QuantityInput } from '@/components/admin/common/quantity-input';
 import { SearchPicker } from '@/components/admin/common/search-picker';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
+import { plural, upperFirst } from '@/components/admin/products/presentation-levels';
 import InputError from '@/components/shared/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +24,20 @@ import { money, today } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type Option, type ProductLookup } from '@/types/admin/pharmacy';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { Beaker, CalendarClock, ClipboardList, Factory, FlaskConical, LoaderCircle, Package, PackagePlus, Pill, Tag, Trash2 } from 'lucide-react';
+import {
+    Beaker,
+    CalendarClock,
+    ChevronRight,
+    ClipboardList,
+    Factory,
+    FlaskConical,
+    LoaderCircle,
+    Package,
+    PackagePlus,
+    Pill,
+    Tag,
+    Trash2,
+} from 'lucide-react';
 import { FormEventHandler, useState } from 'react';
 
 interface Props {
@@ -193,7 +207,7 @@ export default function PurchaseCreate({ branches, suppliers }: Props) {
                                 <div
                                     key={i}
                                     className={cn(
-                                        'grid items-start gap-3 rounded-lg border p-3 transition-colors duration-500 lg:grid-cols-[2.4fr_0.7fr_0.85fr_1fr_1.1fr_auto]',
+                                        'grid items-start gap-3 rounded-lg border p-3 transition-colors duration-500 lg:grid-cols-[minmax(0,1fr)_7rem_8.5rem_10rem_10.5rem_auto]',
                                         highlighted === i && 'border-amber-400 bg-amber-50 dark:bg-amber-950/40',
                                     )}
                                 >
@@ -218,13 +232,13 @@ export default function PurchaseCreate({ branches, suppliers }: Props) {
                                         required
                                         help={
                                             row.factor > 1
-                                                ? `Cuántas "${row.product.presentation_name}" llegaron. Cada una trae ${row.product.contents}, así entran al stock.`
+                                                ? `Cuántas "${row.product.presentation_name}" llegaron. ${describeLevels(row.product)}. Así entran al stock.`
                                                 : `Cuántas unidades sueltas (${row.product.contents.replace(/^1 /, '')}) llegaron.`
                                         }
                                         error={err[`items.${i}.quantity`]}
                                         hint={
                                             row.factor > 1 && Number(row.quantity) > 0
-                                                ? `Entran ${(Number(row.quantity) * row.factor).toLocaleString('es')} ${row.base_unit.toLowerCase()}`
+                                                ? `Entran ${(Number(row.quantity) * row.factor).toLocaleString('es')} ${plural(row.base_unit)}`
                                                 : undefined
                                         }
                                     >
@@ -387,6 +401,47 @@ function expiryWarning(date: string): string | undefined {
     return days < 60 ? `Vence en ${days} días` : `Vence en ~${Math.round(days / 30)} meses`;
 }
 
+/** "Cada caja contiene 3 blísteres y cada blíster contiene 10 tabletas (30 tabletas en total)". */
+function describeLevels(item: ProductLookup): string {
+    const levels = item.breakdown.map((level) => `cada ${level.package} contiene ${level.count} ${level.unit}`);
+    const text = upperFirst(levels.join(' y ') || item.contents);
+    return item.breakdown.length > 1 ? `${text} (${item.contents} en total)` : text;
+}
+
+/**
+ * Qué se compra y qué trae: el empaque destacado en una píldora (con brillo al pasar el mouse) y,
+ * como información, lo que trae adentro: CAJA › cada caja contiene 3 blísteres › cada blíster contiene 10 tabletas (= 30 tabletas).
+ */
+function PackageChain({ item }: { item: ProductLookup }) {
+    return (
+        <div className="group/pkg flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs" title={`Se compra por ${item.package}`}>
+            <span className="from-primary relative inline-flex shrink-0 items-center gap-1 overflow-hidden rounded-full bg-gradient-to-r to-sky-500 py-0.5 pr-2 pl-1.5 text-[11px] font-semibold tracking-wider text-white uppercase shadow-sm ring-1 shadow-sky-500/30 ring-white/20 transition-shadow duration-300 ring-inset group-hover/pkg:shadow-md group-hover/pkg:shadow-sky-500/40 before:absolute before:inset-0 before:-translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/35 before:to-transparent before:transition-transform before:duration-700 before:ease-out group-hover/pkg:before:translate-x-full motion-reduce:before:hidden">
+                <Package className="size-3" />
+                {item.package}
+            </span>
+            {item.breakdown.length === 0 ? (
+                <span className="text-muted-foreground">unidad suelta</span>
+            ) : (
+                <>
+                    {item.breakdown.map((level, i) => (
+                        <span key={i} className="text-muted-foreground inline-flex items-center gap-1.5">
+                            <ChevronRight className="size-3 opacity-50" />
+                            <span>
+                                cada {level.package} contiene <span className="num text-foreground/80 font-semibold">{level.count}</span> {level.unit}
+                            </span>
+                        </span>
+                    ))}
+                    {item.breakdown.length > 1 && (
+                        <span className="bg-background text-muted-foreground num ring-border ml-0.5 rounded-full px-1.5 py-px text-[11px] ring-1 ring-inset">
+                            = {item.contents}
+                        </span>
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
 /**
  * Datos para reconocer el producto (compact = sin la línea de forma, categoría, código y receta; para las filas de la factura): comercial y presentación; genérico, concentración y laboratorio
  * (solo los que tiene); luego forma, categoría, código de barras y si es controlado o con receta.
@@ -401,18 +456,7 @@ function ProductIdentity({ item, compact = false, className }: { item: ProductLo
 
     return (
         <div className={cn('grid min-w-0 gap-1 text-left', className)}>
-            <p className="inline-flex max-w-full items-center gap-1.5 justify-self-start rounded-md bg-sky-100 px-2.5 py-1 text-sm text-sky-900 ring-1 ring-sky-300 ring-inset dark:bg-sky-950 dark:text-sky-100 dark:ring-sky-800">
-                <Package className="size-4 shrink-0" />
-                <span className="truncate">
-                    Presentación: <span className="font-bold">{item.presentation_name}</span>
-                    {item.factor > 1 && (
-                        <>
-                            {' '}
-                            · trae <span className="font-semibold">{item.contents}</span>
-                        </>
-                    )}
-                </span>
-            </p>
+            <PackageChain item={item} />
             <p className="flex min-w-0 items-center gap-1.5 text-base leading-tight">
                 <Tag className="text-primary size-4 shrink-0" />
                 <span className="text-foreground/70 text-sm">Comercial:</span>
@@ -421,10 +465,10 @@ function ProductIdentity({ item, compact = false, className }: { item: ProductLo
             {facts.length > 0 && (
                 <p className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
                     {facts.map(({ icon: Icon, label, value }) => (
-                        <span key={label} className="inline-flex items-center gap-1.5">
-                            <Icon className="text-primary size-4 shrink-0" />
-                            <span className="text-foreground/70">{label}:</span>
-                            <span className="text-foreground font-semibold">{value}</span>
+                        <span key={label} className="inline-flex max-w-full min-w-0 items-start gap-1.5">
+                            <Icon className="text-primary mt-0.5 size-4 shrink-0" />
+                            <span className="text-foreground/70 shrink-0">{label}:</span>
+                            <span className="text-foreground min-w-0 font-semibold break-words">{value}</span>
                         </span>
                     ))}
                 </p>

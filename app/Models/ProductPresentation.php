@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -116,6 +117,27 @@ class ProductPresentation extends Model
         }
 
         return ['package' => $package, 'contains' => $contains, 'factor' => $factor, 'name' => mb_substr($name, 0, 100)];
+    }
+
+    /**
+     * Lo que trae, nivel por nivel: la Caja con 3 blísteres de 10 tabletas →
+     *   [{package: "caja", count: 3, unit: "blísteres"}, {package: "blíster", count: 10, unit: "tabletas"}].
+     * Busca los niveles de adentro en $presentations (las del producto ya cargadas). Vacío = unidad base.
+     *
+     * @param  Collection<int, self>  $presentations
+     * @return list<array{package: string, count: int, unit: string}>
+     */
+    public function breakdown(Collection $presentations): array
+    {
+        $parts = [];
+        $level = $this;
+        while ($level->parent_id !== null) {
+            $inner = $presentations->firstWhere('id', $level->parent_id) ?? $level->parent;
+            $parts[] = ['package' => mb_strtolower($level->package), 'count' => $level->contains, 'unit' => $level->contains === 1 ? mb_strtolower($inner->package) : self::plural($inner->package)];
+            $level = $inner;
+        }
+
+        return $parts;
     }
 
     /** Plural simple en español: tableta → tabletas, blíster → blísteres, unidad → unidades. */

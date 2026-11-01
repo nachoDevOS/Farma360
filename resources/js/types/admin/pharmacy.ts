@@ -117,6 +117,8 @@ export type ProductLookup = {
     package: string;
     /** Unidades base que trae: "100 tabletas" */
     contents: string;
+    /** Nivel por nivel: cada caja contiene 3 blísteres, cada blíster contiene 10 tabletas. Vacío = unidad base */
+    breakdown: { package: string; count: number; unit: string }[];
     factor: number;
     sale_price: string;
     stock: number;
@@ -201,17 +203,18 @@ export interface PurchaseItem {
         id: number;
         name: string;
         concentration: string | null;
+        generic_name?: string | null;
         pharmaceutical_form?: string | null;
         base_unit?: string;
+        laboratory?: { id: number; name: string } | null;
         presentations?: Presentation[];
     };
-    presentation: { id: number; name: string } | null;
+    /** package: empaque en minúscula ("caja"); factor: unidades base que trae */
+    presentation: { id: number; name: string; package: string; factor: number } | null;
     /** Lista de compras: el lote que creó (cuánto queda en él hoy) */
     batch?: { id: number; quantity: number } | null;
     /** Ficha de la compra: lo que queda hoy en su lote */
     remaining?: number;
-    /** Ficha de la compra: costo por unidad base en la compra anterior del mismo producto (null = es la primera) */
-    previous_unit_cost?: number | null;
     /** Ficha de la compra: precio de venta de una unidad base (null = no se vende suelto) */
     sale_unit_price?: number | null;
 }

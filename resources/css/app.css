@@ -199,6 +199,15 @@
         text-underline-offset: 3px;
     }
 
+    /* Campos numéricos: el número se escribe a la derecha (como en una factura) y con dígitos del mismo ancho.
+       Está en la capa base: una clase como text-center en el campo sigue mandando. */
+    input[type='number'],
+    input[inputmode='numeric'],
+    input[inputmode='decimal'] {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
     option {
         background-color: var(--card);
         color: var(--foreground);

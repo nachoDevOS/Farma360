@@ -5,6 +5,7 @@ namespace Tests\Feature\Pharmacy;
 use App\Models\Branch;
 use App\Models\Indication;
 use App\Models\Product;
+use App\Models\ProductPresentation;
 use App\Models\ProductPriceHistory;
 use App\Models\Supplier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -155,6 +156,25 @@ class CatalogTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1)
             ->assertJsonPath('0.factor', 100);
+    }
+
+    public function test_purchase_search_breaks_down_what_each_package_brings_level_by_level()
+    {
+        $admin = $this->userWithRole('Administrador');
+        $product = Product::factory()->create(['name' => 'Alergin', 'base_unit' => 'Tableta']);
+        $tablet = $product->presentations()->create([...ProductPresentation::arrange(null, null, 'Tableta', 'Tableta'), 'sale_price' => 1, 'is_purchasable' => false]);
+        $blister = $product->presentations()->create([...ProductPresentation::arrange($tablet, 10, 'Blíster', 'Tableta'), 'parent_id' => $tablet->id, 'is_purchasable' => false]);
+        $product->presentations()->create([...ProductPresentation::arrange($blister, 3, 'Caja', 'Tableta'), 'parent_id' => $blister->id]);
+
+        $this->actingAs($admin)->getJson('/admin/products/search?q=Alergin')
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.package', 'caja')
+            ->assertJsonPath('0.breakdown', [
+                ['package' => 'caja', 'count' => 3, 'unit' => 'blísteres'],
+                ['package' => 'blíster', 'count' => 10, 'unit' => 'tabletas'],
+            ])
+            ->assertJsonPath('0.contents', '30 tabletas');
     }
 
     public function test_product_page_shows_stock_per_branch_and_last_purchases()

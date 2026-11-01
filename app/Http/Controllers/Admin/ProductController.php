@@ -312,13 +312,13 @@ class ProductController extends Controller
         $branchId = $request->integer('branch_id') ?: null;
 
         $products = Product::where('is_active', true)->search($request->query('q'))
-            ->with(['presentations' => fn ($q) => $q->purchasable(), 'laboratory:id,name', 'category:id,name'])
+            ->with(['presentations', 'laboratory:id,name', 'category:id,name'])
             ->when($branchId, fn (Builder $q) => $q->withSum(['batches as stock' => fn ($b) => $b->where('branch_id', $branchId)], 'quantity'))
             ->orderBy('name')
             ->limit(15)
             ->get();
 
-        return response()->json($products->flatMap(fn (Product $p) => $p->presentations->map(fn ($pres) => [
+        return response()->json($products->flatMap(fn (Product $p) => $p->presentations->where('is_purchasable', true)->map(fn ($pres) => [
             'product_id' => $p->id,
             'product_name' => $p->fullName(),
             'commercial_name' => $p->name,
@@ -337,6 +337,8 @@ class ProductController extends Controller
             'package' => mb_strtolower($pres->package ?: $p->base_unit),
             // Unidades base que trae: "100 tabletas"
             'contents' => $pres->factor.' '.((int) $pres->factor === 1 ? mb_strtolower($p->base_unit) : ProductPresentation::plural($p->base_unit)),
+            // Nivel por nivel: cada caja contiene 3 blísteres, cada blíster contiene 10 tabletas
+            'breakdown' => $pres->breakdown($p->presentations),
             'factor' => $pres->factor,
             'sale_price' => $pres->sale_price,
             'stock' => (int) ($p->stock ?? 0),

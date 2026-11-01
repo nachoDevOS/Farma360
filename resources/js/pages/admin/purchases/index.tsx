@@ -15,6 +15,7 @@ import { ActionButton, RowActions } from '@/components/admin/common/row-actions'
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
 import { TableToolbar } from '@/components/admin/common/table-toolbar';
+import { packageSummary } from '@/components/admin/products/presentation-levels';
 import { Pagination } from '@/components/shared/pagination';
 import { Button } from '@/components/ui/button';
 import { useCan } from '@/hooks/use-can';
@@ -292,7 +293,11 @@ function PurchaseItems({ purchase }: { purchase: Purchase }) {
                                     <p className="font-medium">
                                         {item.product.name} <span className="text-muted-foreground font-normal">{item.product.concentration}</span>
                                     </p>
-                                    <p className="text-muted-foreground text-xs">{item.presentation?.name}</p>
+                                    {item.presentation && (
+                                        <p className="text-muted-foreground text-xs">
+                                            {packageSummary(item.presentation.package, item.presentation.factor, item.product.base_unit ?? 'unidad')}
+                                        </p>
+                                    )}
                                 </td>
                                 <td className="num px-4 py-2">{item.batch_number}</td>
                                 <td className="px-4 py-2">

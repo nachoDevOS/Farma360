@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Pharmacy;
 
+use App\Models\Laboratory;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\Supplier;
@@ -200,10 +201,11 @@ class PurchaseTest extends TestCase
                 ->where('canSeeAllBranches', false));
     }
 
-    public function test_purchase_page_compares_cost_with_the_previous_purchase_and_shows_its_lots()
+    public function test_purchase_page_shows_unit_cost_margin_and_its_lots()
     {
         $branch = $this->branch();
-        $product = $this->product(1.0);
+        $laboratory = Laboratory::create(['name' => 'Farmacéutica del Oriente']);
+        $product = $this->product(1.0, ['generic_name' => 'Loratadina', 'laboratory_id' => $laboratory->id]);
         $admin = $this->userWithRole('Administrador');
         $box = $this->presentation($product, 100)->id;
         $this->actingAs($admin)->post('/admin/purchases', $this->payload($branch->id, $box, ['cost' => 40, 'batch_number' => 'L-1']));
@@ -214,8 +216,9 @@ class PurchaseTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('admin/purchases/show')
                 ->where('purchase.items.0.unit_cost', '0.5000')
-                // La compra anterior costaba Bs 0,40 por tableta; se vende a Bs 1 la tableta
-                ->where('purchase.items.0.previous_unit_cost', 0.4)
+                ->where('purchase.items.0.product.generic_name', 'Loratadina')
+                ->where('purchase.items.0.product.laboratory.name', 'Farmacéutica del Oriente')
+                // Se vende a Bs 1 la tableta
                 ->where('purchase.items.0.sale_unit_price', 1)
                 ->where('purchase.items.0.remaining', 200)
                 ->has('lots', 1)

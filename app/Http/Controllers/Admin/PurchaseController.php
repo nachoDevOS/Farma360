@@ -43,7 +43,7 @@ class PurchaseController extends Controller
             'branch:id,name', 'supplier:id,name',
             'items' => fn ($q) => $q->with([
                 'product:id,name,concentration,base_unit',
-                'presentation' => fn ($p) => $p->withTrashed()->select('id', 'name'),
+                'presentation' => fn ($p) => $p->withTrashed()->select('id', 'name', 'package', 'factor'),
                 'batch:id,quantity',
             ]),
         ])
@@ -143,7 +143,6 @@ class PurchaseController extends Controller
     /**
      * GET /admin/purchases/{purchase} — ficha de la compra. Cada ítem trae además:
      *   remaining           lo que queda hoy en su lote (cuánto de lo comprado sigue en stock)
-     *   previous_unit_cost  costo por unidad base en la compra anterior del mismo producto (para ver si subió)
      *   sale_unit_price     precio de venta de una unidad base (presentación más chica que se vende), para la ganancia
      * lots: los lotes de la compra con su registro completo (solo con inventario.ver).
      */
@@ -153,24 +152,12 @@ class PurchaseController extends Controller
 
         $purchase->load([
             'branch:id,name', 'supplier:id,name,nit,phone', 'registeredBy:id,name', 'cancelledBy:id,name',
-            'items.product:id,name,concentration,pharmaceutical_form,base_unit', 'items.product.presentations',
+            'items.product:id,name,generic_name,concentration,pharmaceutical_form,base_unit,laboratory_id', 'items.product.laboratory:id,name', 'items.product.presentations',
             'items.presentation' => fn ($q) => $q->withTrashed(), 'items.batch:id,quantity',
         ]);
-        $purchase->items->each(function (PurchaseItem $item) use ($purchase) {
-            $previous = PurchaseItem::query()
-                ->join('purchases', 'purchases.id', '=', 'purchase_items.purchase_id')
-                ->where('purchase_items.product_id', $item->product_id)
-                ->where('purchases.status', 'registrada')
-                ->whereNull('purchases.deleted_at')
-                ->where('purchase_items.purchase_id', '!=', $purchase->id)
-                ->where(fn (Builder $q) => $q->where('purchases.purchased_at', '<', $purchase->purchased_at)
-                    ->orWhere(fn (Builder $q) => $q->where('purchases.purchased_at', $purchase->purchased_at)->where('purchases.id', '<', $purchase->id)))
-                ->orderByDesc('purchases.purchased_at')
-                ->orderByDesc('purchases.id')
-                ->value('purchase_items.unit_cost');
+        $purchase->items->each(function (PurchaseItem $item) {
             $smallest = $item->product->presentations->first(fn ($p) => $p->is_sellable && $p->sale_price);
             $item->setAttribute('remaining', (int) ($item->batch?->quantity ?? 0));
-            $item->setAttribute('previous_unit_cost', $previous !== null ? (float) $previous : null);
             $item->setAttribute('sale_unit_price', $smallest ? round((float) $smallest->sale_price / $smallest->factor, 4) : null);
         });
 
