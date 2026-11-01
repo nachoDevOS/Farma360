@@ -45,20 +45,27 @@ class Batch extends Model
         return $this->hasOne(BatchPromotion::class)->where('is_active', true)->latestOfMany();
     }
 
-    /** Lotes que se pueden vender: con stock y sin vencer. */
+    /** Lotes que se pueden vender: con stock y sin vencer (los que no tienen vencimiento nunca vencen). */
     public function scopeSellable(Builder $query): void
     {
-        $query->where('quantity', '>', 0)->whereDate('expires_at', '>=', today());
+        $query->where('quantity', '>', 0)
+            ->where(fn (Builder $q) => $q->whereNull('expires_at')->orWhereDate('expires_at', '>=', today()));
+    }
+
+    /** FEFO: primero el que vence antes; los lotes sin vencimiento van al final. */
+    public function scopeOrderByExpiry(Builder $query): void
+    {
+        $query->orderByRaw('expires_at IS NULL')->orderBy('expires_at');
     }
 
     public function isExpired(): bool
     {
-        return $this->expires_at->lt(today());
+        return $this->expires_at?->lt(today()) ?? false;
     }
 
-    /** Días que faltan para vencer (negativo = ya venció). */
-    public function daysToExpire(): int
+    /** Días que faltan para vencer (negativo = ya venció; null = el lote no tiene vencimiento). */
+    public function daysToExpire(): ?int
     {
-        return (int) today()->diffInDays($this->expires_at, false);
+        return $this->expires_at ? (int) today()->diffInDays($this->expires_at, false) : null;
     }
 }

@@ -83,7 +83,7 @@ class InventoryService
             ->where('product_id', $productId)
             ->where('branch_id', $branchId)
             ->sellable()
-            ->orderBy('expires_at')
+            ->orderByExpiry()
             ->orderBy('id')
             ->get()
             ->each(fn (Batch $batch) => $batch->quantity -= $reserved[$batch->id] ?? 0);

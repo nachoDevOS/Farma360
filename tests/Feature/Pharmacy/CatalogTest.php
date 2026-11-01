@@ -429,6 +429,31 @@ class CatalogTest extends TestCase
         $this->actingAs($admin)->getJson('/admin/products/search?q=999111')->assertOk()->assertJsonCount(2);
     }
 
+    public function test_product_search_returns_photo_and_details_to_identify_the_product()
+    {
+        $admin = $this->userWithRole('Administrador');
+        $product = $this->product(1.0, [
+            'name' => 'Febrax', 'generic_name' => 'Ibuprofeno', 'concentration' => '400 mg', 'pharmaceutical_form' => 'Tableta',
+            'barcode' => '999111', 'image' => 'products/febrax.avif', 'requires_prescription' => true,
+        ]);
+
+        $this->actingAs($admin)->getJson('/admin/products/search?q=Febrax')
+            ->assertOk()
+            ->assertJsonPath('0.commercial_name', 'Febrax')
+            ->assertJsonPath('0.generic_name', 'Ibuprofeno')
+            ->assertJsonPath('0.concentration', '400 mg')
+            ->assertJsonPath('0.pharmaceutical_form', 'Tableta')
+            ->assertJsonPath('0.image', 'products/febrax.avif')
+            ->assertJsonPath('0.laboratory', $product->laboratory?->name)
+            ->assertJsonPath('0.category', $product->category?->name)
+            ->assertJsonPath('0.barcode', '999111')
+            ->assertJsonPath('0.package', 'tableta')
+            ->assertJsonPath('0.contents', '1 tableta')
+            ->assertJsonPath('1.contents', '100 tabletas')
+            ->assertJsonPath('0.requires_prescription', true)
+            ->assertJsonPath('0.is_controlled', false);
+    }
+
     public function test_products_save_generic_name_uses_and_description()
     {
         $admin = $this->userWithRole('Administrador');

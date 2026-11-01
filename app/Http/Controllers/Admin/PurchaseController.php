@@ -114,12 +114,17 @@ class PurchaseController extends Controller
             'purchased_at' => ['required', 'date', 'before_or_equal:today'],
             'note' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_presentation_id' => ['required', Rule::exists('product_presentations', 'id')->whereNull('deleted_at')->where('is_purchasable', true)],
+            // Cada presentación una sola vez: si llegó más, se sube la cantidad de su fila
+            'items.*.product_presentation_id' => ['required', 'distinct', Rule::exists('product_presentations', 'id')->whereNull('deleted_at')->where('is_purchasable', true)],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
-            'items.*.cost' => ['required', 'numeric', 'min:0'],
-            'items.*.batch_number' => ['required', 'string', 'max:50'],
-            'items.*.expires_at' => ['required', 'date', 'after:today'],
-        ], [], [
+            'items.*.cost' => ['required', 'numeric', 'decimal:0,5', 'min:0'],
+            // Lote y vencimiento son opcionales: sin lote se guarda "S/L"; sin vencimiento el lote nunca vence
+            'items.*.batch_number' => ['nullable', 'string', 'max:50'],
+            'items.*.expires_at' => ['nullable', 'date', 'after:today'],
+        ], [
+            'items.*.cost.decimal' => 'El costo puede tener como máximo 5 decimales.',
+            'items.*.product_presentation_id.distinct' => 'Esta presentación ya está en la lista: sube la cantidad en su fila.',
+        ], [
             'branch_id' => 'sucursal',
             'supplier_id' => 'proveedor',
             'purchased_at' => 'fecha de compra',

@@ -3,8 +3,10 @@
 namespace Tests\Feature\Pharmacy;
 
 use App\Models\Purchase;
+use App\Models\PurchaseItem;
 use App\Models\Supplier;
 use App\Services\InventoryService;
+use App\Services\PurchaseService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -52,6 +54,61 @@ class PurchaseTest extends TestCase
         $this->assertSame('AB-1', $batch->batch_number);
         $this->assertDatabaseHas('stock_movements', ['batch_id' => $batch->id, 'type' => 'compra', 'quantity' => 200]);
         $this->assertSame($admin->id, $purchase->registerUser_id);
+    }
+
+    public function test_the_same_presentation_cannot_be_added_twice_to_a_purchase()
+    {
+        $branch = $this->branch();
+        $presentationId = $this->presentation($this->product())->id;
+        $payload = $this->payload($branch->id, $presentationId);
+        $payload['items'][] = $payload['items'][0];
+
+        $this->actingAs($this->userWithRole('Administrador'))
+            ->post('/admin/purchases', $payload)
+            ->assertSessionHasErrors('items.1.product_presentation_id');
+
+        $this->assertSame(0, Purchase::count());
+    }
+
+    public function test_purchase_cost_accepts_up_to_five_decimals()
+    {
+        $branch = $this->branch();
+        $presentationId = $this->presentation($this->product(), 100)->id;
+        $admin = $this->userWithRole('Administrador');
+
+        $this->actingAs($admin)
+            ->post('/admin/purchases', $this->payload($branch->id, $presentationId, ['cost' => '5.123456']))
+            ->assertSessionHasErrors('items.0.cost');
+
+        $this->actingAs($admin)
+            ->post('/admin/purchases', $this->payload($branch->id, $presentationId, ['cost' => '5.65512']))
+            ->assertRedirect();
+
+        $this->assertSame('5.65512', PurchaseItem::firstOrFail()->cost);
+    }
+
+    public function test_batch_number_and_expiry_are_optional_and_such_batches_are_sold_last()
+    {
+        $branch = $this->branch();
+        $product = $this->product();
+        $admin = $this->userWithRole('Administrador');
+
+        $this->actingAs($admin)
+            ->post('/admin/purchases', $this->payload($branch->id, $this->presentation($product)->id, ['batch_number' => '', 'expires_at' => '']))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $withoutExpiry = $product->batches()->firstOrFail();
+        $this->assertSame(PurchaseService::WITHOUT_BATCH, $withoutExpiry->batch_number);
+        $this->assertNull($withoutExpiry->expires_at);
+        $this->assertNull(PurchaseItem::firstOrFail()->expires_at);
+        $this->assertFalse($withoutExpiry->isExpired());
+
+        // Otro lote que sí vence: al vender sale primero; el que no tiene vencimiento queda al final
+        $expiring = $this->batch($product, $branch, 5, '+2 months');
+        $allocation = app(InventoryService::class)->allocate($product->id, $branch->id, 6);
+
+        $this->assertSame([$expiring->id, $withoutExpiry->id], $allocation->map(fn ($a) => $a['batch']->id)->all());
     }
 
     public function test_expired_products_cannot_be_purchased()

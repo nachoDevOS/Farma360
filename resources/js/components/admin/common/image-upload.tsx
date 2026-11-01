@@ -15,6 +15,7 @@
  */
 import InputError from '@/components/shared/input-error';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useStorageUrl } from '@/lib/storage';
 import { cn } from '@/lib/utils';
 import { ImagePlus, RefreshCw, Trash2 } from 'lucide-react';
@@ -144,24 +145,27 @@ export function ImageUpload({
     );
 }
 
-/** Miniatura de una imagen guardada (o un ícono / iniciales si no hay). */
+/** Miniatura de una imagen guardada (o un ícono / iniciales si no hay). Con `zoomable` muestra la imagen en grande al pasar el puntero. */
 export function StoredImage({
     path,
     alt,
     fallback,
     className,
     round = false,
+    zoomable = false,
 }: {
     path: string | null | undefined;
     alt: string;
     fallback: React.ReactNode;
     className?: string;
     round?: boolean;
+    zoomable?: boolean;
 }) {
     const imageUrl = useStorageUrl();
     const [failed, setFailed] = useState(false);
     const url = imageUrl(path);
-    return (
+    const hasImage = !!url && !failed;
+    const thumbnail = (
         <span
             className={cn(
                 'bg-muted text-foreground/60 ring-border flex size-9 shrink-0 items-center justify-center overflow-hidden ring-1 ring-inset',
@@ -169,11 +173,24 @@ export function StoredImage({
                 className,
             )}
         >
-            {url && !failed ? (
-                <img src={url} alt={alt} loading="lazy" className="size-full object-cover" onError={() => setFailed(true)} />
-            ) : (
-                fallback
-            )}
+            {hasImage ? <img src={url} alt={alt} loading="lazy" className="size-full object-cover" onError={() => setFailed(true)} /> : fallback}
         </span>
+    );
+
+    if (!zoomable || !hasImage) {
+        return thumbnail;
+    }
+
+    return (
+        <TooltipProvider delayDuration={150}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="cursor-zoom-in">{thumbnail}</span>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8} className="bg-background ring-border p-1 ring-1">
+                    <img src={url} alt={alt} className="size-64 rounded-md object-contain" />
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     );
 }

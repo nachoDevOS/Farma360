@@ -159,8 +159,9 @@ export default function InventoryIndex({ products, filters, branches, alertDays,
                             const stock = Number(product.stock ?? 0);
                             const units = plural(product.base_unit);
                             const lots = product.batches ?? [];
-                            const expired = lots.filter((l) => daysUntil(l.expires_at) < 0).length;
+                            const expired = lots.filter((l) => l.expires_at && daysUntil(l.expires_at) < 0).length;
                             const expiring = lots.filter((l) => {
+                                if (!l.expires_at) return false;
                                 const days = daysUntil(l.expires_at);
                                 return days >= 0 && days <= alertDays;
                             }).length;
@@ -343,8 +344,10 @@ function RowDetail({ product, branchName, branches, alertDays }: { product: Prod
                                     <tr key={lot.id}>
                                         <td className="num px-4 py-2 font-medium">{lot.batch_number}</td>
                                         <td className="px-4 py-2">
-                                            <ExpiryBadge date={lot.expires_at} alertDays={alertDays} />
-                                            <span className="text-muted-foreground block text-[11px]">{formatDay(lot.expires_at)}</span>
+                                            <ExpiryBadge date={lot.expires_at} emptyLabel="Sin vencimiento" alertDays={alertDays} />
+                                            {lot.expires_at && (
+                                                <span className="text-muted-foreground block text-[11px]">{formatDay(lot.expires_at)}</span>
+                                            )}
                                         </td>
                                         <td className="num px-4 py-2 text-right">
                                             {lot.quantity.toLocaleString('es')}

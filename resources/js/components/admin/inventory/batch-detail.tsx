@@ -49,7 +49,7 @@ export interface BatchMovement {
 
 /** Lote con su registro. Ver InventoryController@batchDetails. */
 export interface BatchWithDetail extends Batch {
-    days_left: number;
+    days_left: number | null;
     /** Cómo entró: compra, ingreso sin compra o transferencia recibida */
     origin: (BatchMovement & { kind: 'compra' | 'ingreso' | 'transferencia' | 'otro' }) | null;
     /** Unidades que entraron al principio */
@@ -191,15 +191,17 @@ export function BatchDetail({
                     <Fact
                         icon={CalendarClock}
                         label="Vence"
-                        value={formatDay(batch.expires_at)}
+                        value={batch.expires_at ? formatDay(batch.expires_at) : 'Sin vencimiento'}
                         sub={
-                            batch.days_left < 0
-                                ? `Vencido hace ${-batch.days_left} días`
-                                : batch.days_left === 0
-                                  ? 'Vence hoy'
-                                  : `En ${batch.days_left} días`
+                            batch.days_left === null
+                                ? 'Se vende al final'
+                                : batch.days_left < 0
+                                  ? `Vencido hace ${-batch.days_left} días`
+                                  : batch.days_left === 0
+                                    ? 'Vence hoy'
+                                    : `En ${batch.days_left} días`
                         }
-                        danger={batch.days_left < 0}
+                        danger={batch.days_left !== null && batch.days_left < 0}
                     />
                     <Fact
                         icon={Wallet}

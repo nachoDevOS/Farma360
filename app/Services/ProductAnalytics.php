@@ -236,6 +236,8 @@ class ProductAnalytics
             ->where('product_id', $product->id)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('quantity', '>', 0)
+            // Sin vencimiento no hay riesgo de perderlo
+            ->whereNotNull('expires_at')
             ->orderBy('expires_at')
             ->orderBy('id')
             ->get()

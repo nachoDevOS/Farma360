@@ -13,11 +13,14 @@ use Illuminate\Support\Facades\DB;
  */
 class PurchaseService
 {
+    /** Número que se guarda cuando la compra no indica lote ("sin lote"). */
+    public const WITHOUT_BATCH = 'S/L';
+
     public function __construct(private InventoryService $inventory) {}
 
     /**
      * @param  array{branch_id: int, supplier_id: int, invoice_number?: ?string, purchased_at: string, note?: ?string,
-     *     items: list<array{product_presentation_id: int, quantity: int, cost: float|string, batch_number: string, expires_at: string}>}  $data
+     *     items: list<array{product_presentation_id: int, quantity: int, cost: float|string, batch_number: ?string, expires_at: ?string}>}  $data
      */
     public function create(array $data): Purchase
     {
@@ -36,16 +39,18 @@ class PurchaseService
             foreach ($data['items'] as $row) {
                 $presentation = ProductPresentation::findOrFail($row['product_presentation_id']);
                 $quantity = (int) $row['quantity'];
-                $cost = round((float) $row['cost'], 2);
+                $cost = round((float) $row['cost'], 5);
                 $units = $quantity * $presentation->factor;
                 $unitCost = round($cost / $presentation->factor, 4);
                 $subtotal = round($quantity * $cost, 2);
+                $batchNumber = trim((string) ($row['batch_number'] ?? '')) ?: self::WITHOUT_BATCH;
+                $expiresAt = ($row['expires_at'] ?? null) ?: null;
 
                 $batch = $this->inventory->createBatch([
                     'product_id' => $presentation->product_id,
                     'branch_id' => $purchase->branch_id,
-                    'batch_number' => $row['batch_number'],
-                    'expires_at' => $row['expires_at'],
+                    'batch_number' => $batchNumber,
+                    'expires_at' => $expiresAt,
                     'unit_cost' => $unitCost,
                 ]);
 
@@ -60,8 +65,8 @@ class PurchaseService
                     'cost' => $cost,
                     'unit_cost' => $unitCost,
                     'subtotal' => $subtotal,
-                    'batch_number' => $row['batch_number'],
-                    'expires_at' => $row['expires_at'],
+                    'batch_number' => $batchNumber,
+                    'expires_at' => $expiresAt,
                     'batch_id' => $batch->id,
                 ]);
 

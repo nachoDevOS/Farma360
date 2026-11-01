@@ -92,7 +92,7 @@ class SaleController extends Controller
             ->whereIn('product_id', $products->pluck('id'))
             ->where('branch_id', $session->branch_id)
             ->sellable()
-            ->orderBy('expires_at')
+            ->orderByExpiry()
             ->get()
             ->groupBy('product_id');
 

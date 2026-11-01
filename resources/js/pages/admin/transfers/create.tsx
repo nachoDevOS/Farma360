@@ -23,7 +23,7 @@ type ItemRow = {
     batch_id: number;
     label: string;
     batch_number: string;
-    expires_at: string;
+    expires_at: string | null;
     available: number;
     base_unit: string;
     quantity: string;
@@ -119,7 +119,7 @@ export default function TransferCreate({ fromBranches, toBranches }: { fromBranc
                                             <span className="font-medium">{b.product_name}</span> · lote {b.batch_number}
                                         </span>
                                         <span className="flex items-center gap-2 text-xs">
-                                            <ExpiryBadge date={b.expires_at} />
+                                            <ExpiryBadge date={b.expires_at} emptyLabel="Sin vencimiento" />
                                             <span className="text-muted-foreground">
                                                 {b.quantity} {b.base_unit}
                                             </span>
@@ -146,7 +146,7 @@ export default function TransferCreate({ fromBranches, toBranches }: { fromBranc
                                             Lote {row.batch_number} · disponibles {row.available} {row.base_unit}
                                         </p>
                                     </div>
-                                    <ExpiryBadge date={row.expires_at} className="justify-self-start" />
+                                    <ExpiryBadge date={row.expires_at} emptyLabel="Sin vencimiento" className="justify-self-start" />
                                     <div>
                                         <QuantityInput
                                             min={1}

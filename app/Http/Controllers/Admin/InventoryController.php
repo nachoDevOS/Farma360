@@ -51,7 +51,7 @@ class InventoryController extends Controller
                 'laboratory:id,name',
                 'category:id,name',
                 // Lotes con stock de la sucursal, el que vence primero adelante (detalle desplegable)
-                'batches' => fn ($q) => $q->where('branch_id', $branchId)->where('quantity', '>', 0)->orderBy('expires_at')
+                'batches' => fn ($q) => $q->where('branch_id', $branchId)->where('quantity', '>', 0)->orderByExpiry()
                     ->select('id', 'product_id', 'batch_number', 'expires_at', 'quantity', 'unit_cost'),
             ])
             ->withSum(['batches as stock' => fn ($q) => $q->where('branch_id', $branchId)], 'quantity')
@@ -294,7 +294,7 @@ class InventoryController extends Controller
                 ->where('quantity', '>', 0)
                 ->when($search !== '', fn (Builder $q) => $q->whereHas('product', fn (Builder $p) => $p
                     ->where('name', 'like', "%{$search}%")->orWhere('barcode', $search)))
-                ->orderBy('expires_at')
+                ->orderByExpiry()
                 ->limit(20)
                 ->get()
                 ->map(fn (Batch $b) => [
@@ -302,7 +302,7 @@ class InventoryController extends Controller
                     'product_name' => $b->product->fullName(),
                     'base_unit' => $b->product->base_unit,
                     'batch_number' => $b->batch_number,
-                    'expires_at' => $b->expires_at->toDateString(),
+                    'expires_at' => $b->expires_at?->toDateString(),
                     'quantity' => $b->quantity,
                     'expired' => $b->isExpired(),
                 ]),

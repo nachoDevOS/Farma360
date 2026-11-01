@@ -20,7 +20,7 @@ class PurchaseItem extends Model
 
     protected function casts(): array
     {
-        return ['expires_at' => 'date', 'cost' => 'decimal:2', 'unit_cost' => 'decimal:4', 'subtotal' => 'decimal:2'];
+        return ['expires_at' => 'date', 'cost' => 'decimal:5', 'unit_cost' => 'decimal:4', 'subtotal' => 'decimal:2'];
     }
 
     public function purchase(): BelongsTo

@@ -87,7 +87,8 @@ export default function SaleShow({ sale, paymentMethods }: { sale: Sale; payment
                                     <span className="text-foreground">{money(item.subtotal, false)}</span>
                                 </div>
                                 <p className="text-muted-foreground text-[11px]">
-                                    Lote {item.batch.batch_number} · vence {formatDay(item.batch.expires_at)}
+                                    Lote {item.batch.batch_number} ·{' '}
+                                    {item.batch.expires_at ? `vence ${formatDay(item.batch.expires_at)}` : 'sin vencimiento'}
                                 </p>
                             </li>
                         ))}

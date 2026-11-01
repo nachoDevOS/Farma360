@@ -261,7 +261,7 @@ export function BranchStockDetail({
                                                                                 <BatchOrigin batch={lot} />
                                                                             </td>
                                                                             <td className="px-3 py-2">
-                                                                                <ExpiryBadge date={lot.expires_at} />
+                                                                                <ExpiryBadge date={lot.expires_at} emptyLabel="Sin vencimiento" />
                                                                             </td>
                                                                             <td className="num px-3 py-2 text-right whitespace-nowrap">
                                                                                 <span className="text-muted-foreground">

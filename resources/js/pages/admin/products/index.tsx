@@ -175,6 +175,7 @@ export default function ProductsIndex({ products, filters, branchOptions, canSee
                                                     alt={product.name}
                                                     fallback={<Pill className="size-4" />}
                                                     className="size-10"
+                                                    zoomable
                                                 />
                                                 <div className="min-w-0">
                                                     <p className="font-medium">

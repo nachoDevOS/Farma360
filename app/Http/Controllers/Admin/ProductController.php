@@ -312,7 +312,7 @@ class ProductController extends Controller
         $branchId = $request->integer('branch_id') ?: null;
 
         $products = Product::where('is_active', true)->search($request->query('q'))
-            ->with(['presentations' => fn ($q) => $q->purchasable()])
+            ->with(['presentations' => fn ($q) => $q->purchasable(), 'laboratory:id,name', 'category:id,name'])
             ->when($branchId, fn (Builder $q) => $q->withSum(['batches as stock' => fn ($b) => $b->where('branch_id', $branchId)], 'quantity'))
             ->orderBy('name')
             ->limit(15)
@@ -321,10 +321,22 @@ class ProductController extends Controller
         return response()->json($products->flatMap(fn (Product $p) => $p->presentations->map(fn ($pres) => [
             'product_id' => $p->id,
             'product_name' => $p->fullName(),
+            'commercial_name' => $p->name,
             'generic_name' => $p->generic_name,
+            'concentration' => $p->concentration,
+            'pharmaceutical_form' => $p->pharmaceutical_form,
+            'image' => $p->image,
+            'laboratory' => $p->laboratory?->name,
+            'category' => $p->category?->name,
+            'requires_prescription' => $p->requires_prescription,
+            'is_controlled' => $p->is_controlled,
+            'barcode' => $pres->barcode ?? $p->barcode,
             'base_unit' => $p->base_unit,
             'presentation_id' => $pres->id,
             'presentation_name' => $pres->name,
+            'package' => mb_strtolower($pres->package ?: $p->base_unit),
+            // Unidades base que trae: "100 tabletas"
+            'contents' => $pres->factor.' '.((int) $pres->factor === 1 ? mb_strtolower($p->base_unit) : ProductPresentation::plural($p->base_unit)),
             'factor' => $pres->factor,
             'sale_price' => $pres->sale_price,
             'stock' => (int) ($p->stock ?? 0),

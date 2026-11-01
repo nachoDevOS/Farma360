@@ -142,7 +142,7 @@ class PromotionController extends Controller
             'batch_number' => $batch->batch_number,
             'product_name' => $batch->product->fullName(),
             'branch_name' => $batch->branch->name,
-            'expires_at' => $batch->expires_at->toDateString(),
+            'expires_at' => $batch->expires_at?->toDateString(),
             'days_left' => $batch->daysToExpire(),
             'quantity' => $batch->quantity,
             'base_unit' => $batch->product->base_unit,

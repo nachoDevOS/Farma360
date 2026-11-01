@@ -106,7 +106,7 @@ export default function InventoryShow({
     const units = plural(product.base_unit);
     const branchName = branches.find((b) => b.id === branchId)?.name ?? 'Esta sucursal';
     const lots = batches.filter((b) => b.quantity > 0);
-    const nextExpiry = lots.map((b) => b.expires_at.slice(0, 10)).sort()[0] ?? null;
+    const nextExpiry = lots.flatMap((b) => (b.expires_at ? [b.expires_at.slice(0, 10)] : [])).sort()[0] ?? null;
     const daysLeft = nextExpiry ? daysUntil(nextExpiry) : null;
     const otherTotal = otherBranches.reduce((sum, b) => sum + b.stock, 0);
     const control = product.is_controlled ? 'Controlado' : product.requires_prescription ? 'Con receta' : 'Venta libre';
@@ -313,7 +313,7 @@ export default function InventoryShow({
                                                     <BatchOrigin batch={batch} />
                                                 </Td>
                                                 <Td>
-                                                    <ExpiryBadge date={batch.expires_at} />
+                                                    <ExpiryBadge date={batch.expires_at} emptyLabel="Sin vencimiento" />
                                                 </Td>
                                                 <Td align="right">
                                                     <span className="num">

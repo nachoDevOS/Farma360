@@ -296,7 +296,7 @@ function PurchaseItems({ purchase }: { purchase: Purchase }) {
                                 </td>
                                 <td className="num px-4 py-2">{item.batch_number}</td>
                                 <td className="px-4 py-2">
-                                    <ExpiryBadge date={item.expires_at} />
+                                    <ExpiryBadge date={item.expires_at} emptyLabel="Sin vencimiento" />
                                 </td>
                                 <td className="num px-4 py-2 text-right">
                                     {item.quantity} × {money(item.cost)}

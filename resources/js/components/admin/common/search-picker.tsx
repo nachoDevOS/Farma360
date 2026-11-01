@@ -27,6 +27,8 @@ interface SearchPickerProps<T> {
     /** Mínimo de letras para buscar */
     minLength?: number;
     className?: string;
+    /** Clases extra para la lista de resultados (ej: más alto si cada resultado ocupa varias líneas) */
+    listClassName?: string;
     autoFocus?: boolean;
     /** Para enfocar el buscador desde afuera (ej: después de agregar un producto) */
     inputRef?: React.Ref<HTMLInputElement>;
@@ -40,6 +42,7 @@ export function SearchPicker<T>({
     placeholder = 'Buscar…',
     minLength = 2,
     className,
+    listClassName,
     autoFocus,
     inputRef,
 }: SearchPickerProps<T>) {
@@ -115,7 +118,12 @@ export function SearchPicker<T>({
             />
             {loading && <LoaderCircle className="text-muted-foreground absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin" />}
             {open && query.trim().length >= minLength && !loading && (
-                <div className="bg-popover text-popover-foreground absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-md border shadow-lg">
+                <div
+                    className={cn(
+                        'bg-popover text-popover-foreground absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-md border shadow-lg',
+                        listClassName,
+                    )}
+                >
                     {results.length === 0 ? (
                         <p className="text-muted-foreground px-3 py-4 text-center text-sm">Sin resultados</p>
                     ) : (

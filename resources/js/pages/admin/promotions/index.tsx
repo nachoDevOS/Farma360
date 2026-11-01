@@ -34,8 +34,8 @@ interface BatchRow {
     batch_number: string;
     product_name: string;
     branch_name: string;
-    expires_at: string;
-    days_left: number;
+    expires_at: string | null;
+    days_left: number | null;
     quantity: number;
     base_unit: string;
     unit_cost: number;
@@ -244,7 +244,7 @@ function BatchCells({ row }: { row: BatchRow }) {
                 </p>
             </Td>
             <Td>
-                <ExpiryBadge date={row.expires_at} />
+                <ExpiryBadge date={row.expires_at} emptyLabel="Sin vencimiento" />
             </Td>
             <Td align="right">
                 {row.quantity.toLocaleString('es')} <span className="text-muted-foreground text-xs">{row.base_unit}</span>
@@ -288,7 +288,8 @@ function ApplyDialog({
                     <DialogHeader>
                         <DialogTitle>Promoción para el lote {row?.batch_number}</DialogTitle>
                         <DialogDescription>
-                            {row?.product_name} · vence en {row?.days_left} días · {row?.quantity} {row?.base_unit}
+                            {row?.product_name} · {row?.days_left != null ? `vence en ${row.days_left} días` : 'sin vencimiento'} · {row?.quantity}{' '}
+                            {row?.base_unit}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-2">

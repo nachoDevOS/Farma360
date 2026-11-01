@@ -89,7 +89,7 @@ export default function TransferShow({ transfer, canReceive, canCancel }: { tran
                                 </Td>
                                 <Td className="num">{item.batch_number}</Td>
                                 <Td>
-                                    <ExpiryBadge date={item.expires_at} />
+                                    <ExpiryBadge date={item.expires_at} emptyLabel="Sin vencimiento" />
                                 </Td>
                                 <Td align="right">
                                     {item.quantity.toLocaleString('es')}{' '}

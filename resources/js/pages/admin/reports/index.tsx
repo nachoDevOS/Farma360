@@ -257,7 +257,7 @@ export default function Reports(props: Props) {
                                     </Td>
                                     <Td className="text-muted-foreground">{row.branch}</Td>
                                     <Td>
-                                        <ExpiryBadge date={row.expires_at} />
+                                        <ExpiryBadge date={row.expires_at} emptyLabel="Sin vencimiento" />
                                     </Td>
                                     <Td align="right">
                                         {row.quantity.toLocaleString('es')} <span className="text-muted-foreground text-xs">{row.base_unit}</span>

@@ -230,7 +230,7 @@ function ItemsTable({ purchase }: { purchase: Purchase }) {
                             <Td>
                                 <span className="num font-medium">{item.batch_number}</span>
                                 <span className="mt-0.5 block">
-                                    <ExpiryBadge date={item.expires_at} />
+                                    <ExpiryBadge date={item.expires_at} emptyLabel="Sin vencimiento" />
                                 </span>
                             </Td>
                             <Td align="right">
@@ -373,7 +373,7 @@ function LotsList({ purchase, lots, movementTypes }: { purchase: Purchase; lots:
                                 </Td>
                                 <Td className="font-medium">{item ? `${item.product.name} ${item.product.concentration ?? ''}` : '—'}</Td>
                                 <Td>
-                                    <ExpiryBadge date={lot.expires_at} />
+                                    <ExpiryBadge date={lot.expires_at} emptyLabel="Sin vencimiento" />
                                 </Td>
                                 <Td align="right" className="num">
                                     <span className="text-muted-foreground">{lot.initial.toLocaleString('es')} → </span>

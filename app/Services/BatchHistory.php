@@ -37,7 +37,7 @@ class BatchHistory
         return $this->describe(Batch::with(['activePromotion', 'registeredBy:id,name'])
             ->where('product_id', $productId)->whereIn('branch_id', $branchIds)
             ->where(fn ($q) => $q->where('quantity', '>', 0)->when($withRecentlyEmpty, fn ($q) => $q->orWhere('updated_at', '>=', now()->subDays(30))))
-            ->orderBy('expires_at')
+            ->orderByExpiry()
             ->get());
     }
 

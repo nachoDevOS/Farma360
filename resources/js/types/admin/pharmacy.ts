@@ -93,17 +93,34 @@ export interface BranchStock {
 }
 
 /** Fila del buscador de productos (una por presentación). Ver ProductController@lookup. */
-export interface ProductLookup {
+// "type" (no "interface") porque la compra lo guarda en useForm de Inertia
+export type ProductLookup = {
     product_id: number;
     product_name: string;
+    /** Nombre comercial (sin concentración ni forma) */
+    commercial_name: string;
     generic_name: string | null;
+    concentration: string | null;
+    pharmaceutical_form: string | null;
+    /** Ruta de la foto en S3 (o null) */
+    image: string | null;
+    laboratory: string | null;
+    category: string | null;
+    requires_prescription: boolean;
+    is_controlled: boolean;
+    /** Código de la presentación, o del producto si la presentación no tiene */
+    barcode: string | null;
     base_unit: string;
     presentation_id: number;
     presentation_name: string;
+    /** Empaque que se compra, en minúscula: "caja", "blíster", "tableta" */
+    package: string;
+    /** Unidades base que trae: "100 tabletas" */
+    contents: string;
     factor: number;
     sale_price: string;
     stock: number;
-}
+};
 
 /** Fila del buscador del punto de venta. Ver SaleController@search. */
 // "type" (no "interface") porque el carrito del punto de venta lo guarda en useForm de Inertia
@@ -130,7 +147,7 @@ export interface BatchLookup {
     product_name: string;
     base_unit: string;
     batch_number: string;
-    expires_at: string;
+    expires_at: string | null;
     quantity: number;
     expired: boolean;
 }
@@ -147,7 +164,7 @@ export interface Batch {
     product_id: number;
     branch_id: number;
     batch_number: string;
-    expires_at: string;
+    expires_at: string | null;
     quantity: number;
     unit_cost: string;
     active_promotion?: BatchPromotion | null;
@@ -178,7 +195,7 @@ export interface PurchaseItem {
     unit_cost: string;
     subtotal: string;
     batch_number: string;
-    expires_at: string;
+    expires_at: string | null;
     batch_id?: number;
     product: {
         id: number;
@@ -222,7 +239,7 @@ export interface Purchase {
 export interface TransferItem {
     id: number;
     batch_number: string;
-    expires_at: string;
+    expires_at: string | null;
     quantity: number;
     unit_cost: string;
     product: { id: number; name: string; concentration: string | null; pharmaceutical_form: string | null; base_unit: string };
@@ -319,7 +336,7 @@ export interface SaleItem {
     unit_cost: string;
     product: { id: number; name: string; concentration: string | null; pharmaceutical_form: string | null };
     presentation: { id: number; name: string } | null;
-    batch: { id: number; batch_number: string; expires_at: string };
+    batch: { id: number; batch_number: string; expires_at: string | null };
 }
 
 export interface Sale {

@@ -34,10 +34,21 @@ export function statusOptions(statuses: string[]) {
 
 /**
  * Vencimiento con color: rojo si venció, ámbar si vence dentro de alertDays, normal si no.
- * Uso: <ExpiryBadge date={batch.expires_at} />
+ * Uso: <ExpiryBadge date={batch.expires_at} emptyLabel="Sin vencimiento" />
+ * Lote sin vencimiento: <ExpiryBadge date={batch.expires_at} emptyLabel="Sin vencimiento" emptyLabel="Sin vencimiento" /> (por defecto muestra "—").
  */
-export function ExpiryBadge({ date, alertDays = 90, className }: { date: string | null | undefined; alertDays?: number; className?: string }) {
-    if (!date) return <span className="text-muted-foreground">—</span>;
+export function ExpiryBadge({
+    date,
+    alertDays = 90,
+    emptyLabel = '—',
+    className,
+}: {
+    date: string | null | undefined;
+    alertDays?: number;
+    emptyLabel?: string;
+    className?: string;
+}) {
+    if (!date) return <span className={cn('text-muted-foreground text-xs whitespace-nowrap', className)}>{emptyLabel}</span>;
 
     const [y, m, d] = date.slice(0, 10).split('-').map(Number);
     const expires = new Date(y, m - 1, d);
