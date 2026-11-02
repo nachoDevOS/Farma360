@@ -4,11 +4,13 @@
  */
 import { ReasonDialog } from '@/components/admin/common/confirm-dialog';
 import { DocStatus, PromoBadge } from '@/components/admin/common/doc-status';
+import { describeLevels, levelsOf } from '@/components/admin/common/package-chain';
+import { countOf } from '@/components/admin/products/presentation-levels';
 import { Button } from '@/components/ui/button';
 import { useCan } from '@/hooks/use-can';
 import AdminLayout from '@/layouts/admin/admin-layout';
 import { formatDate, formatDay, money } from '@/lib/format';
-import { type Sale } from '@/types/admin/pharmacy';
+import { type Sale, type SaleItem } from '@/types/admin/pharmacy';
 import { Head, Link } from '@inertiajs/react';
 import { Ban, Printer, ShoppingCart } from 'lucide-react';
 import { useState } from 'react';
@@ -81,11 +83,15 @@ export default function SaleShow({ sale, paymentMethods }: { sale: Sale; payment
                                 </p>
                                 <div className="text-muted-foreground flex justify-between text-xs">
                                     <span>
-                                        {item.units / item.factor} {item.presentation?.name} × {money(item.list_price, false)}
+                                        {item.presentation?.package
+                                            ? countOf(item.units / item.factor, item.presentation.package)
+                                            : `${item.units / item.factor} ${item.presentation?.name ?? ''}`}{' '}
+                                        × {money(item.list_price, false)}
                                         {Number(item.discount_percent) > 0 && <PromoBadge percent={item.discount_percent} className="ml-1" />}
                                     </span>
                                     <span className="text-foreground">{money(item.subtotal, false)}</span>
                                 </div>
+                                <TicketLevels item={item} />
                                 <p className="text-muted-foreground text-[11px]">
                                     Lote {item.batch.batch_number} ·{' '}
                                     {item.batch.expires_at ? `vence ${formatDay(item.batch.expires_at)}` : 'sin vencimiento'}
@@ -128,4 +134,10 @@ export default function SaleShow({ sale, paymentMethods }: { sale: Sale; payment
             />
         </AdminLayout>
     );
+}
+
+/** Línea del ticket con lo que trae el empaque vendido: "Cada caja contiene 3 blísteres y cada blíster contiene 10 tabletas (30 tabletas en total)". */
+function TicketLevels({ item }: { item: SaleItem }) {
+    const text = describeLevels(levelsOf(item.product.presentations ?? [], item.presentation?.id));
+    return text ? <p className="text-muted-foreground text-[11px]">{text}</p> : null;
 }

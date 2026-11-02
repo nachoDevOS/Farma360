@@ -129,6 +129,12 @@ export type ProductLookup = {
 export type PosLookup = {
     product_id: number;
     product_name: string;
+    /** Nombre comercial solo ("Alergin") y concentración aparte ("10 mg") */
+    commercial_name: string;
+    concentration: string | null;
+    /** Ruta de la foto en S3 (o null) */
+    image: string | null;
+    laboratory: string | null;
     generic_name: string | null;
     /** Usos / síntomas, para mostrar "Sirve para: …" en el resultado */
     indications: string[];
@@ -136,6 +142,10 @@ export type PosLookup = {
     is_controlled: boolean;
     presentation_id: number;
     presentation_name: string;
+    /** Empaque que se vende, en minúscula: "caja", "blíster", "tableta" */
+    package: string;
+    /** Nivel por nivel: cada caja contiene 3 blísteres, cada blíster contiene 10 tabletas. Vacío = unidad suelta */
+    breakdown: { package: string; count: number; unit: string }[];
     factor: number;
     sale_price: number;
     stock_units: number;
@@ -337,8 +347,8 @@ export interface SaleItem {
     discount_percent: string;
     subtotal: string;
     unit_cost: string;
-    product: { id: number; name: string; concentration: string | null; pharmaceutical_form: string | null };
-    presentation: { id: number; name: string } | null;
+    product: { id: number; name: string; concentration: string | null; pharmaceutical_form: string | null; presentations?: Presentation[] };
+    presentation: { id: number; name: string; package?: string } | null;
     batch: { id: number; batch_number: string; expires_at: string | null };
 }
 

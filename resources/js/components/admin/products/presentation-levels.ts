@@ -88,17 +88,6 @@ export function plural(word: string): string {
     return `${w}es`;
 }
 
-/**
- * Cómo se compra una presentación, en palabras y sin el "x10" del nombre:
- *   ('caja', 10, 'tableta')   → "Por caja · cada caja trae 10 tabletas"
- *   ('tableta', 1, 'tableta') → "Por tableta"
- */
-export function packageSummary(pkg: string, factor: number, baseUnit: string): string {
-    const name = pkg.trim().toLowerCase();
-    if (factor <= 1) return `Por ${name}`;
-    return `Por ${name} · cada ${name} trae ${factor.toLocaleString('es')} ${plural(baseUnit)}`;
-}
-
 /** "1 caja", "3 cajas" */
 export const countOf = (quantity: number, word: string) =>
     `${quantity.toLocaleString('es')} ${quantity === 1 ? word.trim().toLowerCase() : plural(word)}`;

@@ -12,16 +12,22 @@
  *
  * Busca 300 ms después de dejar de escribir (no con cada letra). Enter elige el primero
  * (útil con lector de código de barras, que "escribe" el código y presiona Enter).
+ *
+ * Para agrupar lo que llega (ej: un producto con sus presentaciones) usar mapResults; renderItem recibe
+ * pick para que un botón dentro del resultado elija algo distinto: renderItem={(group, pick) => …}.
  */
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { LoaderCircle, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-interface SearchPickerProps<T> {
+interface SearchPickerProps<T, R = T> {
     url: (query: string) => string;
     onPick: (item: T) => void;
-    renderItem: (item: T) => React.ReactNode;
+    /** pick: para elegir desde un botón dentro del resultado (cierra la lista igual que un clic en la fila) */
+    renderItem: (item: T, pick: (item: T) => void) => React.ReactNode;
+    /** Convierte lo que responde Laravel antes de mostrarlo (ej: agrupar presentaciones por producto) */
+    mapResults?: (data: R[]) => T[];
     itemKey: (item: T) => string | number;
     placeholder?: string;
     /** Mínimo de letras para buscar */
@@ -32,12 +38,15 @@ interface SearchPickerProps<T> {
     autoFocus?: boolean;
     /** Para enfocar el buscador desde afuera (ej: después de agregar un producto) */
     inputRef?: React.Ref<HTMLInputElement>;
+    /** Clases extra del campo (ej: más alto en el punto de venta) */
+    inputClassName?: string;
 }
 
-export function SearchPicker<T>({
+export function SearchPicker<T, R = T>({
     url,
     onPick,
     renderItem,
+    mapResults,
     itemKey,
     placeholder = 'Buscar…',
     minLength = 2,
@@ -45,7 +54,8 @@ export function SearchPicker<T>({
     listClassName,
     autoFocus,
     inputRef,
-}: SearchPickerProps<T>) {
+    inputClassName,
+}: SearchPickerProps<T, R>) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<T[]>([]);
     const [loading, setLoading] = useState(false);
@@ -64,7 +74,8 @@ export function SearchPicker<T>({
             setLoading(true);
             try {
                 const response = await fetch(url(text), { headers: { Accept: 'application/json' } });
-                const data = response.ok ? ((await response.json()) as T[]) : [];
+                const raw = response.ok ? ((await response.json()) as R[]) : [];
+                const data = mapResults ? mapResults(raw) : (raw as unknown as T[]);
                 // Solo la última búsqueda cuenta (si escribiste más rápido que la respuesta)
                 if (id === request.current) {
                     setResults(data);
@@ -112,13 +123,14 @@ export function SearchPicker<T>({
                 onFocus={() => results.length > 0 && setOpen(true)}
                 onBlur={() => setTimeout(() => setOpen(false), 150)}
                 placeholder={placeholder}
-                className="h-10 pr-9 pl-9"
+                className={cn('h-10 pr-9 pl-9', inputClassName)}
                 autoFocus={autoFocus}
                 autoComplete="off"
             />
             {loading && <LoaderCircle className="text-muted-foreground absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin" />}
             {open && query.trim().length >= minLength && !loading && (
                 <div
+                    role="listbox"
                     className={cn(
                         'bg-popover text-popover-foreground absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-md border shadow-lg',
                         listClassName,
@@ -128,16 +140,18 @@ export function SearchPicker<T>({
                         <p className="text-muted-foreground px-3 py-4 text-center text-sm">Sin resultados</p>
                     ) : (
                         results.map((item, i) => (
-                            <button
-                                type="button"
+                            // div y no button: el resultado puede tener sus propios botones adentro (renderItem con pick)
+                            <div
+                                role="option"
+                                aria-selected={i === active}
                                 key={itemKey(item)}
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => pick(item)}
                                 onMouseEnter={() => setActive(i)}
-                                className={cn('block w-full px-3 py-2 text-left text-sm', i === active && 'bg-muted')}
+                                className={cn('block w-full cursor-pointer px-3 py-2 text-left text-sm', i === active && 'bg-muted')}
                             >
-                                {renderItem(item)}
-                            </button>
+                                {renderItem(item, pick)}
+                            </div>
                         ))
                     )}
                 </div>

@@ -10,12 +10,14 @@
 import { BranchMenu } from '@/components/admin/common/branch-menu';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
 import { DocStatus, ExpiryBadge, statusOptions } from '@/components/admin/common/doc-status';
+import { levelsOf, PackageChain } from '@/components/admin/common/package-chain';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
+import { StockLeft } from '@/components/admin/common/stock-left';
 import { TableToolbar } from '@/components/admin/common/table-toolbar';
-import { packageSummary } from '@/components/admin/products/presentation-levels';
+import { countOf, plural } from '@/components/admin/products/presentation-levels';
 import { Pagination } from '@/components/shared/pagination';
 import { Button } from '@/components/ui/button';
 import { useCan } from '@/hooks/use-can';
@@ -279,14 +281,13 @@ function PurchaseItems({ purchase }: { purchase: Purchase }) {
                         <th className="px-4 py-2 font-medium">Lote</th>
                         <th className="px-4 py-2 font-medium">Vence</th>
                         <th className="px-4 py-2 text-right font-medium">Compró</th>
-                        <th className="px-4 py-2 font-medium">Queda</th>
+                        <th className="px-4 py-2 font-medium">Queda en stock</th>
                         <th className="px-4 py-2 text-right font-medium">Subtotal</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y">
                     {(purchase.items ?? []).map((item) => {
                         const left = Math.min(item.units, item.batch?.quantity ?? 0);
-                        const percent = item.units > 0 ? (left / item.units) * 100 : 0;
                         return (
                             <tr key={item.id}>
                                 <td className="px-4 py-2">
@@ -294,9 +295,12 @@ function PurchaseItems({ purchase }: { purchase: Purchase }) {
                                         {item.product.name} <span className="text-muted-foreground font-normal">{item.product.concentration}</span>
                                     </p>
                                     {item.presentation && (
-                                        <p className="text-muted-foreground text-xs">
-                                            {packageSummary(item.presentation.package, item.presentation.factor, item.product.base_unit ?? 'unidad')}
-                                        </p>
+                                        <PackageChain
+                                            size="sm"
+                                            pkg={item.presentation.package}
+                                            levels={levelsOf(item.product.presentations ?? [], item.presentation.id)}
+                                            className="mt-1"
+                                        />
                                     )}
                                 </td>
                                 <td className="num px-4 py-2">{item.batch_number}</td>
@@ -304,22 +308,16 @@ function PurchaseItems({ purchase }: { purchase: Purchase }) {
                                     <ExpiryBadge date={item.expires_at} emptyLabel="Sin vencimiento" />
                                 </td>
                                 <td className="num px-4 py-2 text-right">
-                                    {item.quantity} × {money(item.cost)}
-                                    <span className="text-muted-foreground block text-[11px]">{item.units.toLocaleString('es')} unidades</span>
+                                    {item.presentation ? countOf(item.quantity, item.presentation.package) : item.quantity} × {money(item.cost)}
+                                    <span className="text-muted-foreground block text-[11px]">
+                                        = {item.units.toLocaleString('es')} {plural(item.product.base_unit ?? 'unidad')}
+                                    </span>
                                 </td>
                                 <td className="px-4 py-2">
                                     {cancelled ? (
                                         <span className="text-muted-foreground text-xs">Anulada</span>
                                     ) : (
-                                        <div className="w-32">
-                                            <span className="num text-xs">
-                                                <span className="font-semibold">{left.toLocaleString('es')}</span>
-                                                <span className="text-muted-foreground"> de {item.units.toLocaleString('es')}</span>
-                                            </span>
-                                            <div className="bg-muted mt-1 h-1.5 overflow-hidden rounded-full">
-                                                <div className="bg-chart-1 h-full rounded-full" style={{ width: `${percent}%` }} />
-                                            </div>
-                                        </div>
+                                        <StockLeft left={left} total={item.units} unit={item.product.base_unit ?? 'unidad'} pkg={item.presentation} />
                                     )}
                                 </td>
                                 <td className="num px-4 py-2 text-right font-medium">{money(item.subtotal)}</td>

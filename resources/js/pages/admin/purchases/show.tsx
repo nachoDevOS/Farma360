@@ -11,19 +11,21 @@
 import { ReasonDialog } from '@/components/admin/common/confirm-dialog';
 import { DataTable, Detail, Td, Th } from '@/components/admin/common/data-table';
 import { DocStatus, ExpiryBadge } from '@/components/admin/common/doc-status';
+import { levelsOf, PackageChain } from '@/components/admin/common/package-chain';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
 import { SegmentedControl } from '@/components/admin/common/segmented-control';
 import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
+import { StockLeft } from '@/components/admin/common/stock-left';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import { BatchDetail, BatchOrigin, type BatchWithDetail } from '@/components/admin/inventory/batch-detail';
-import { countOf, packageSummary, plural } from '@/components/admin/products/presentation-levels';
+import { countOf, plural } from '@/components/admin/products/presentation-levels';
 import { Button } from '@/components/ui/button';
 import { useCan } from '@/hooks/use-can';
 import AdminLayout from '@/layouts/admin/admin-layout';
 import { formatDate, formatDay, money } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { type Presentation, type Purchase, type PurchaseItem } from '@/types/admin/pharmacy';
+import { type Purchase, type PurchaseItem } from '@/types/admin/pharmacy';
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, Ban, Boxes, ChevronRight, ClipboardList, Eye, Info, Store, Truck, Wallet } from 'lucide-react';
 import { Fragment, useState } from 'react';
@@ -165,94 +167,6 @@ export default function PurchaseShow({ purchase, lots, movementTypes }: Props) {
             />
         </AdminLayout>
     );
-}
-
-/** "▲ +25% que la compra anterior" en rojo (subió), "▼ −10%" en verde (bajó). */
-/**
- * Cuánto queda en stock de lo que entró con esta compra: "30 de 30 tabletas · 1 caja", barra con color
- * (verde = casi todo, ámbar = poco, gris = agotado) y en palabras qué pasó: nada salió, salieron N o agotado.
- */
-function StockLeft({
-    left,
-    units,
-    percent,
-    unit,
-    pkg,
-}: {
-    left: number;
-    units: number;
-    percent: number;
-    unit: string;
-    pkg: { package: string; factor: number } | null;
-}) {
-    const out = units - left;
-    const tone = left === 0 ? 'empty' : percent <= 25 ? 'low' : 'ok';
-    const packages = pkg && left > 0 && left % pkg.factor === 0 ? countOf(left / pkg.factor, pkg.package) : null;
-
-    return (
-        <div className="w-44 text-xs">
-            <div className="flex items-baseline justify-between gap-2">
-                <span className="num">
-                    <span className="text-foreground text-sm font-semibold">{left.toLocaleString('es')}</span>
-                    <span className="text-muted-foreground">
-                        {' '}
-                        de {units.toLocaleString('es')} {plural(unit)}
-                    </span>
-                </span>
-                <span
-                    className={cn(
-                        'num font-semibold',
-                        tone === 'ok' && 'text-emerald-600 dark:text-emerald-400',
-                        tone === 'low' && 'text-amber-600 dark:text-amber-400',
-                        tone === 'empty' && 'text-muted-foreground',
-                    )}
-                >
-                    {Math.round(percent)}%
-                </span>
-            </div>
-            <div className="bg-muted mt-1 h-1.5 overflow-hidden rounded-full">
-                <div
-                    className={cn(
-                        'h-full rounded-full transition-[width] duration-700 ease-out',
-                        tone === 'ok' && 'bg-gradient-to-r from-emerald-500 to-teal-400',
-                        tone === 'low' && 'bg-gradient-to-r from-amber-500 to-orange-400',
-                    )}
-                    style={{ width: `${percent}%` }}
-                />
-            </div>
-            <p className="text-muted-foreground mt-1">
-                {left === 0 ? (
-                    <span className="font-medium">Agotado: salió todo</span>
-                ) : out === 0 ? (
-                    <>Nada salió aún{packages && <> · {packages}</>}</>
-                ) : (
-                    <>
-                        Salieron <span className="num text-foreground/80 font-medium">{out.toLocaleString('es')}</span>
-                        {packages && <> · quedan {packages}</>}
-                    </>
-                )}
-            </p>
-        </div>
-    );
-}
-
-type ItemLevel = { package: string; count: number; unit: string };
-
-/** Cómo viene el empaque comprado, de afuera hacia adentro: cada caja contiene 3 blísteres, cada blíster contiene 10 tabletas. */
-function levelsOf(presentations: Presentation[], presentationId: number | undefined): ItemLevel[] {
-    const levels: ItemLevel[] = [];
-    let level = presentations.find((p) => p.id === presentationId);
-    while (level?.parent_id) {
-        const inner = presentations.find((p) => p.id === level?.parent_id);
-        if (!inner || !level.contains) break;
-        levels.push({
-            package: level.package.toLowerCase(),
-            count: level.contains,
-            unit: level.contains === 1 ? inner.package.toLowerCase() : plural(inner.package),
-        });
-        level = inner;
-    }
-    return levels;
 }
 
 /**
@@ -404,7 +318,6 @@ function ItemsTable({ purchase }: { purchase: Purchase }) {
                     const unitCost = Number(item.unit_cost);
                     const margin = item.sale_unit_price ? ((item.sale_unit_price - unitCost) / item.sale_unit_price) * 100 : null;
                     const left = Math.min(item.units, item.remaining ?? 0);
-                    const percent = item.units > 0 ? (left / item.units) * 100 : 0;
                     const unit = item.product.base_unit?.toLowerCase() ?? 'unidad';
                     const isOpen = open.has(item.id);
                     return (
@@ -430,9 +343,12 @@ function ItemsTable({ purchase }: { purchase: Purchase }) {
                                                 <span className="text-muted-foreground font-normal">{item.product.concentration}</span>
                                             </span>
                                             {item.presentation && (
-                                                <span className="text-muted-foreground block text-xs">
-                                                    {packageSummary(item.presentation.package, item.presentation.factor, unit)}
-                                                </span>
+                                                <PackageChain
+                                                    size="sm"
+                                                    pkg={item.presentation.package}
+                                                    levels={levelsOf(item.product.presentations ?? [], item.presentation.id)}
+                                                    className="mt-1"
+                                                />
                                             )}
                                         </span>
                                     </button>
@@ -484,13 +400,7 @@ function ItemsTable({ purchase }: { purchase: Purchase }) {
                                     {cancelled ? (
                                         <span className="text-muted-foreground text-xs">Anulada</span>
                                     ) : (
-                                        <StockLeft
-                                            left={left}
-                                            units={item.units}
-                                            percent={percent}
-                                            unit={unit}
-                                            pkg={item.presentation && item.presentation.factor > 1 ? item.presentation : null}
-                                        />
+                                        <StockLeft left={left} total={item.units} unit={unit} pkg={item.presentation} />
                                     )}
                                 </Td>
                                 <Td align="right" className="num font-semibold">
@@ -563,7 +473,7 @@ function LotsList({ purchase, lots, movementTypes }: { purchase: Purchase; lots:
                         <Th>Lote</Th>
                         <Th>Producto</Th>
                         <Th>Vence</Th>
-                        <Th align="right">Entró → Queda</Th>
+                        <Th>Queda en stock</Th>
                         <Th>Origen</Th>
                     </>
                 }
@@ -592,9 +502,13 @@ function LotsList({ purchase, lots, movementTypes }: { purchase: Purchase; lots:
                                 <Td>
                                     <ExpiryBadge date={lot.expires_at} emptyLabel="Sin vencimiento" />
                                 </Td>
-                                <Td align="right" className="num">
-                                    <span className="text-muted-foreground">{lot.initial.toLocaleString('es')} → </span>
-                                    <span className="font-semibold">{lot.quantity.toLocaleString('es')}</span>
+                                <Td>
+                                    <StockLeft
+                                        left={lot.quantity}
+                                        total={lot.initial}
+                                        unit={item?.product.base_unit ?? 'unidad'}
+                                        pkg={item?.presentation}
+                                    />
                                 </Td>
                                 <Td>
                                     <BatchOrigin batch={lot} />

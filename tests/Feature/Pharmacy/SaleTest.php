@@ -3,6 +3,7 @@
 namespace Tests\Feature\Pharmacy;
 
 use App\Models\Indication;
+use App\Models\ProductPresentation;
 use App\Models\Sale;
 use App\Services\CashService;
 use App\Services\InventoryService;
@@ -168,8 +169,13 @@ class SaleTest extends TestCase
         $this->actingAs($cashier)->getJson('/admin/pos/search?q=Paracet')
             ->assertOk()
             ->assertJsonCount(2)
+            ->assertJsonPath('0.commercial_name', 'Paracetamolix')
             ->assertJsonPath('0.stock_units', 30)
-            ->assertJsonPath('0.promo_discount', 30);
+            ->assertJsonPath('0.promo_discount', 30)
+            // Qué trae cada empaque: la unidad suelta no tiene niveles, la caja contiene 100 unidades
+            ->assertJsonPath('0.breakdown', [])
+            ->assertJsonPath('1.package', 'caja')
+            ->assertJsonPath('1.breakdown', [['package' => 'caja', 'count' => 100, 'unit' => ProductPresentation::plural($product->base_unit)]]);
     }
 
     public function test_pos_search_finds_products_by_symptom()

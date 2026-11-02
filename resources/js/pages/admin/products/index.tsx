@@ -11,6 +11,7 @@ import { BranchMenu } from '@/components/admin/common/branch-menu';
 import { ConfirmDialog } from '@/components/admin/common/confirm-dialog';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
 import { StoredImage } from '@/components/admin/common/image-upload';
+import { describeLevels, levelsOf } from '@/components/admin/common/package-chain';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
@@ -211,8 +212,12 @@ export default function ProductsIndex({ products, filters, branchOptions, canSee
                                         <Td>
                                             <div className="flex flex-wrap gap-1">
                                                 {product.presentations.map((p) => (
-                                                    <span key={p.id} className="bg-muted/60 rounded px-1.5 py-0.5 text-xs whitespace-nowrap">
-                                                        {p.name} ·{' '}
+                                                    <span
+                                                        key={p.id}
+                                                        title={describeLevels(levelsOf(product.presentations, p.id)) || 'Unidad base'}
+                                                        className="bg-muted/60 rounded px-1.5 py-0.5 text-xs whitespace-nowrap"
+                                                    >
+                                                        <PresentationShort product={product} presentationId={p.id} /> ·{' '}
                                                         {p.is_sellable ? (
                                                             <span className="num">{money(p.sale_price)}</span>
                                                         ) : (
@@ -285,5 +290,25 @@ export default function ProductsIndex({ products, filters, branchOptions, canSee
                 }
             />
         </AdminLayout>
+    );
+}
+
+/** "Caja (3 blísteres)", "Blíster (10 tabletas)", "Tableta": el empaque y lo que trae su primer nivel; el resto en el title. */
+function PresentationShort({ product, presentationId }: { product: Product; presentationId?: number }) {
+    const presentation = product.presentations.find((p) => p.id === presentationId);
+    const [first] = levelsOf(product.presentations, presentationId);
+    if (!presentation) {
+        return null;
+    }
+    const name = presentation.package.charAt(0).toUpperCase() + presentation.package.slice(1);
+    return first ? (
+        <>
+            <span className="font-medium">{name}</span>{' '}
+            <span className="text-muted-foreground">
+                (<span className="num">{first.count}</span> {first.unit})
+            </span>
+        </>
+    ) : (
+        <span className="font-medium">{name}</span>
     );
 }

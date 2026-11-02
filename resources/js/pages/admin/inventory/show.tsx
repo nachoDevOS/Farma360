@@ -18,6 +18,7 @@ import { ActionButton, RowActions } from '@/components/admin/common/row-actions'
 import { SegmentedControl } from '@/components/admin/common/segmented-control';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
+import { StockLeft } from '@/components/admin/common/stock-left';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import { BatchDetail, BatchOrigin, type BatchWithDetail } from '@/components/admin/inventory/batch-detail';
 import { StockCharts, type StockDay } from '@/components/admin/inventory/stock-charts';
@@ -280,7 +281,7 @@ export default function InventoryShow({
                                         <Th>Lote</Th>
                                         <Th>Origen</Th>
                                         <Th>Vencimiento</Th>
-                                        <Th align="right">Entró → Queda</Th>
+                                        <Th>Queda en stock</Th>
                                         <Th align="right">Costo c/u</Th>
                                         <Th>Promoción</Th>
                                         {can('inventario.ajustar') && <Th align="right">Ajustar</Th>}
@@ -315,19 +316,8 @@ export default function InventoryShow({
                                                 <Td>
                                                     <ExpiryBadge date={batch.expires_at} emptyLabel="Sin vencimiento" />
                                                 </Td>
-                                                <Td align="right">
-                                                    <span className="num">
-                                                        <span className="text-muted-foreground">{batch.initial.toLocaleString('es')} → </span>
-                                                        <span className="font-semibold">{batch.quantity.toLocaleString('es')}</span>
-                                                    </span>
-                                                    {batch.initial > 0 && (
-                                                        <span className="bg-muted mt-1 ml-auto block h-1 w-20 overflow-hidden rounded-full">
-                                                            <span
-                                                                className="bg-chart-1 block h-full rounded-full"
-                                                                style={{ width: `${Math.min(100, (batch.quantity / batch.initial) * 100)}%` }}
-                                                            />
-                                                        </span>
-                                                    )}
+                                                <Td>
+                                                    <StockLeft left={batch.quantity} total={batch.initial} unit={product.base_unit} />
                                                 </Td>
                                                 <Td align="right">{money(batch.unit_cost)}</Td>
                                                 <Td>

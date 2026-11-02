@@ -43,6 +43,7 @@ class PurchaseController extends Controller
             'branch:id,name', 'supplier:id,name',
             'items' => fn ($q) => $q->with([
                 'product:id,name,concentration,base_unit',
+                'product.presentations:id,product_id,parent_id,package,contains,factor,name',
                 'presentation' => fn ($p) => $p->withTrashed()->select('id', 'name', 'package', 'factor'),
                 'batch:id,quantity',
             ]),

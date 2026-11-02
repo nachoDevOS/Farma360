@@ -10,6 +10,7 @@
  *   <BranchStockTable product={product} inventoryLink />         → stock por sucursal; con enlace a sus lotes
  */
 import { Detail } from '@/components/admin/common/data-table';
+import { levelsOf, levelsTotal, PackageChain } from '@/components/admin/common/package-chain';
 import { plural } from '@/components/admin/products/presentation-levels';
 import { StockBreakdown } from '@/components/admin/products/stock-breakdown';
 import { formatDate, formatDay, money } from '@/lib/format';
@@ -54,10 +55,19 @@ export function ProductRowDetail({ product }: { product: Product }) {
 }
 
 /** "10 blísteres", "10 tabletas" o "Unidad base". */
-function containsText(product: Product, p: Presentation): string {
-    if (!p.parent_id) return 'Unidad base';
-    const inner = product.presentations.find((other) => other.id === p.parent_id);
-    return `${p.contains} ${plural(inner?.parent_id ? inner.package : product.base_unit)}`;
+/** "cada caja contiene 3 blísteres" (y el total si tiene más niveles: "= 30 tabletas"); "Unidad base" en la más chica. */
+function ContainsText({ product, presentation }: { product: Product; presentation: Presentation }) {
+    const levels = levelsOf(product.presentations, presentation.id);
+    if (levels.length === 0) {
+        return <>Unidad base</>;
+    }
+    const total = levelsTotal(levels);
+    return (
+        <>
+            cada {levels[0].package} contiene <span className="num text-foreground/80 font-semibold">{levels[0].count}</span> {levels[0].unit}
+            {total && <span className="num ml-1 whitespace-nowrap">(= {total})</span>}
+        </>
+    );
 }
 
 const th = 'py-1.5 pr-3 text-[10px] font-semibold tracking-wider uppercase';
@@ -119,8 +129,12 @@ export function PresentationsTable({
                         const margin = price && cost !== null ? ((price - cost) / price) * 100 : null;
                         return (
                             <tr key={p.id}>
-                                <td className="py-1.5 pr-3 font-medium">{p.name}</td>
-                                <td className="text-muted-foreground py-1.5 pr-3">{containsText(product, p)}</td>
+                                <td className="py-1.5 pr-3" title={p.name}>
+                                    <PackageChain size="sm" pkg={p.package} levels={[]} withLevels={false} />
+                                </td>
+                                <td className="text-muted-foreground py-1.5 pr-3">
+                                    <ContainsText product={product} presentation={p} />
+                                </td>
                                 {!compact && <td className="num py-1.5 pr-3 text-right">{p.factor}</td>}
                                 <td className="num py-1.5 pr-3 text-right">{price !== null ? money(price) : '—'}</td>
                                 {!compact && (

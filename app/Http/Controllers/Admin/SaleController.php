@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Batch;
 use App\Models\Branch;
 use App\Models\Product;
+use App\Models\ProductPresentation;
 use App\Models\Sale;
 use App\Services\CashService;
 use App\Services\SaleService;
@@ -82,7 +83,7 @@ class SaleController extends Controller
         // Busca también por uso / síntoma: "dolor de cabeza" trae todo lo que sirve para eso
         $products = Product::where('is_active', true)
             ->search($search)
-            ->with(['presentations' => fn ($q) => $q->sellable(), 'indications:id,name'])
+            ->with(['presentations', 'indications:id,name', 'laboratory:id,name'])
             ->orderBy('name')
             ->limit(20)
             ->get();
@@ -96,25 +97,36 @@ class SaleController extends Controller
             ->get()
             ->groupBy('product_id');
 
-        return response()->json($products->flatMap(function (Product $p) use ($batches) {
+        return response()->json($products->flatMap(function (Product $p) use ($batches, $search) {
             $productBatches = $batches->get($p->id, collect());
             $first = $productBatches->first();
 
-            return $p->presentations->map(fn ($pres) => [
-                'product_id' => $p->id,
-                'product_name' => $p->fullName(),
-                'generic_name' => $p->generic_name,
-                'indications' => $p->indications->pluck('name'),
-                'requires_prescription' => $p->requires_prescription,
-                'is_controlled' => $p->is_controlled,
-                'presentation_id' => $pres->id,
-                'presentation_name' => $pres->name,
-                'factor' => $pres->factor,
-                'sale_price' => (float) $pres->sale_price,
-                'stock_units' => (int) $productBatches->sum('quantity'),
-                'next_expiry' => $first?->expires_at?->toDateString(),
-                'promo_discount' => $first?->activePromotion ? (float) $first->activePromotion->discount_percent : null,
-            ]);
+            // Si escanearon el código de una presentación (ej: la caja), va primero: Enter agrega esa
+            return $p->presentations->where('is_sellable', true)
+                ->sortByDesc(fn (ProductPresentation $pres) => $pres->barcode !== null && $pres->barcode === $search)
+                ->values()
+                ->map(fn ($pres) => [
+                    'product_id' => $p->id,
+                    'product_name' => $p->fullName(),
+                    'commercial_name' => $p->name,
+                    'concentration' => $p->concentration,
+                    'image' => $p->image,
+                    'laboratory' => $p->laboratory?->name,
+                    'generic_name' => $p->generic_name,
+                    'indications' => $p->indications->pluck('name'),
+                    'requires_prescription' => $p->requires_prescription,
+                    'is_controlled' => $p->is_controlled,
+                    'presentation_id' => $pres->id,
+                    'presentation_name' => $pres->name,
+                    'package' => mb_strtolower($pres->package ?: $p->base_unit),
+                    // Nivel por nivel: cada caja contiene 3 blísteres, cada blíster contiene 10 tabletas
+                    'breakdown' => $pres->breakdown($p->presentations),
+                    'factor' => $pres->factor,
+                    'sale_price' => (float) $pres->sale_price,
+                    'stock_units' => (int) $productBatches->sum('quantity'),
+                    'next_expiry' => $first?->expires_at?->toDateString(),
+                    'promo_discount' => $first?->activePromotion ? (float) $first->activePromotion->discount_percent : null,
+                ]);
         })->values());
     }
 
@@ -152,7 +164,8 @@ class SaleController extends Controller
         return Inertia::render('admin/sales/show', [
             'sale' => $sale->load([
                 'branch:id,name,address,phone', 'registeredBy:id,name', 'cancelledBy:id,name', 'payments', 'cashSession:id,status',
-                'items.product:id,name,concentration,pharmaceutical_form', 'items.batch:id,batch_number,expires_at',
+                'items.product:id,name,concentration,pharmaceutical_form', 'items.product.presentations' => fn ($q) => $q->withTrashed(),
+                'items.batch:id,batch_number,expires_at',
                 'items.presentation' => fn ($q) => $q->withTrashed(),
             ]),
             'paymentMethods' => config('farmacia.payment_methods'),
