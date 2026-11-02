@@ -118,6 +118,8 @@ class SaleController extends Controller
                     'is_controlled' => $p->is_controlled,
                     'presentation_id' => $pres->id,
                     'presentation_name' => $pres->name,
+                    // Escanearon el código de ESTA presentación: se agrega directo, sin preguntar cuántas
+                    'scanned' => $pres->barcode !== null && $pres->barcode === $search,
                     'package' => mb_strtolower($pres->package ?: $p->base_unit),
                     // Nivel por nivel: cada caja contiene 3 blísteres, cada blíster contiene 10 tabletas
                     'breakdown' => $pres->breakdown($p->presentations),

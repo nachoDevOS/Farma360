@@ -1,9 +1,11 @@
 /*
  * PÁGINA: Punto de venta  (ruta /admin/pos)
  *
- * 1. Buscar (nombre, genérico, síntoma o código de barras con lector) → se agrega al carrito. "3*alergin" agrega 3.
+ * 1. Buscar (nombre, genérico, síntoma o código de barras con lector). "3*alergin" pide 3.
  *    F2 vuelve al buscador, F4 va al monto del pago. El carrito sobrevive a recargar la página (useForm con clave).
- * 2. Cantidades por presentación (unidad, blíster, caja).
+ * 2. Cuánto lleva (QuantityDialog): se escriben las tabletas y se arma solo con los empaques más grandes
+ *    (11 tabletas → 1 blíster + 1 tableta), o se ajusta caja / blíster / tableta con − / +.
+ *    Escaneado o con un solo empaque se agrega directo.
  * 3. Cliente (opcional), receta si hay controlados, y formas de pago (se pueden combinar; billetes rápidos en efectivo).
  * El precio final lo calcula Laravel (SaleService): usa el lote que vence primero y su promoción.
  * Aquí se muestra una estimación con la promoción del primer lote.
@@ -17,6 +19,7 @@ import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import { countOf, plural } from '@/components/admin/products/presentation-levels';
 import InputError from '@/components/shared/input-error';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import AdminLayout from '@/layouts/admin/admin-layout';
 import { money } from '@/lib/format';
@@ -31,6 +34,7 @@ import {
     LoaderCircle,
     type LucideIcon,
     Minus,
+    PackageOpen,
     Pill,
     Plus,
     QrCode,
@@ -55,8 +59,10 @@ interface Props {
 type CartLine = PosLookup & { quantity: number; siblings?: PosLookup[] };
 type Packing = { option: PosLookup; quantity: number }[];
 type PackingSuggestion = { productId: number; units: number; unitWord: string; packing: Packing; savings: number };
-/** Un producto del buscador con sus presentaciones a la venta (options[0] = la que agrega Enter: la escaneada o la más chica). */
-type PosProduct = PosLookup & { options: PosLookup[]; chosen?: PosLookup };
+/** Un producto del buscador con sus presentaciones a la venta (options[0] = la escaneada o la más chica). */
+type PosProduct = PosLookup & { options: PosLookup[] };
+/** Producto abierto en la ventana de cantidad: sus presentaciones y lo que ya trae puesto (por presentation_id). */
+type Choosing = { options: PosLookup[]; initial: Record<number, number>; editing: boolean };
 type PaymentRow = { method: string; amount: string; reference: string };
 type CustomerLookup = { id: number; name: string; document_type: string; document_number: string | null };
 
@@ -88,8 +94,8 @@ function parseQuantity(query: string): { quantity: number; text: string } {
 
 const priceOf = (option: PosLookup, quantity: number) => round(option.sale_price * quantity * (1 - (option.promo_discount ?? 0) / 100));
 
-/** Arma las unidades con los empaques más grandes primero: 11 tabletas → 1 blíster (10) + 1 tableta. Null si no cierra justo. */
-function bestPacking(units: number, options: PosLookup[]): Packing | null {
+/** Arma las unidades con los empaques más grandes primero: 11 tabletas → 1 blíster (10) + 1 tableta. left: lo que no entra justo. */
+function packUnits(units: number, options: PosLookup[]): { packing: Packing; left: number } {
     const packing: Packing = [];
     let left = units;
     [...options]
@@ -102,7 +108,22 @@ function bestPacking(units: number, options: PosLookup[]): Packing | null {
                 left -= quantity * option.factor;
             }
         });
+    return { packing, left };
+}
+
+/** Como packUnits, pero null si no cierra justo. */
+function bestPacking(units: number, options: PosLookup[]): Packing | null {
+    const { packing, left } = packUnits(units, options);
     return left === 0 ? packing : null;
+}
+
+/** La unidad base en palabras según la cantidad: "tableta" / "tabletas" (de la presentación suelta o del último nivel de un empaque). */
+function baseUnitWord(options: PosLookup[], count: number): string {
+    const loose = options.find((option) => option.factor === 1)?.package;
+    if (loose) {
+        return count === 1 ? loose : plural(loose);
+    }
+    return options.find((option) => option.breakdown?.length)?.breakdown.at(-1)?.unit ?? 'unidades';
 }
 
 /**
@@ -136,13 +157,7 @@ function packingSuggestion(cart: CartLine[], productId: number): PackingSuggesti
     if (savings < 0.01) {
         return null;
     }
-    const loose = siblings.find((option) => option.factor === 1)?.package;
-    const unitWord = loose
-        ? units === 1
-            ? loose
-            : plural(loose)
-        : (siblings.find((o) => o.breakdown?.length)?.breakdown.at(-1)?.unit ?? 'unidades');
-    return { productId, units, unitWord, packing, savings };
+    return { productId, units, unitWord: baseUnitWord(siblings, units), packing, savings };
 }
 
 /** Billetes de Bolivia para sugerir con cuánto paga el cliente. */
@@ -164,6 +179,8 @@ export default function Pos({ session, paymentMethods }: Props) {
     const [pendingQuantity, setPendingQuantity] = useState(1);
     // Última línea agregada: destella en el carrito (la clave cambia en cada agregado para repetir el destello)
     const [flash, setFlash] = useState<{ id: number; key: number } | null>(null);
+    // Producto en la ventana "¿cuántas lleva?" (null = cerrada)
+    const [choosing, setChoosing] = useState<Choosing | null>(null);
     // Con clave: si se recarga la página no se pierde el carrito a medio cobrar
     const { data, setData, transform, post, processing, errors, reset } = useForm('pos-sale', {
         cart: [] as CartLine[],
@@ -211,7 +228,6 @@ export default function Pos({ session, paymentMethods }: Props) {
     const change = round(paid - total);
     const needsPrescription = data.cart.some((line) => line.is_controlled);
     const unitsInCart = (productId: number) => data.cart.filter((l) => l.product_id === productId).reduce((s, l) => s + l.quantity * l.factor, 0);
-    const quantityInCart = (presentationId: number) => data.cart.find((l) => l.presentation_id === presentationId)?.quantity ?? 0;
     const articles = data.cart.reduce((sum, line) => sum + line.quantity, 0);
 
     const addLine = (item: PosLookup, quantity = 1, siblings?: PosLookup[]) => {
@@ -235,14 +251,49 @@ export default function Pos({ session, paymentMethods }: Props) {
         );
     };
 
-    /** Cambia las líneas del producto por la combinación sugerida, en el lugar de la primera. */
-    const applyPacking = (suggestion: PackingSuggestion) => {
-        const first = data.cart.findIndex((line) => line.product_id === suggestion.productId);
-        const siblings = data.cart[first]?.siblings;
-        const others = data.cart.filter((line) => line.product_id !== suggestion.productId);
-        const packed = suggestion.packing.map(({ option, quantity }) => ({ ...option, quantity, siblings }));
-        setData('cart', [...others.slice(0, first), ...packed, ...others.slice(first)]);
-        setFlash({ id: packed[0].presentation_id, key: Date.now() });
+    /** Cambia las líneas del producto por otra combinación, en el lugar de la primera (o al final si no estaba). Vacía = lo quita. */
+    const setProductLines = (productId: number, packing: Packing, siblings?: PosLookup[]) => {
+        const first = data.cart.findIndex((line) => line.product_id === productId);
+        const others = data.cart.filter((line) => line.product_id !== productId);
+        const at = first >= 0 ? first : others.length;
+        const packed = packing.map(({ option, quantity }) => ({ ...option, quantity, siblings }));
+        setData('cart', [...others.slice(0, at), ...packed, ...others.slice(at)]);
+        if (packed.length > 0) {
+            setFlash({ id: packed[0].presentation_id, key: Date.now() });
+        }
+    };
+
+    const applyPacking = (suggestion: PackingSuggestion) =>
+        setProductLines(suggestion.productId, suggestion.packing, data.cart.find((line) => line.product_id === suggestion.productId)?.siblings);
+
+    /** Abre "¿cuántas lleva?": con lo que ya hay en el carrito de ese producto, o con la cantidad pedida de la presentación más chica. */
+    const openChooser = (options: PosLookup[], quantity = 1) => {
+        const lines = data.cart.filter((line) => line.product_id === options[0].product_id);
+        const smallest = [...options].sort((a, b) => a.factor - b.factor)[0];
+        setChoosing({
+            options,
+            initial: lines.length
+                ? Object.fromEntries(lines.map((line) => [line.presentation_id, line.quantity]))
+                : { [smallest.presentation_id]: quantity },
+            editing: lines.length > 0,
+        });
+        setPendingQuantity(1);
+    };
+
+    /** Cierra la ventana y deja el cursor en el buscador para el siguiente producto. */
+    const closeChooser = () => {
+        setChoosing(null);
+        requestAnimationFrame(() => search.current?.focus());
+    };
+
+    /** Elegido en el buscador: escaneado o con un solo empaque va directo al carrito; si no, se pregunta cuánto. */
+    const pickProduct = (product: PosProduct) => {
+        const direct = product.options.find((option) => option.scanned) ?? (product.options.length === 1 ? product.options[0] : null);
+        if (direct) {
+            addLine(direct, pendingQuantity, product.options);
+        } else {
+            openChooser(product.options, pendingQuantity);
+        }
     };
 
     const setPayment = (index: number, field: keyof PaymentRow, value: string) =>
@@ -296,18 +347,13 @@ export default function Pos({ session, paymentMethods }: Props) {
                             return route('admin.pos.search', { q: text });
                         }}
                         mapResults={groupByProduct}
-                        onPick={(product) => addLine(product.chosen ?? product.options[0], pendingQuantity, product.options)}
+                        onPick={pickProduct}
                         inputClassName="h-12 rounded-xl text-base shadow-sm transition-shadow focus-visible:shadow-lg focus-visible:shadow-sky-500/15"
                         itemKey={(product) => product.product_id}
                         placeholder="Buscar producto, genérico, síntoma (ej: dolor de cabeza) o escanear código…  (F2)"
                         listClassName="max-h-[36rem] divide-y"
-                        renderItem={(product, pick) => (
-                            <ProductResult
-                                product={product}
-                                quantity={pendingQuantity}
-                                inCart={quantityInCart}
-                                onChoose={(option) => pick({ ...product, chosen: option })}
-                            />
+                        renderItem={(product) => (
+                            <ProductResult product={product} quantity={pendingQuantity} inCart={unitsInCart(product.product_id)} />
                         )}
                     />
                     <p className="text-muted-foreground -mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs">
@@ -357,6 +403,9 @@ export default function Pos({ session, paymentMethods }: Props) {
                                                     flashKey={flash?.id === line.presentation_id ? flash.key : null}
                                                     total={lineTotal(line)}
                                                     overStock={unitsInCart(line.product_id) > line.stock_units}
+                                                    onEdit={
+                                                        (line.siblings?.length ?? 0) > 1 ? () => openChooser(line.siblings as PosLookup[]) : undefined
+                                                    }
                                                     onQuantity={(quantity) => setQuantity(i, quantity)}
                                                     onRemove={() =>
                                                         setData(
@@ -375,6 +424,17 @@ export default function Pos({ session, paymentMethods }: Props) {
                     </Panel>
                     <InputError message={err.items} />
                 </div>
+
+                {choosing && (
+                    <QuantityDialog
+                        {...choosing}
+                        onConfirm={(packing) => {
+                            setProductLines(choosing.options[0].product_id, packing, choosing.options);
+                            closeChooser();
+                        }}
+                        onClose={closeChooser}
+                    />
+                )}
 
                 {/* DERECHA: cliente, receta, pago y cobro (queda fija al bajar) */}
                 <div className="flex flex-col gap-4 xl:sticky xl:top-4">
@@ -564,174 +624,318 @@ export default function Pos({ session, paymentMethods }: Props) {
     );
 }
 
-/**
- * Resultado del buscador: un producto (foto, nombre, genérico, laboratorio, usos) y abajo sus presentaciones como botones:
- * tocar una agrega ESA (tableta, blíster, caja); tocar el resto de la tarjeta o Enter agrega la primera (marcada con Enter).
- */
+/** Resultado del buscador: foto, nombre, genérico, laboratorio, usos, precio de cada empaque y stock. Tocarlo (o Enter) pregunta cuánto. */
 function ProductResult({
     product,
     quantity,
     inCart,
-    onChoose,
 }: {
     product: PosProduct;
-    /** Cantidad escrita antes del nombre ("3*alergin"): se muestra para que se vea cuánto se va a agregar */
+    /** Cantidad escrita antes del nombre ("3*alergin"): se muestra para que se vea cuánto se va a pedir */
     quantity: number;
-    inCart: (presentationId: number) => number;
-    onChoose: (option: PosLookup) => void;
+    /** Unidades base de este producto que ya están en el carrito */
+    inCart: number;
 }) {
     const meta = [product.generic_name, product.laboratory].filter(Boolean).join(' · ');
     const options = [...product.options].sort((a, b) => a.factor - b.factor);
-    const defaultId = product.options[0].presentation_id;
-    // Unidad base en singular: la presentación suelta ("tableta"); si no se vende suelta, la sacamos del último nivel ("tabletas")
-    const looseUnit = options.find((o) => o.factor === 1)?.package;
-    const stockUnit = looseUnit
-        ? product.stock_units === 1
-            ? looseUnit
-            : plural(looseUnit)
-        : (options.find((o) => o.breakdown?.length)?.breakdown.at(-1)?.unit ?? options[0].package);
 
     return (
-        <div className="flex gap-3 py-1">
+        <div className="flex items-center gap-3 py-1">
             <StoredImage
                 path={product.image}
                 alt={product.product_name}
                 fallback={<Pill className="size-5" />}
-                className="size-16 shrink-0 rounded-lg"
+                className="size-14 shrink-0 rounded-lg"
             />
             <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                    <div className="min-w-0">
-                        <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                            <span className="truncate text-base font-semibold">{product.commercial_name ?? product.product_name}</span>
-                            {product.concentration && <span className="text-muted-foreground text-sm">{product.concentration}</span>}
-                            {product.is_controlled ? (
-                                <span className="rounded bg-red-100 px-1.5 py-px text-[10px] font-bold tracking-wide text-red-700 dark:bg-red-950 dark:text-red-300">
-                                    CONTROLADO
-                                </span>
-                            ) : (
-                                product.requires_prescription && (
-                                    <span className="rounded bg-amber-100 px-1.5 py-px text-[10px] font-bold tracking-wide text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                                        RECETA
-                                    </span>
-                                )
-                            )}
-                        </p>
-                        {meta && <p className="text-muted-foreground truncate text-xs">{meta}</p>}
-                    </div>
-                    <span className="flex shrink-0 items-center gap-2">
-                        {quantity > 1 && (
-                            <span className="from-primary animate-in zoom-in-50 num rounded-full bg-gradient-to-r to-sky-500 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
-                                ×{quantity}
-                            </span>
-                        )}
-                        <span className="text-muted-foreground num text-xs">
-                            Stock: <span className="text-foreground font-semibold">{product.stock_units.toLocaleString('es')}</span> {stockUnit}
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="truncate text-base font-semibold">{product.commercial_name ?? product.product_name}</span>
+                    {product.concentration && <span className="text-muted-foreground text-sm">{product.concentration}</span>}
+                    {product.is_controlled ? (
+                        <span className="rounded bg-red-100 px-1.5 py-px text-[10px] font-bold tracking-wide text-red-700 dark:bg-red-950 dark:text-red-300">
+                            CONTROLADO
                         </span>
-                    </span>
-                </div>
-                {product.indications.length > 0 && (
-                    <p className="mt-1 flex flex-wrap gap-1">
-                        {product.indications.slice(0, 3).map((indication) => (
-                            <span key={indication} className="bg-primary/10 text-primary rounded-full px-1.5 py-px text-[10px] font-medium">
-                                {indication}
+                    ) : (
+                        product.requires_prescription && (
+                            <span className="rounded bg-amber-100 px-1.5 py-px text-[10px] font-bold tracking-wide text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                                RECETA
                             </span>
-                        ))}
-                    </p>
-                )}
-                <div className="mt-2 grid [grid-template-columns:repeat(auto-fill,minmax(11rem,1fr))] gap-2">
+                        )
+                    )}
+                </p>
+                {meta && <p className="text-muted-foreground truncate text-xs">{meta}</p>}
+                {/* Precio de cada empaque en una línea: Tableta Bs 1,50 · Blíster Bs 12,00 · Caja Bs 35,00 */}
+                <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                     {options.map((option) => (
-                        <OptionButton
-                            key={option.presentation_id}
-                            option={option}
-                            isDefault={option.presentation_id === defaultId && options.length > 1}
-                            inCart={inCart(option.presentation_id)}
-                            onChoose={() => onChoose(option)}
-                        />
+                        <span key={option.presentation_id} className="inline-flex items-center gap-1">
+                            <span className="text-muted-foreground capitalize">{option.package}</span>
+                            <span className="num font-semibold">{money(priceOf(option, 1))}</span>
+                            {option.promo_discount && <PromoBadge percent={option.promo_discount} />}
+                        </span>
                     ))}
-                </div>
+                </p>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+                <span className={cn('num text-xs', product.stock_units === 0 ? 'font-semibold text-red-600' : 'text-muted-foreground')}>
+                    {product.stock_units === 0 ? (
+                        'Sin stock'
+                    ) : (
+                        <>
+                            Stock: <span className="text-foreground font-semibold">{product.stock_units.toLocaleString('es')}</span>{' '}
+                            {baseUnitWord(options, product.stock_units)}
+                        </>
+                    )}
+                </span>
+                {inCart > 0 && (
+                    <span className="text-primary num text-[11px] font-semibold">
+                        En carrito: {inCart.toLocaleString('es')} {baseUnitWord(options, inCart)}
+                    </span>
+                )}
+                <span className="text-primary flex items-center gap-1.5 text-xs font-medium">
+                    {quantity > 1 && <span className="num font-bold">×{quantity}</span>}
+                    {options.length > 1 ? 'Elegir cantidad' : 'Agregar'}
+                    <kbd className="bg-muted text-muted-foreground rounded border px-1 text-[9px] font-medium">Enter</kbd>
+                </span>
             </div>
         </div>
     );
 }
 
-/** Una presentación para vender: píldora del empaque, qué trae, precio (con promoción) y cuántas hay. */
-function OptionButton({ option, isDefault, inCart, onChoose }: { option: PosLookup; isDefault: boolean; inCart: number; onChoose: () => void }) {
-    const available = Math.floor(option.stock_units / option.factor);
-    const finalPrice = option.promo_discount ? round(option.sale_price * (1 - option.promo_discount / 100)) : option.sale_price;
-    const first = option.breakdown?.[0];
+/**
+ * "¿CUÁNTAS LLEVA?": arriba se escriben las tabletas y se arma solo con los empaques más grandes
+ * (11 → 1 blíster + 1 tableta); abajo cada empaque con − / + por si el cliente pide otra cosa (ej: 11 tabletas sueltas).
+ * Enter agrega. Abajo, en palabras: "11 tabletas = 1 blíster + 1 tableta", el total y cuánto ahorra frente a sueltas.
+ */
+function QuantityDialog({
+    options,
+    initial,
+    editing,
+    onConfirm,
+    onClose,
+}: Choosing & { onConfirm: (packing: Packing) => void; onClose: () => void }) {
+    const product = options[0];
+    // De la más grande a la más chica: igual que se arma (caja, blíster, tableta)
+    const sorted = [...options].sort((a, b) => b.factor - a.factor);
+    const unitsOf = (quantities: Record<number, number>) => sorted.reduce((sum, o) => sum + (quantities[o.presentation_id] ?? 0) * o.factor, 0);
+    const [quantities, setQuantities] = useState<Record<number, number>>(initial);
+    const [typed, setTyped] = useState(String(unitsOf(initial)));
+    // Tabletas que no se pudieron armar porque ese empaque no se vende suelto
+    const [left, setLeft] = useState(0);
+    const unitsInput = useRef<HTMLInputElement>(null);
+
+    const units = unitsOf(quantities);
+    const packing: Packing = sorted
+        .filter((o) => (quantities[o.presentation_id] ?? 0) > 0)
+        .map((o) => ({ option: o, quantity: quantities[o.presentation_id] }));
+    const total = round(packing.reduce((sum, { option, quantity }) => sum + priceOf(option, quantity), 0));
+    const loose = sorted.find((o) => o.factor === 1 && o.sale_price > 0);
+    const savings = loose && packing.some(({ option }) => option.factor > 1) ? round(priceOf(loose, units) - total) : 0;
+    const overStock = units > product.stock_units;
+    const canConfirm = (units > 0 || editing) && !overStock;
+
+    const typeUnits = (value: string) => {
+        setTyped(value);
+        const result = packUnits(Math.max(0, Math.floor(Number(value) || 0)), sorted);
+        setQuantities(Object.fromEntries(result.packing.map(({ option, quantity }) => [option.presentation_id, quantity])));
+        setLeft(result.left);
+    };
+
+    const setQuantity = (option: PosLookup, quantity: number) => {
+        const next = { ...quantities, [option.presentation_id]: Math.max(0, quantity) };
+        setQuantities(next);
+        setTyped(String(unitsOf(next)));
+        setLeft(0);
+    };
+
+    const confirm = () => {
+        if (canConfirm) {
+            onConfirm(packing);
+        }
+    };
 
     return (
-        <button
-            type="button"
-            title={describeLevels(option.breakdown ?? []) || 'Unidad suelta'}
-            onClick={(e) => {
-                e.stopPropagation();
-                onChoose();
-            }}
-            className={cn(
-                'group/opt bg-card relative flex flex-col gap-1 rounded-lg p-2.5 text-left ring-1 transition-all duration-150',
-                'hover:ring-primary hover:bg-primary/5 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.98]',
-                isDefault ? 'ring-primary/40' : 'ring-border',
-                available === 0 && 'opacity-55',
-            )}
-        >
-            <span className="flex items-center justify-between gap-2">
-                <PackageChain size="sm" pkg={option.package ?? option.presentation_name} levels={[]} withLevels={false} />
-                <span className="flex items-center gap-1">
-                    {option.promo_discount && <PromoBadge percent={option.promo_discount} />}
-                    <span className="num font-display text-base font-bold">{money(finalPrice)}</span>
-                </span>
-            </span>
-            <span className="text-muted-foreground flex items-center justify-between gap-2 text-[11px]">
-                <span className="truncate">
-                    {first ? (
-                        <>
-                            trae <span className="num text-foreground/80 font-semibold">{first.count}</span> {first.unit}
-                        </>
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent
+                className="max-w-xl gap-5"
+                onOpenAutoFocus={(e) => {
+                    e.preventDefault();
+                    unitsInput.current?.focus();
+                    unitsInput.current?.select();
+                }}
+                onCloseAutoFocus={(e) => e.preventDefault()}
+                onKeyDown={(e) => {
+                    // Enter agrega (sin enviar el formulario de la venta)
+                    if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
+                        e.preventDefault();
+                        confirm();
+                    }
+                }}
+            >
+                <div className="flex items-center gap-3 pr-6">
+                    <StoredImage
+                        path={product.image}
+                        alt={product.product_name}
+                        fallback={<Pill className="size-5" />}
+                        className="size-14 shrink-0 rounded-lg"
+                    />
+                    <div className="min-w-0">
+                        <DialogTitle className="font-display truncate text-lg">
+                            {product.commercial_name ?? product.product_name}{' '}
+                            {product.concentration && <span className="text-muted-foreground text-base font-normal">{product.concentration}</span>}
+                        </DialogTitle>
+                        <DialogDescription className="num">
+                            Hay {product.stock_units.toLocaleString('es')} {baseUnitWord(sorted, product.stock_units)} en esta sucursal
+                        </DialogDescription>
+                    </div>
+                </div>
+
+                {/* 1. Cuántas tabletas: se arma solo */}
+                <label className="grid gap-1.5">
+                    <span className="text-sm font-medium">¿Cuántas {baseUnitWord(sorted, 2)} lleva el cliente?</span>
+                    <span className="relative">
+                        <Input
+                            ref={unitsInput}
+                            type="number"
+                            min={0}
+                            step={1}
+                            inputMode="numeric"
+                            onKeyDown={blockFractionKeys}
+                            value={typed}
+                            onChange={(e) => typeUnits(e.target.value)}
+                            className="num h-14 pr-28 text-2xl font-bold"
+                        />
+                        <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-sm">
+                            {baseUnitWord(sorted, units)}
+                        </span>
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                        Se arma solo con los empaques más grandes. Si el cliente pide otra cosa, cámbialo abajo.
+                    </span>
+                </label>
+
+                {/* 2. Cada empaque con − / + */}
+                <ul className="grid gap-2">
+                    {sorted.map((option) => {
+                        const quantity = quantities[option.presentation_id] ?? 0;
+                        return (
+                            <li
+                                key={option.presentation_id}
+                                className={cn(
+                                    'flex items-center gap-3 rounded-lg px-3 py-2.5 ring-1 transition-colors',
+                                    quantity > 0 ? 'bg-primary/5 ring-primary/40' : 'ring-border',
+                                )}
+                            >
+                                <div className="min-w-0 flex-1">
+                                    <PackageChain pkg={option.package ?? option.presentation_name} levels={[]} withLevels={false} />
+                                    <p className="text-muted-foreground mt-1 text-xs">
+                                        {option.factor > 1 ? (
+                                            <>
+                                                trae{' '}
+                                                <span className="num text-foreground/80 font-semibold">{option.factor.toLocaleString('es')}</span>{' '}
+                                                {baseUnitWord(sorted, option.factor)}
+                                            </>
+                                        ) : (
+                                            'unidad suelta'
+                                        )}
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <span className="flex items-center justify-end gap-1">
+                                        {option.promo_discount && <PromoBadge percent={option.promo_discount} />}
+                                        <span className="num font-semibold">{money(priceOf(option, 1))}</span>
+                                    </span>
+                                    <span className="text-muted-foreground text-[11px]">c/u</span>
+                                </div>
+                                <div className="stepper" data-active={quantity > 0 ? 'true' : undefined}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setQuantity(option, quantity - 1)}
+                                        disabled={quantity <= 0}
+                                        aria-label="Menos"
+                                    >
+                                        <Minus className="size-3.5" />
+                                    </button>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        className="text-sm"
+                                        value={quantity}
+                                        step={1}
+                                        inputMode="numeric"
+                                        onKeyDown={blockFractionKeys}
+                                        onChange={(e) => setQuantity(option, Math.floor(Number(e.target.value) || 0))}
+                                        onFocus={(e) => e.target.select()}
+                                        aria-label={`Cantidad de ${option.package}`}
+                                    />
+                                    <button type="button" onClick={() => setQuantity(option, quantity + 1)} aria-label="Más">
+                                        <Plus className="size-3.5" />
+                                    </button>
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+
+                {/* 3. En palabras y el total */}
+                <div className="bg-muted/50 grid gap-1.5 rounded-xl p-4">
+                    {packing.length > 0 ? (
+                        <p className="text-sm">
+                            <span className="num font-semibold">
+                                {units.toLocaleString('es')} {baseUnitWord(sorted, units)}
+                            </span>
+                            {(packing.length > 1 || packing[0].option.factor > 1) && (
+                                <>
+                                    {' = '}
+                                    {packing.map(({ option, quantity }, i) => (
+                                        <span key={option.presentation_id}>
+                                            {i > 0 && ' + '}
+                                            <span className="num font-semibold">{countOf(quantity, option.package)}</span>
+                                        </span>
+                                    ))}
+                                </>
+                            )}
+                        </p>
                     ) : (
-                        'unidad suelta'
+                        <p className="text-muted-foreground text-sm">{editing ? 'Sin cantidad: se quita del carrito.' : 'Escribe cuántas lleva.'}</p>
                     )}
-                </span>
-                {option.promo_discount && <span className="num line-through">{money(option.sale_price)}</span>}
-            </span>
-            <span className="flex items-center justify-between gap-2">
-                <StockPill available={available} pkg={option.package ?? 'unidad'} />
-                {inCart > 0 ? (
-                    <span className="text-primary text-[10px] font-semibold">En carrito: {inCart}</span>
-                ) : (
-                    isDefault && <kbd className="bg-muted text-muted-foreground rounded border px-1 text-[9px] font-medium">Enter</kbd>
-                )}
-            </span>
-            <span className="bg-primary absolute -top-1.5 -right-1.5 flex size-5 scale-0 items-center justify-center rounded-full text-white shadow transition-transform duration-150 group-hover/opt:scale-100">
-                <Plus className="size-3" />
-            </span>
-        </button>
-    );
-}
+                    {left > 0 && (
+                        <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                            No se venden {baseUnitWord(sorted, 2)} sueltas: sobran {left.toLocaleString('es')} que no entran en un empaque.
+                        </p>
+                    )}
+                    {overStock && (
+                        <p className="text-xs font-semibold text-red-600">
+                            No alcanza: solo hay {product.stock_units.toLocaleString('es')} {baseUnitWord(sorted, product.stock_units)}.
+                        </p>
+                    )}
+                    <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-muted-foreground text-sm">Total</span>
+                        <span className="num font-display text-2xl font-bold">{money(total)}</span>
+                    </div>
+                    {savings >= 0.01 && (
+                        <p className="text-right text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                            El cliente ahorra {money(savings)} frente a comprar {baseUnitWord(sorted, 2)} sueltas
+                        </p>
+                    )}
+                </div>
 
-/** "Hay 12 cajas" (verde), "Últimas 2 cajas" (ámbar), "Sin stock" (rojo): cuántas de ESA presentación se pueden vender. */
-function StockPill({ available, pkg }: { available: number; pkg: string }) {
-    const tone = available === 0 ? 'out' : available <= 3 ? 'low' : 'ok';
-    return (
-        <span
-            className={cn(
-                'inline-flex items-center gap-1 rounded-full px-2 py-px text-[11px] font-medium',
-                tone === 'ok' && 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
-                tone === 'low' && 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200',
-                tone === 'out' && 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
-            )}
-        >
-            <span
-                className={cn(
-                    'size-1.5 rounded-full',
-                    tone === 'ok' && 'bg-emerald-500',
-                    tone === 'low' && 'bg-amber-500',
-                    tone === 'out' && 'bg-red-500',
-                )}
-            />
-            {tone === 'out' ? 'Sin stock' : `${tone === 'low' ? 'Últimas' : 'Hay'} ${countOf(available, pkg)}`}
-        </span>
+                <div className="flex justify-end gap-2">
+                    <Button type="button" variant="ghost" onClick={onClose}>
+                        Cancelar
+                    </Button>
+                    <Button
+                        type="button"
+                        className={cn('btn-brand', editing && units === 0 && 'bg-destructive')}
+                        disabled={!canConfirm}
+                        onClick={confirm}
+                    >
+                        <ShoppingCart className="size-4" />
+                        {editing ? (units === 0 ? 'Quitar del carrito' : 'Actualizar carrito') : 'Agregar al carrito'}
+                        <kbd className="rounded bg-white/20 px-1 text-[10px] font-medium">Enter</kbd>
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -744,6 +948,7 @@ function CartItem({
     overStock,
     onQuantity,
     onRemove,
+    onEdit,
 }: {
     line: CartLine;
     /** Otra presentación del mismo producto que la línea de arriba: se ve pegada a ella */
@@ -754,6 +959,8 @@ function CartItem({
     overStock: boolean;
     onQuantity: (quantity: number) => void;
     onRemove: () => void;
+    /** Abre "¿cuántas lleva?" para cambiar caja / blíster / tableta (solo si el producto se vende en varios empaques) */
+    onEdit?: () => void;
 }) {
     const baseUnit = line.breakdown?.[line.breakdown.length - 1]?.unit;
     const full = round(line.sale_price * line.quantity);
@@ -804,6 +1011,15 @@ function CartItem({
                         {line.promo_discount && <PromoBadge percent={line.promo_discount} />}
                         {line.requires_prescription && <span className="font-medium text-amber-600">con receta</span>}
                         {overStock && <span className="font-semibold text-red-600">stock insuficiente</span>}
+                        {onEdit && !grouped && (
+                            <button
+                                type="button"
+                                onClick={onEdit}
+                                className="text-primary inline-flex items-center gap-1 font-medium hover:underline"
+                            >
+                                <PackageOpen className="size-3.5" /> Cambiar empaques
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

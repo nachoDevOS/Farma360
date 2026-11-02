@@ -142,6 +142,8 @@ export type PosLookup = {
     is_controlled: boolean;
     presentation_id: number;
     presentation_name: string;
+    /** Se buscó por el código de barras de esta presentación: el POS la agrega directo */
+    scanned: boolean;
     /** Empaque que se vende, en minúscula: "caja", "blíster", "tableta" */
     package: string;
     /** Nivel por nivel: cada caja contiene 3 blísteres, cada blíster contiene 10 tabletas. Vacío = unidad suelta */

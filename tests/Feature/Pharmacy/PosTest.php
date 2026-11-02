@@ -86,9 +86,13 @@ class PosTest extends TestCase
             ->assertOk()
             ->assertJsonCount(2)
             ->assertJsonPath('0.factor', 100)
-            ->assertJsonPath('1.factor', 1);
-        // Buscando por nombre siguen de la más chica a la más grande
-        $this->actingAs($cashier)->getJson('/admin/pos/search?q=Febrax')->assertJsonPath('0.factor', 1);
+            ->assertJsonPath('0.scanned', true)
+            ->assertJsonPath('1.factor', 1)
+            ->assertJsonPath('1.scanned', false);
+        // Buscando por nombre siguen de la más chica a la más grande y ninguna cuenta como escaneada
+        $this->actingAs($cashier)->getJson('/admin/pos/search?q=Febrax')
+            ->assertJsonPath('0.factor', 1)
+            ->assertJsonPath('1.scanned', false);
     }
 
     public function test_pos_search_only_counts_sellable_stock_of_my_branch()
