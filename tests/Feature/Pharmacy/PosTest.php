@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Pharmacy;
 
+use App\Models\Category;
 use App\Models\Laboratory;
 use App\Models\Product;
 use App\Models\ProductPresentation;
@@ -48,6 +49,7 @@ class PosTest extends TestCase
         $product = Product::factory()->create([
             'name' => 'Alergin', 'concentration' => '10 mg', 'base_unit' => 'Tableta',
             'image' => 'products/alergin.avif', 'laboratory_id' => $laboratory->id,
+            'pharmaceutical_form' => 'Tableta', 'category_id' => Category::create(['name' => 'Antialérgicos'])->id,
         ]);
         $tablet = $product->presentations()->create([...ProductPresentation::arrange(null, null, 'Tableta', 'Tableta'), 'sale_price' => 1.5]);
         $blister = $product->presentations()->create([...ProductPresentation::arrange($tablet, 10, 'Blíster', 'Tableta'), 'parent_id' => $tablet->id, 'sale_price' => 14]);
@@ -63,6 +65,8 @@ class PosTest extends TestCase
             ->assertJsonPath('2.concentration', '10 mg')
             ->assertJsonPath('2.image', 'products/alergin.avif')
             ->assertJsonPath('2.laboratory', 'Farmacéutica del Oriente')
+            ->assertJsonPath('2.pharmaceutical_form', 'Tableta')
+            ->assertJsonPath('2.category', 'Antialérgicos')
             ->assertJsonPath('2.package', 'caja')
             ->assertJsonPath('2.factor', 30)
             ->assertJsonPath('2.sale_price', 40)

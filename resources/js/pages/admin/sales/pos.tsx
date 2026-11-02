@@ -29,10 +29,11 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import {
     ArrowLeftRight,
     Banknote,
+    Beaker,
     CreditCard,
-    Lightbulb,
+    Factory,
+    FlaskConical,
     LoaderCircle,
-    type LucideIcon,
     Minus,
     PackageOpen,
     Pill,
@@ -41,14 +42,16 @@ import {
     ScanBarcode,
     Search,
     ShoppingCart,
-    Sparkles,
     Stethoscope,
+    Tag,
     Trash2,
+    TriangleAlert,
     UserRound,
     Wallet,
     X,
+    type LucideIcon,
 } from 'lucide-react';
-import { FormEventHandler, Fragment, useEffect, useRef, useState } from 'react';
+import { FormEventHandler, useEffect, useRef, useState } from 'react';
 
 interface Props {
     session: CashSession;
@@ -58,7 +61,6 @@ interface Props {
 /** siblings: las presentaciones a la venta del mismo producto (para sugerir 1 blíster + 1 tableta en vez de 11 tabletas) */
 type CartLine = PosLookup & { quantity: number; siblings?: PosLookup[] };
 type Packing = { option: PosLookup; quantity: number }[];
-type PackingSuggestion = { productId: number; units: number; unitWord: string; packing: Packing; savings: number };
 /** Un producto del buscador con sus presentaciones a la venta (options[0] = la escaneada o la más chica). */
 type PosProduct = PosLookup & { options: PosLookup[] };
 /** Producto abierto en la ventana de cantidad: sus presentaciones y lo que ya trae puesto (por presentation_id). */
@@ -117,6 +119,22 @@ function bestPacking(units: number, options: PosLookup[]): Packing | null {
     return left === 0 ? packing : null;
 }
 
+/**
+ * Vuelve a armar con los empaques más grandes: 10 tabletas sueltas pasan solas a 1 blíster, 3 blísteres a 1 caja.
+ * Solo si cierra justo y no le sale más caro al cliente; si no (o ya está así), devuelve la misma combinación.
+ */
+function repack(current: Packing, options: PosLookup[]): Packing {
+    const units = current.reduce((sum, { option, quantity }) => sum + quantity * option.factor, 0);
+    const packing = bestPacking(units, options);
+    const cost = (items: Packing) => items.reduce((sum, { option, quantity }) => sum + priceOf(option, quantity), 0);
+    const key = (items: Packing) =>
+        items
+            .map(({ option, quantity }) => `${option.presentation_id}:${quantity}`)
+            .sort()
+            .join('|');
+    return packing && key(packing) !== key(current) && cost(packing) <= cost(current) + 0.001 ? packing : current;
+}
+
 /** La unidad base en palabras según la cantidad: "tableta" / "tabletas" (de la presentación suelta o del último nivel de un empaque). */
 function baseUnitWord(options: PosLookup[], count: number): string {
     const loose = options.find((option) => option.factor === 1)?.package;
@@ -124,40 +142,6 @@ function baseUnitWord(options: PosLookup[], count: number): string {
         return count === 1 ? loose : plural(loose);
     }
     return options.find((option) => option.breakdown?.length)?.breakdown.at(-1)?.unit ?? 'unidades';
-}
-
-/**
- * Si las líneas de un producto se pueden vender en empaques más grandes y al cliente le sale más barato
- * (11 tabletas a Bs 1,50 = Bs 16,50 → 1 blíster Bs 12 + 1 tableta Bs 1,50 = Bs 13,50), la sugerencia; si no, null.
- */
-function packingSuggestion(cart: CartLine[], productId: number): PackingSuggestion | null {
-    const lines = cart.filter((line) => line.product_id === productId);
-    const siblings = lines.find((line) => line.siblings?.length)?.siblings;
-    if (!siblings || siblings.length < 2) {
-        return null;
-    }
-    const units = lines.reduce((sum, line) => sum + line.quantity * line.factor, 0);
-    const packing = bestPacking(units, siblings);
-    if (!packing) {
-        return null;
-    }
-    const key = (items: { id: number; quantity: number }[]) =>
-        items
-            .map((item) => `${item.id}:${item.quantity}`)
-            .sort()
-            .join('|');
-    const current = key(lines.map((line) => ({ id: line.presentation_id, quantity: line.quantity })));
-    if (current === key(packing.map((item) => ({ id: item.option.presentation_id, quantity: item.quantity })))) {
-        return null;
-    }
-    const savings = round(
-        lines.reduce((sum, line) => sum + priceOf(line, line.quantity), 0) -
-            packing.reduce((sum, item) => sum + priceOf(item.option, item.quantity), 0),
-    );
-    if (savings < 0.01) {
-        return null;
-    }
-    return { productId, units, unitWord: baseUnitWord(siblings, units), packing, savings };
 }
 
 /** Billetes de Bolivia para sugerir con cuánto paga el cliente. */
@@ -228,7 +212,13 @@ export default function Pos({ session, paymentMethods }: Props) {
     const change = round(paid - total);
     const needsPrescription = data.cart.some((line) => line.is_controlled);
     const unitsInCart = (productId: number) => data.cart.filter((l) => l.product_id === productId).reduce((s, l) => s + l.quantity * l.factor, 0);
-    const articles = data.cart.reduce((sum, line) => sum + line.quantity, 0);
+    // Una fila por producto en el carrito: sus líneas de caja, blíster y tableta van juntas
+    const cartGroups = data.cart.reduce<CartLine[][]>((groups, line) => {
+        const last = groups.at(-1);
+        if (last && last[0].product_id === line.product_id) last.push(line);
+        else groups.push([line]);
+        return groups;
+    }, []);
 
     const addLine = (item: PosLookup, quantity = 1, siblings?: PosLookup[]) => {
         const existing = data.cart.findIndex((l) => l.presentation_id === item.presentation_id);
@@ -243,12 +233,22 @@ export default function Pos({ session, paymentMethods }: Props) {
         search.current?.focus();
     };
 
+    /** Cambia la cantidad de una línea; si con eso se completa un empaque (10 tabletas → 1 blíster) se arma solo. */
     const setQuantity = (index: number, quantity: number) => {
         if (quantity < 1) return;
-        setData(
-            'cart',
-            data.cart.map((line, i) => (i === index ? { ...line, quantity } : line)),
-        );
+        const cart = data.cart.map((line, i) => (i === index ? { ...line, quantity } : line));
+        const { product_id: productId, siblings } = data.cart[index];
+        if (siblings && siblings.length > 1) {
+            const current = cart
+                .filter((line) => line.product_id === productId)
+                .map((line) => ({ option: line as PosLookup, quantity: line.quantity }));
+            const packed = repack(current, siblings);
+            if (packed !== current) {
+                setProductLines(productId, packed, siblings);
+                return;
+            }
+        }
+        setData('cart', cart);
     };
 
     /** Cambia las líneas del producto por otra combinación, en el lugar de la primera (o al final si no estaba). Vacía = lo quita. */
@@ -263,8 +263,13 @@ export default function Pos({ session, paymentMethods }: Props) {
         }
     };
 
-    const applyPacking = (suggestion: PackingSuggestion) =>
-        setProductLines(suggestion.productId, suggestion.packing, data.cart.find((line) => line.product_id === suggestion.productId)?.siblings);
+    /** Cambia las unidades base de un producto y lo vuelve a armar en empaques (41 tabletas → 1 caja + 1 blíster + 1 tableta). */
+    const setUnits = (productId: number, units: number, options: PosLookup[]) => {
+        const { packing, left } = packUnits(units, options);
+        if (units >= 1 && left === 0) {
+            setProductLines(productId, packing, options);
+        }
+    };
 
     /** Abre "¿cuántas lleva?": con lo que ya hay en el carrito de ese producto, o con la cantidad pedida de la presentación más chica. */
     const openChooser = (options: PosLookup[], quantity = 1) => {
@@ -348,25 +353,14 @@ export default function Pos({ session, paymentMethods }: Props) {
                         }}
                         mapResults={groupByProduct}
                         onPick={pickProduct}
-                        inputClassName="h-12 rounded-xl text-base shadow-sm transition-shadow focus-visible:shadow-lg focus-visible:shadow-sky-500/15"
+                        isDisabled={(product) => product.stock_units === 0}
                         itemKey={(product) => product.product_id}
-                        placeholder="Buscar producto, genérico, síntoma (ej: dolor de cabeza) o escanear código…  (F2)"
+                        placeholder="Buscar producto, genérico, síntoma (ej: dolor de cabeza) o escanear código…"
                         listClassName="max-h-[36rem] divide-y"
                         renderItem={(product) => (
                             <ProductResult product={product} quantity={pendingQuantity} inCart={unitsInCart(product.product_id)} />
                         )}
                     />
-                    <p className="text-muted-foreground -mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs">
-                        <span>
-                            <kbd className="bg-muted rounded border px-1 text-[10px] font-medium">3*</kbd> antes del nombre agrega 3 de una vez
-                        </span>
-                        <span>
-                            <kbd className="bg-muted rounded border px-1 text-[10px] font-medium">F2</kbd> buscar
-                        </span>
-                        <span>
-                            <kbd className="bg-muted rounded border px-1 text-[10px] font-medium">F4</kbd> monto a cobrar
-                        </span>
-                    </p>
 
                     <Panel className="flex-1 overflow-hidden">
                         {data.cart.length === 0 ? (
@@ -378,7 +372,7 @@ export default function Pos({ session, paymentMethods }: Props) {
                                         <ShoppingCart className="text-primary size-4" />
                                         Carrito
                                         <span className="bg-primary/10 text-primary num rounded-full px-2 py-0.5 text-xs">
-                                            {articles} {articles === 1 ? 'artículo' : 'artículos'}
+                                            {cartGroups.length} {cartGroups.length === 1 ? 'producto' : 'productos'}
                                         </span>
                                     </p>
                                     <Button
@@ -391,31 +385,37 @@ export default function Pos({ session, paymentMethods }: Props) {
                                         <Trash2 className="size-3.5" /> Vaciar
                                     </Button>
                                 </div>
+                                {/* Encabezado de columnas (mismas medidas que CartProduct) */}
+                                <div className="text-muted-foreground hidden grid-cols-[1fr_8.5rem_7rem_2rem] gap-3 border-b px-4 py-1.5 text-[11px] font-medium tracking-wide uppercase sm:grid">
+                                    <span>Producto</span>
+                                    <span className="text-center">Cantidad</span>
+                                    <span className="text-right">Importe</span>
+                                    <span />
+                                </div>
                                 <ul className="divide-y">
-                                    {data.cart.map((line, i) => {
-                                        const isLastOfProduct = data.cart.findLastIndex((l) => l.product_id === line.product_id) === i;
-                                        const suggestion = isLastOfProduct ? packingSuggestion(data.cart, line.product_id) : null;
+                                    {cartGroups.map((lines) => {
+                                        const first = lines[0];
+                                        const options = first.siblings && first.siblings.length > 1 ? first.siblings : null;
+                                        const index = data.cart.indexOf(first);
                                         return (
-                                            <Fragment key={line.presentation_id}>
-                                                <CartItem
-                                                    line={line}
-                                                    grouped={i > 0 && data.cart[i - 1].product_id === line.product_id}
-                                                    flashKey={flash?.id === line.presentation_id ? flash.key : null}
-                                                    total={lineTotal(line)}
-                                                    overStock={unitsInCart(line.product_id) > line.stock_units}
-                                                    onEdit={
-                                                        (line.siblings?.length ?? 0) > 1 ? () => openChooser(line.siblings as PosLookup[]) : undefined
-                                                    }
-                                                    onQuantity={(quantity) => setQuantity(i, quantity)}
-                                                    onRemove={() =>
-                                                        setData(
-                                                            'cart',
-                                                            data.cart.filter((_, j) => j !== i),
-                                                        )
-                                                    }
-                                                />
-                                                {suggestion && <PackingHint suggestion={suggestion} onApply={() => applyPacking(suggestion)} />}
-                                            </Fragment>
+                                            <CartProduct
+                                                key={first.product_id}
+                                                lines={lines}
+                                                options={options}
+                                                flashKey={flash && lines.some((l) => l.presentation_id === flash.id) ? flash.key : null}
+                                                total={round(lines.reduce((sum, l) => sum + lineTotal(l), 0))}
+                                                full={round(lines.reduce((sum, l) => sum + l.sale_price * l.quantity, 0))}
+                                                overStock={unitsInCart(first.product_id) > first.stock_units}
+                                                onUnits={(units) => options && setUnits(first.product_id, units, options)}
+                                                onQuantity={(quantity) => setQuantity(index, quantity)}
+                                                onEdit={() => options && openChooser(options)}
+                                                onRemove={() =>
+                                                    setData(
+                                                        'cart',
+                                                        data.cart.filter((l) => l.product_id !== first.product_id),
+                                                    )
+                                                }
+                                            />
                                         );
                                     })}
                                 </ul>
@@ -624,7 +624,10 @@ export default function Pos({ session, paymentMethods }: Props) {
     );
 }
 
-/** Resultado del buscador: foto, nombre, genérico, laboratorio, usos, precio de cada empaque y stock. Tocarlo (o Enter) pregunta cuánto. */
+/**
+ * Resultado del buscador, como en compras: foto; comercial; genérico, concentración y laboratorio con íconos;
+ * forma, categoría, código y receta; precio de cada empaque. A la derecha stock y "Elegir cantidad". Tocarlo (o Enter) pregunta cuánto.
+ */
 function ProductResult({
     product,
     quantity,
@@ -636,39 +639,60 @@ function ProductResult({
     /** Unidades base de este producto que ya están en el carrito */
     inCart: number;
 }) {
-    const meta = [product.generic_name, product.laboratory].filter(Boolean).join(' · ');
     const options = [...product.options].sort((a, b) => a.factor - b.factor);
+    const facts = [
+        { icon: FlaskConical, label: 'Genérico', value: product.generic_name },
+        { icon: Beaker, label: 'Concentración', value: product.concentration },
+        { icon: Factory, label: 'Laboratorio', value: product.laboratory },
+    ].filter((fact) => fact.value);
+    const barcode = product.options.find((option) => option.scanned)?.barcode ?? product.barcode;
+    const extra = [product.pharmaceutical_form, product.category, barcode && `Cód. ${barcode}`].filter(Boolean).join(' · ');
+    const outOfStock = product.stock_units === 0;
 
     return (
-        <div className="flex items-center gap-3 py-1">
+        <div className="flex items-center gap-3">
             <StoredImage
                 path={product.image}
                 alt={product.product_name}
-                fallback={<Pill className="size-5" />}
-                className="size-14 shrink-0 rounded-lg"
+                fallback={<Pill className="size-4" />}
+                className={cn('size-16 shrink-0', outOfStock && 'opacity-50 grayscale')}
             />
-            <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span className="truncate text-base font-semibold">{product.commercial_name ?? product.product_name}</span>
-                    {product.concentration && <span className="text-muted-foreground text-sm">{product.concentration}</span>}
-                    {product.is_controlled ? (
-                        <span className="rounded bg-red-100 px-1.5 py-px text-[10px] font-bold tracking-wide text-red-700 dark:bg-red-950 dark:text-red-300">
-                            CONTROLADO
-                        </span>
-                    ) : (
-                        product.requires_prescription && (
-                            <span className="rounded bg-amber-100 px-1.5 py-px text-[10px] font-bold tracking-wide text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                                RECETA
-                            </span>
-                        )
-                    )}
+            {/* Sin stock: se ve apagado (y SearchPicker no deja elegirlo) */}
+            <div className={cn('grid min-w-0 flex-1 gap-1 text-left', outOfStock && 'opacity-50 grayscale')}>
+                <p className="flex min-w-0 items-center gap-1.5 text-base leading-tight">
+                    <Tag className="text-primary size-4 shrink-0" />
+                    <span className="text-foreground/70 text-sm">Comercial:</span>
+                    <span className="truncate font-bold">{product.commercial_name ?? product.product_name}</span>
                 </p>
-                {meta && <p className="text-muted-foreground truncate text-xs">{meta}</p>}
-                {/* Precio de cada empaque en una línea: Tableta Bs 1,50 · Blíster Bs 12,00 · Caja Bs 35,00 */}
-                <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                {facts.length > 0 && (
+                    <p className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
+                        {facts.map(({ icon: Icon, label, value }) => (
+                            <span key={label} className="inline-flex max-w-full min-w-0 items-start gap-1.5">
+                                <Icon className="text-primary mt-0.5 size-4 shrink-0" />
+                                <span className="text-foreground/70 shrink-0">{label}:</span>
+                                <span className="text-foreground min-w-0 font-semibold break-words">{value}</span>
+                            </span>
+                        ))}
+                    </p>
+                )}
+                {(extra || product.is_controlled || product.requires_prescription) && (
+                    <p className="text-foreground/75 truncate text-sm">
+                        {extra}
+                        {product.is_controlled && <span className="ml-2 font-semibold text-red-600">Controlado</span>}
+                        {!product.is_controlled && product.requires_prescription && (
+                            <span className="ml-2 font-semibold text-amber-600">Con receta</span>
+                        )}
+                    </p>
+                )}
+                {/* Precio de cada empaque: Tableta Bs 1,50 · Blíster Bs 12,00 · Caja Bs 35,00 */}
+                <p className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-sm">
+                    <span className="inline-flex items-center gap-1.5">
+                        <Banknote className="text-primary size-4 shrink-0" />
+                        <span className="text-foreground/70">Precio:</span>
+                    </span>
                     {options.map((option) => (
                         <span key={option.presentation_id} className="inline-flex items-center gap-1">
-                            <span className="text-muted-foreground capitalize">{option.package}</span>
+                            <span className="text-foreground/70 capitalize">{option.package}</span>
                             <span className="num font-semibold">{money(priceOf(option, 1))}</span>
                             {option.promo_discount && <PromoBadge percent={option.promo_discount} />}
                         </span>
@@ -676,26 +700,31 @@ function ProductResult({
                 </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1 text-right">
-                <span className={cn('num text-xs', product.stock_units === 0 ? 'font-semibold text-red-600' : 'text-muted-foreground')}>
-                    {product.stock_units === 0 ? (
-                        'Sin stock'
-                    ) : (
-                        <>
+                {outOfStock ? (
+                    <>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-900">
+                            <span className="size-1.5 rounded-full bg-red-500" /> Sin stock
+                        </span>
+                        <span className="text-muted-foreground text-[11px]">No se puede vender</span>
+                    </>
+                ) : (
+                    <>
+                        <span className="num text-muted-foreground text-xs">
                             Stock: <span className="text-foreground font-semibold">{product.stock_units.toLocaleString('es')}</span>{' '}
                             {baseUnitWord(options, product.stock_units)}
-                        </>
-                    )}
-                </span>
-                {inCart > 0 && (
-                    <span className="text-primary num text-[11px] font-semibold">
-                        En carrito: {inCart.toLocaleString('es')} {baseUnitWord(options, inCart)}
-                    </span>
+                        </span>
+                        {inCart > 0 && (
+                            <span className="text-primary num text-[11px] font-semibold">
+                                En carrito: {inCart.toLocaleString('es')} {baseUnitWord(options, inCart)}
+                            </span>
+                        )}
+                        <span className="text-primary flex items-center gap-1.5 text-xs font-medium">
+                            {quantity > 1 && <span className="num font-bold">×{quantity}</span>}
+                            {options.length > 1 ? 'Elegir cantidad' : 'Agregar'}
+                            <kbd className="bg-muted text-muted-foreground rounded border px-1 text-[9px] font-medium">Enter</kbd>
+                        </span>
+                    </>
                 )}
-                <span className="text-primary flex items-center gap-1.5 text-xs font-medium">
-                    {quantity > 1 && <span className="num font-bold">×{quantity}</span>}
-                    {options.length > 1 ? 'Elegir cantidad' : 'Agregar'}
-                    <kbd className="bg-muted text-muted-foreground rounded border px-1 text-[9px] font-medium">Enter</kbd>
-                </span>
             </div>
         </div>
     );
@@ -704,7 +733,7 @@ function ProductResult({
 /**
  * "¿CUÁNTAS LLEVA?": arriba se escriben las tabletas y se arma solo con los empaques más grandes
  * (11 → 1 blíster + 1 tableta); abajo cada empaque con − / + por si el cliente pide otra cosa (ej: 11 tabletas sueltas).
- * Enter agrega. Abajo, en palabras: "11 tabletas = 1 blíster + 1 tableta", el total y cuánto ahorra frente a sueltas.
+ * Enter agrega. Abajo, en palabras: "1 blíster + 1 tableta" y el total.
  */
 function QuantityDialog({
     options,
@@ -728,8 +757,6 @@ function QuantityDialog({
         .filter((o) => (quantities[o.presentation_id] ?? 0) > 0)
         .map((o) => ({ option: o, quantity: quantities[o.presentation_id] }));
     const total = round(packing.reduce((sum, { option, quantity }) => sum + priceOf(option, quantity), 0));
-    const loose = sorted.find((o) => o.factor === 1 && o.sale_price > 0);
-    const savings = loose && packing.some(({ option }) => option.factor > 1) ? round(priceOf(loose, units) - total) : 0;
     const overStock = units > product.stock_units;
     const canConfirm = (units > 0 || editing) && !overStock;
 
@@ -740,9 +767,14 @@ function QuantityDialog({
         setLeft(result.left);
     };
 
+    /** Cambia un empaque y se vuelve a armar solo: al llegar a 10 tabletas pasan a 1 blíster. */
     const setQuantity = (option: PosLookup, quantity: number) => {
         const next = { ...quantities, [option.presentation_id]: Math.max(0, quantity) };
-        setQuantities(next);
+        const packed = repack(
+            sorted.filter((o) => (next[o.presentation_id] ?? 0) > 0).map((o) => ({ option: o, quantity: next[o.presentation_id] })),
+            sorted,
+        );
+        setQuantities(Object.fromEntries(packed.map(({ option: o, quantity: q }) => [o.presentation_id, q])));
         setTyped(String(unitsOf(next)));
         setLeft(0);
     };
@@ -753,10 +785,12 @@ function QuantityDialog({
         }
     };
 
+    const unitWord = (count: number) => baseUnitWord(sorted, count);
+
     return (
         <Dialog open onOpenChange={(open) => !open && onClose()}>
             <DialogContent
-                className="max-w-xl gap-5"
+                className="max-w-lg gap-0 p-0"
                 onOpenAutoFocus={(e) => {
                     e.preventDefault();
                     unitsInput.current?.focus();
@@ -771,205 +805,205 @@ function QuantityDialog({
                     }
                 }}
             >
-                <div className="flex items-center gap-3 pr-6">
+                <div className="flex items-center gap-3 border-b px-5 py-4 pr-12">
                     <StoredImage
                         path={product.image}
                         alt={product.product_name}
                         fallback={<Pill className="size-5" />}
-                        className="size-14 shrink-0 rounded-lg"
+                        className="size-11 shrink-0 rounded-lg"
                     />
                     <div className="min-w-0">
-                        <DialogTitle className="font-display truncate text-lg">
+                        <DialogTitle className="truncate text-base">
                             {product.commercial_name ?? product.product_name}{' '}
-                            {product.concentration && <span className="text-muted-foreground text-base font-normal">{product.concentration}</span>}
+                            {product.concentration && <span className="text-muted-foreground font-normal">{product.concentration}</span>}
                         </DialogTitle>
-                        <DialogDescription className="num">
-                            Hay {product.stock_units.toLocaleString('es')} {baseUnitWord(sorted, product.stock_units)} en esta sucursal
+                        <DialogDescription className="num text-xs">
+                            Stock: {product.stock_units.toLocaleString('es')} {unitWord(product.stock_units)}
                         </DialogDescription>
                     </div>
                 </div>
 
-                {/* 1. Cuántas tabletas: se arma solo */}
-                <label className="grid gap-1.5">
-                    <span className="text-sm font-medium">¿Cuántas {baseUnitWord(sorted, 2)} lleva el cliente?</span>
-                    <span className="relative">
-                        <Input
-                            ref={unitsInput}
-                            type="number"
-                            min={0}
-                            step={1}
-                            inputMode="numeric"
-                            onKeyDown={blockFractionKeys}
-                            value={typed}
-                            onChange={(e) => typeUnits(e.target.value)}
-                            className="num h-14 pr-28 text-2xl font-bold"
-                        />
-                        <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-sm">
-                            {baseUnitWord(sorted, units)}
-                        </span>
-                    </span>
-                    <span className="text-muted-foreground text-xs">
-                        Se arma solo con los empaques más grandes. Si el cliente pide otra cosa, cámbialo abajo.
-                    </span>
-                </label>
-
-                {/* 2. Cada empaque con − / + */}
-                <ul className="grid gap-2">
-                    {sorted.map((option) => {
-                        const quantity = quantities[option.presentation_id] ?? 0;
-                        return (
-                            <li
-                                key={option.presentation_id}
-                                className={cn(
-                                    'flex items-center gap-3 rounded-lg px-3 py-2.5 ring-1 transition-colors',
-                                    quantity > 0 ? 'bg-primary/5 ring-primary/40' : 'ring-border',
-                                )}
-                            >
-                                <div className="min-w-0 flex-1">
-                                    <PackageChain pkg={option.package ?? option.presentation_name} levels={[]} withLevels={false} />
-                                    <p className="text-muted-foreground mt-1 text-xs">
-                                        {option.factor > 1 ? (
-                                            <>
-                                                trae{' '}
-                                                <span className="num text-foreground/80 font-semibold">{option.factor.toLocaleString('es')}</span>{' '}
-                                                {baseUnitWord(sorted, option.factor)}
-                                            </>
-                                        ) : (
-                                            'unidad suelta'
-                                        )}
-                                    </p>
-                                </div>
-                                <div className="text-right">
-                                    <span className="flex items-center justify-end gap-1">
-                                        {option.promo_discount && <PromoBadge percent={option.promo_discount} />}
-                                        <span className="num font-semibold">{money(priceOf(option, 1))}</span>
-                                    </span>
-                                    <span className="text-muted-foreground text-[11px]">c/u</span>
-                                </div>
-                                <div className="stepper" data-active={quantity > 0 ? 'true' : undefined}>
-                                    <button
-                                        type="button"
-                                        onClick={() => setQuantity(option, quantity - 1)}
-                                        disabled={quantity <= 0}
-                                        aria-label="Menos"
-                                    >
-                                        <Minus className="size-3.5" />
-                                    </button>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        className="text-sm"
-                                        value={quantity}
-                                        step={1}
-                                        inputMode="numeric"
-                                        onKeyDown={blockFractionKeys}
-                                        onChange={(e) => setQuantity(option, Math.floor(Number(e.target.value) || 0))}
-                                        onFocus={(e) => e.target.select()}
-                                        aria-label={`Cantidad de ${option.package}`}
-                                    />
-                                    <button type="button" onClick={() => setQuantity(option, quantity + 1)} aria-label="Más">
-                                        <Plus className="size-3.5" />
-                                    </button>
-                                </div>
-                            </li>
-                        );
-                    })}
-                </ul>
-
-                {/* 3. En palabras y el total */}
-                <div className="bg-muted/50 grid gap-1.5 rounded-xl p-4">
-                    {packing.length > 0 ? (
-                        <p className="text-sm">
-                            <span className="num font-semibold">
-                                {units.toLocaleString('es')} {baseUnitWord(sorted, units)}
+                <div className="grid gap-4 px-5 py-4">
+                    {/* Cuántas tabletas: se arma solo */}
+                    <label className="grid gap-1.5">
+                        <span className="text-sm font-medium">1. ¿Cuántas {unitWord(2)} pide el cliente?</span>
+                        <span className="relative">
+                            <Input
+                                ref={unitsInput}
+                                type="number"
+                                min={0}
+                                step={1}
+                                inputMode="numeric"
+                                onKeyDown={blockFractionKeys}
+                                value={typed}
+                                onChange={(e) => typeUnits(e.target.value)}
+                                className="num h-14 pr-28 text-2xl font-semibold"
+                            />
+                            <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm">
+                                {unitWord(units)}
                             </span>
-                            {(packing.length > 1 || packing[0].option.factor > 1) && (
-                                <>
-                                    {' = '}
-                                    {packing.map(({ option, quantity }, i) => (
-                                        <span key={option.presentation_id}>
-                                            {i > 0 && ' + '}
-                                            <span className="num font-semibold">{countOf(quantity, option.package)}</span>
+                        </span>
+                    </label>
+
+                    {/* Cómo sale: cada empaque con − / + */}
+                    <div className="grid gap-1.5">
+                        <span className="text-sm font-medium">
+                            2. Se entrega así <span className="text-muted-foreground font-normal">(si pide otra cosa, cámbialo con − / +)</span>
+                        </span>
+                        <ul className="divide-y rounded-lg border">
+                            {sorted.map((option) => {
+                                const quantity = quantities[option.presentation_id] ?? 0;
+                                return (
+                                    <li
+                                        key={option.presentation_id}
+                                        className={cn('flex items-center gap-3 px-3 py-2.5 transition-colors', quantity > 0 && 'bg-primary/5')}
+                                    >
+                                        <div className="min-w-0 flex-1">
+                                            <p className={cn('text-sm capitalize', quantity > 0 ? 'font-semibold' : 'text-muted-foreground')}>
+                                                {option.package}
+                                            </p>
+                                            <p className="text-muted-foreground num text-xs">
+                                                {option.factor > 1
+                                                    ? `trae ${option.factor.toLocaleString('es')} ${unitWord(option.factor)} · `
+                                                    : 'suelta · '}
+                                                {money(priceOf(option, 1))} c/u
+                                                {option.promo_discount && (
+                                                    <span className="ml-1 font-medium text-emerald-600">−{option.promo_discount}%</span>
+                                                )}
+                                            </p>
+                                        </div>
+                                        {/* Lo que suma esta fila: 1 × Bs 35,00 = Bs 35,00 */}
+                                        <span
+                                            className={cn(
+                                                'num w-20 shrink-0 text-right text-sm',
+                                                quantity > 0 ? 'font-semibold' : 'text-muted-foreground/50',
+                                            )}
+                                        >
+                                            {quantity > 0 ? money(priceOf(option, quantity)) : '—'}
                                         </span>
-                                    ))}
-                                </>
-                            )}
-                        </p>
-                    ) : (
-                        <p className="text-muted-foreground text-sm">{editing ? 'Sin cantidad: se quita del carrito.' : 'Escribe cuántas lleva.'}</p>
-                    )}
+                                        <div className="stepper" data-active={quantity > 0 ? 'true' : undefined}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setQuantity(option, quantity - 1)}
+                                                disabled={quantity <= 0}
+                                                aria-label="Menos"
+                                            >
+                                                <Minus className="size-3.5" />
+                                            </button>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                className="text-sm"
+                                                value={quantity}
+                                                step={1}
+                                                inputMode="numeric"
+                                                onKeyDown={blockFractionKeys}
+                                                onChange={(e) => setQuantity(option, Math.floor(Number(e.target.value) || 0))}
+                                                onFocus={(e) => e.target.select()}
+                                                aria-label={`Cantidad de ${option.package}`}
+                                            />
+                                            <button type="button" onClick={() => setQuantity(option, quantity + 1)} aria-label="Más">
+                                                <Plus className="size-3.5" />
+                                            </button>
+                                        </div>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
+
                     {left > 0 && (
-                        <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
-                            No se venden {baseUnitWord(sorted, 2)} sueltas: sobran {left.toLocaleString('es')} que no entran en un empaque.
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                            Sobran {left.toLocaleString('es')} {unitWord(left)}: no se venden sueltas.
                         </p>
                     )}
                     {overStock && (
-                        <p className="text-xs font-semibold text-red-600">
-                            No alcanza: solo hay {product.stock_units.toLocaleString('es')} {baseUnitWord(sorted, product.stock_units)}.
-                        </p>
-                    )}
-                    <div className="flex items-baseline justify-between gap-3">
-                        <span className="text-muted-foreground text-sm">Total</span>
-                        <span className="num font-display text-2xl font-bold">{money(total)}</span>
-                    </div>
-                    {savings >= 0.01 && (
-                        <p className="text-right text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                            El cliente ahorra {money(savings)} frente a comprar {baseUnitWord(sorted, 2)} sueltas
+                        <p className="text-xs font-medium text-red-600">
+                            Solo hay {product.stock_units.toLocaleString('es')} {unitWord(product.stock_units)}.
                         </p>
                     )}
                 </div>
 
-                <div className="flex justify-end gap-2">
-                    <Button type="button" variant="ghost" onClick={onClose}>
-                        Cancelar
-                    </Button>
-                    <Button
-                        type="button"
-                        className={cn('btn-brand', editing && units === 0 && 'bg-destructive')}
-                        disabled={!canConfirm}
-                        onClick={confirm}
-                    >
-                        <ShoppingCart className="size-4" />
-                        {editing ? (units === 0 ? 'Quitar del carrito' : 'Actualizar carrito') : 'Agregar al carrito'}
-                        <kbd className="rounded bg-white/20 px-1 text-[10px] font-medium">Enter</kbd>
-                    </Button>
+                <div className="bg-muted/40 grid gap-3 border-t px-5 py-4">
+                    <div className="flex items-end justify-between gap-3">
+                        <div className="min-w-0">
+                            <p className="text-muted-foreground text-xs">{editing && units === 0 ? 'Sin cantidad' : 'Entregar al cliente'}</p>
+                            <p className="text-sm font-semibold">
+                                {packing.length > 0
+                                    ? packing.map(({ option, quantity }) => countOf(quantity, option.package)).join(' + ')
+                                    : editing
+                                      ? 'Se quita del carrito'
+                                      : '—'}
+                            </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                            <p className="text-muted-foreground text-xs">Total</p>
+                            <p className="num text-2xl leading-none font-bold">{money(total)}</p>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        <Button type="button" variant="ghost" onClick={onClose}>
+                            Cancelar
+                        </Button>
+                        <Button type="button" variant={editing && units === 0 ? 'destructive' : 'default'} disabled={!canConfirm} onClick={confirm}>
+                            {editing && units === 0 ? 'Quitar del carrito' : `${editing ? 'Actualizar' : 'Agregar'} ${money(total)} al carrito`}
+                        </Button>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>
     );
 }
 
-/** Línea del carrito: foto, nombre, empaque y precio unitario; − cantidad + con las unidades que salen; total y quitar. */
-function CartItem({
-    line,
-    grouped,
+/**
+ * Un producto del carrito en UNA fila, como un ticket: foto y nombre; − cantidad +; importe; quitar.
+ * Si se vende en varios empaques, debajo el detalle de lo que se entrega ("1 blíster × Bs 12,00 … Bs 12,00")
+ * y el − / + cuenta tabletas (se vuelve a armar solo); "Cambiar empaques" abre la ventana. Con un solo empaque, cuenta frascos.
+ */
+function CartProduct({
+    lines,
+    options,
     flashKey,
     total,
+    full,
     overStock,
+    onUnits,
     onQuantity,
-    onRemove,
     onEdit,
+    onRemove,
 }: {
-    line: CartLine;
-    /** Otra presentación del mismo producto que la línea de arriba: se ve pegada a ella */
-    grouped: boolean;
-    /** Cambia cada vez que se agrega esta línea: dispara el destello */
+    lines: CartLine[];
+    /** Presentaciones a la venta del producto si son varias (null = un solo empaque) */
+    options: PosLookup[] | null;
+    /** Cambia cada vez que se agrega o cambia el producto: dispara el destello */
     flashKey: number | null;
     total: number;
+    /** Total sin promoción (se tacha si hay descuento) */
+    full: number;
     overStock: boolean;
+    onUnits: (units: number) => void;
     onQuantity: (quantity: number) => void;
+    onEdit: () => void;
     onRemove: () => void;
-    /** Abre "¿cuántas lleva?" para cambiar caja / blíster / tableta (solo si el producto se vende en varios empaques) */
-    onEdit?: () => void;
 }) {
-    const baseUnit = line.breakdown?.[line.breakdown.length - 1]?.unit;
-    const full = round(line.sale_price * line.quantity);
+    const line = lines[0];
+    const units = lines.reduce((sum, l) => sum + l.quantity * l.factor, 0);
+    // Varios empaques: el paso es el empaque más chico que se vende (normalmente 1 tableta)
+    const step = options ? Math.min(...options.filter((o) => o.sale_price > 0).map((o) => o.factor)) : 1;
+    const value = options ? units : line.quantity;
+    const sorted = [...lines].sort((a, b) => b.factor - a.factor);
+    const unitOptions = options ?? [line];
+    const caption = options
+        ? baseUnitWord(options, units)
+        : line.factor > 1
+          ? `= ${units.toLocaleString('es')} ${line.breakdown?.at(-1)?.unit ?? ''}`
+          : null;
 
     return (
         <li
             className={cn(
-                'group animate-in fade-in slide-in-from-top-1 relative grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 duration-200 sm:grid-cols-[1fr_auto_7rem_auto]',
-                grouped && 'border-dashed pt-2',
+                'group animate-in fade-in slide-in-from-top-1 relative grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-1 px-4 py-3 duration-200 sm:grid-cols-[1fr_8.5rem_7rem_2rem]',
+                overStock && 'bg-red-50/60 dark:bg-red-950/20',
             )}
         >
             {flashKey !== null && (
@@ -979,80 +1013,99 @@ function CartItem({
                     className="bg-primary/15 animate-out fade-out fill-mode-forwards pointer-events-none absolute inset-0 duration-1000 motion-reduce:hidden"
                 />
             )}
-            {/* En celular: nombre arriba y abajo − cantidad + · total · quitar */}
+            {/* Producto (en celular ocupa todo el ancho; abajo − cantidad + · importe · quitar) */}
             <div className="col-span-3 flex min-w-0 items-center gap-3 sm:col-span-1">
-                {grouped ? (
-                    // Otra presentación del mismo producto: sin repetir foto ni nombre, colgando de la línea de arriba
-                    <span aria-hidden className="text-muted-foreground flex size-11 shrink-0 items-start justify-end pr-1 text-lg leading-none">
-                        ↳
-                    </span>
-                ) : (
-                    <StoredImage
-                        path={line.image}
-                        alt={line.product_name}
-                        fallback={<Pill className="size-4" />}
-                        className="size-11 shrink-0 rounded-lg"
-                    />
-                )}
+                <StoredImage
+                    path={line.image}
+                    alt={line.product_name}
+                    fallback={<Pill className="size-4" />}
+                    className="size-11 shrink-0 rounded-lg"
+                />
                 <div className="min-w-0">
-                    {grouped ? (
-                        <p className="sr-only">{line.commercial_name ?? line.product_name}</p>
-                    ) : (
-                        <p className="truncate font-medium">
-                            {line.commercial_name ?? line.product_name}{' '}
-                            {line.concentration && <span className="text-muted-foreground text-sm font-normal">{line.concentration}</span>}
+                    <p className="flex min-w-0 items-center gap-1.5 leading-tight">
+                        <Tag className="text-primary size-3.5 shrink-0" />
+                        <span className="text-foreground/70 text-xs">Comercial:</span>
+                        <span className="truncate font-semibold">{line.commercial_name ?? line.product_name}</span>
+                        {line.concentration && <span className="text-muted-foreground text-sm">{line.concentration}</span>}
+                    </p>
+                    {/* Genérico y laboratorio (solo los que tiene), como en el buscador */}
+                    {(line.generic_name || line.laboratory) && (
+                        <p className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+                            {line.generic_name && (
+                                <span className="inline-flex min-w-0 items-center gap-1">
+                                    <FlaskConical className="text-primary size-3.5 shrink-0" />
+                                    <span className="text-foreground/70">Genérico:</span>
+                                    <span className="font-medium">{line.generic_name}</span>
+                                </span>
+                            )}
+                            {line.laboratory && (
+                                <span className="inline-flex min-w-0 items-center gap-1">
+                                    <Factory className="text-primary size-3.5 shrink-0" />
+                                    <span className="text-foreground/70">Laboratorio:</span>
+                                    <span className="font-medium">{line.laboratory}</span>
+                                </span>
+                            )}
                         </p>
                     )}
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
-                        <span title={describeLevels(line.breakdown ?? []) || 'Unidad suelta'}>
-                            <PackageChain size="sm" pkg={line.package ?? line.presentation_name} levels={line.breakdown ?? []} withLevels={false} />
-                        </span>
-                        <span className="num text-muted-foreground">{money(line.sale_price)} c/u</span>
-                        {line.promo_discount && <PromoBadge percent={line.promo_discount} />}
-                        {line.requires_prescription && <span className="font-medium text-amber-600">con receta</span>}
-                        {overStock && <span className="font-semibold text-red-600">stock insuficiente</span>}
-                        {onEdit && !grouped && (
-                            <button
-                                type="button"
-                                onClick={onEdit}
-                                className="text-primary inline-flex items-center gap-1 font-medium hover:underline"
-                            >
-                                <PackageOpen className="size-3.5" /> Cambiar empaques
-                            </button>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                        {!options && (
+                            <>
+                                <span title={describeLevels(line.breakdown ?? []) || 'Unidad suelta'}>
+                                    <PackageChain size="sm" pkg={line.package ?? line.presentation_name} levels={[]} withLevels={false} />
+                                </span>
+                                <span className="num text-muted-foreground">{money(priceOf(line, 1))} c/u</span>
+                                {line.promo_discount && <PromoBadge percent={line.promo_discount} />}
+                            </>
                         )}
+                        {line.requires_prescription && <span className="font-medium text-amber-600">Con receta</span>}
                     </div>
                 </div>
             </div>
+
             {/* − cantidad + en una sola pieza (clase .stepper de app.css) */}
-            <div className="flex flex-col items-center gap-0.5">
+            <div className="flex flex-col items-center gap-0.5 sm:justify-self-center">
                 <div className="stepper" data-active="true">
-                    <button type="button" onClick={() => onQuantity(line.quantity - 1)} disabled={line.quantity <= 1} aria-label="Menos">
+                    <button
+                        type="button"
+                        onClick={() => (options ? onUnits(units - step) : onQuantity(line.quantity - 1))}
+                        disabled={value <= (options ? step : 1)}
+                        aria-label="Menos"
+                    >
                         <Minus className="size-3.5" />
                     </button>
-                    <input
-                        type="number"
-                        min={1}
-                        className="text-sm"
-                        value={line.quantity}
-                        step={1}
-                        inputMode="numeric"
-                        onKeyDown={blockFractionKeys}
-                        onChange={(e) => onQuantity(Math.floor(Number(e.target.value)))}
-                        onFocus={(e) => e.target.select()}
-                        aria-label="Cantidad"
-                    />
-                    <button type="button" onClick={() => onQuantity(line.quantity + 1)} aria-label="Más">
+                    {options ? (
+                        // Varios empaques: se escribe en la ventana (aquí escribir de a una cifra armaría empaques a medias)
+                        <input
+                            type="number"
+                            className="cursor-pointer text-sm"
+                            value={units}
+                            readOnly
+                            onClick={onEdit}
+                            aria-label={`Cantidad en ${caption}`}
+                        />
+                    ) : (
+                        <input
+                            type="number"
+                            min={1}
+                            className="text-sm"
+                            value={line.quantity}
+                            step={1}
+                            inputMode="numeric"
+                            onKeyDown={blockFractionKeys}
+                            onChange={(e) => onQuantity(Math.floor(Number(e.target.value)))}
+                            onFocus={(e) => e.target.select()}
+                            aria-label="Cantidad"
+                        />
+                    )}
+                    <button type="button" onClick={() => (options ? onUnits(units + step) : onQuantity(line.quantity + 1))} aria-label="Más">
                         <Plus className="size-3.5" />
                     </button>
                 </div>
-                {line.factor > 1 && baseUnit && (
-                    <span className="text-muted-foreground num text-[10px]">
-                        = {(line.quantity * line.factor).toLocaleString('es')} {baseUnit}
-                    </span>
-                )}
+                {caption && <span className="text-muted-foreground num text-[10px]">{caption}</span>}
             </div>
+
             <div className="text-right">
-                <span className="num block font-semibold">{money(total)}</span>
+                <span className="num block text-base font-bold">{money(total)}</span>
                 {full > total && <span className="num text-muted-foreground block text-[11px] line-through">{money(full)}</span>}
             </div>
             <Button
@@ -1065,34 +1118,46 @@ function CartItem({
             >
                 <Trash2 className="size-4" />
             </Button>
-        </li>
-    );
-}
 
-/** Sugerencia bajo un producto: "11 tabletas = 1 blíster + 1 tableta · el cliente ahorra Bs 3,00  [Convertir]". */
-function PackingHint({ suggestion, onApply }: { suggestion: PackingSuggestion; onApply: () => void }) {
-    return (
-        <li className="animate-in fade-in slide-in-from-top-1 px-4 pb-3 duration-300">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-gradient-to-r from-amber-50 to-emerald-50 px-3 py-2 ring-1 ring-amber-200/70 dark:from-amber-950/40 dark:to-emerald-950/40 dark:ring-amber-900/60">
-                <Lightbulb className="size-4 shrink-0 text-amber-500" />
-                <p className="min-w-0 flex-1 text-sm">
-                    <span className="num font-semibold">
-                        {suggestion.units.toLocaleString('es')} {suggestion.unitWord}
-                    </span>{' '}
-                    ={' '}
-                    {suggestion.packing.map(({ option, quantity }, i) => (
-                        <span key={option.presentation_id}>
-                            {i > 0 && ' + '}
-                            <span className="num font-semibold">{countOf(quantity, option.package)}</span>
-                        </span>
-                    ))}
-                    <span className="text-muted-foreground"> · el cliente ahorra </span>
-                    <span className="num font-semibold text-emerald-700 dark:text-emerald-400">{money(suggestion.savings)}</span>
+            {/* Detalle de lo que se entrega: una fila por empaque, con su importe en la columna de importe */}
+            {options && (
+                <div className="bg-muted/50 col-span-full grid gap-1 rounded-lg py-2 sm:ml-14">
+                    {/* Encabezado del detalle: qué se entrega y, al lado, el botón para cambiarlo */}
+                    <div className="flex items-center justify-between gap-2 px-3 pb-1">
+                        <span className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">Se entrega</span>
+                        <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 px-2.5 text-xs" onClick={onEdit}>
+                            <PackageOpen className="size-3.5" /> Cambiar empaques
+                        </Button>
+                    </div>
+                    <ul className="grid gap-1">
+                        {sorted.map((l) => (
+                            <li
+                                key={l.presentation_id}
+                                className="grid grid-cols-[1fr_auto] items-center gap-x-3 px-3 text-sm sm:grid-cols-[1fr_8.5rem_7rem_2rem] sm:pr-0 sm:pl-3"
+                            >
+                                <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                                    <PackageChain size="sm" pkg={l.package ?? l.presentation_name} levels={[]} withLevels={false} />
+                                    <span className="num font-semibold">{countOf(l.quantity, l.package)}</span>
+                                    <span className="num text-muted-foreground text-xs">
+                                        × {money(priceOf(l, 1))}
+                                        {l.factor > 1 &&
+                                            ` · ${(l.quantity * l.factor).toLocaleString('es')} ${baseUnitWord(options, l.quantity * l.factor)}`}
+                                    </span>
+                                    {l.promo_discount && <PromoBadge percent={l.promo_discount} />}
+                                </span>
+                                <span className="num text-right font-medium sm:col-start-3">{money(priceOf(l, l.quantity))}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {overStock && (
+                <p className="col-span-full flex items-center gap-1.5 text-xs font-semibold text-red-600 sm:pl-14">
+                    <TriangleAlert className="size-3.5 shrink-0" />
+                    Stock insuficiente: solo hay {line.stock_units.toLocaleString('es')} {baseUnitWord(unitOptions, line.stock_units)}
                 </p>
-                <Button type="button" size="sm" className="h-7 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700" onClick={onApply}>
-                    <Sparkles className="size-3.5" /> Convertir
-                </Button>
-            </div>
+            )}
         </li>
     );
 }
@@ -1125,9 +1190,6 @@ function EmptyCart() {
                     </div>
                 ))}
             </div>
-            <p className="text-muted-foreground text-xs">
-                Presiona <kbd className="bg-muted rounded border px-1.5 py-0.5 text-[10px] font-medium">F2</kbd> para volver al buscador
-            </p>
         </div>
     );
 }

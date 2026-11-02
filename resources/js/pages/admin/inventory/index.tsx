@@ -198,12 +198,9 @@ export default function InventoryIndex({ products, filters, branches, alertDays,
                                             </button>
                                         </Td>
                                         <Td>
-                                            <Link
-                                                href={route('admin.inventory.show', { product: product.id, branch: filters.branch })}
-                                                className="font-medium hover:underline"
-                                            >
+                                            <p className="font-medium">
                                                 {product.name} <span className="text-muted-foreground font-normal">{product.concentration}</span>
-                                            </Link>
+                                            </p>
                                             <p className="text-muted-foreground text-xs">
                                                 {[product.generic_name, product.pharmaceutical_form, product.laboratory?.name, product.category?.name]
                                                     .filter(Boolean)

@@ -136,6 +136,10 @@ export type PosLookup = {
     image: string | null;
     laboratory: string | null;
     generic_name: string | null;
+    pharmaceutical_form: string | null;
+    category: string | null;
+    /** Código de la presentación, o del producto si la presentación no tiene */
+    barcode: string | null;
     /** Usos / síntomas, para mostrar "Sirve para: …" en el resultado */
     indications: string[];
     requires_prescription: boolean;

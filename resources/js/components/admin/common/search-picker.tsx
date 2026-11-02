@@ -29,6 +29,8 @@ interface SearchPickerProps<T, R = T> {
     /** Convierte lo que responde Laravel antes de mostrarlo (ej: agrupar presentaciones por producto) */
     mapResults?: (data: R[]) => T[];
     itemKey: (item: T) => string | number;
+    /** Resultados que se ven pero no se pueden elegir (ej: sin stock en el punto de venta) */
+    isDisabled?: (item: T) => boolean;
     placeholder?: string;
     /** Mínimo de letras para buscar */
     minLength?: number;
@@ -48,6 +50,7 @@ export function SearchPicker<T, R = T>({
     renderItem,
     mapResults,
     itemKey,
+    isDisabled,
     placeholder = 'Buscar…',
     minLength = 2,
     className,
@@ -91,6 +94,7 @@ export function SearchPicker<T, R = T>({
     }, [query]);
 
     const pick = (item: T) => {
+        if (isDisabled?.(item)) return;
         onPick(item);
         setQuery('');
         setResults([]);
@@ -144,11 +148,15 @@ export function SearchPicker<T, R = T>({
                             <div
                                 role="option"
                                 aria-selected={i === active}
+                                aria-disabled={isDisabled?.(item) || undefined}
                                 key={itemKey(item)}
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => pick(item)}
                                 onMouseEnter={() => setActive(i)}
-                                className={cn('block w-full cursor-pointer px-3 py-2 text-left text-sm', i === active && 'bg-muted')}
+                                className={cn(
+                                    'block w-full px-3 py-2 text-left text-sm',
+                                    isDisabled?.(item) ? 'cursor-not-allowed' : cn('cursor-pointer', i === active && 'bg-muted'),
+                                )}
                             >
                                 {renderItem(item, pick)}
                             </div>
