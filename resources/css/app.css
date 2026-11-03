@@ -633,13 +633,13 @@
     100% {
         box-shadow:
             0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent),
-            0 6px 16px -8px color-mix(in oklab, var(--primary) 60%, transparent);
+            0 2px 6px -2px color-mix(in oklab, var(--primary) 50%, transparent);
         filter: brightness(1);
     }
     50% {
         box-shadow:
-            0 0 0 5px color-mix(in oklab, var(--primary) 22%, transparent),
-            0 0 18px 2px color-mix(in oklab, var(--primary) 55%, transparent);
+            0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent),
+            0 0 10px 0 color-mix(in oklab, var(--primary) 50%, transparent);
         filter: brightness(1.18);
     }
 }

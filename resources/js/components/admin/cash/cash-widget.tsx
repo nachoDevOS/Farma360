@@ -126,31 +126,31 @@ export function CashWidget() {
                         onClick={() => setOpen(true)}
                         aria-label="Ver el dinero de mi caja (Alt + C)"
                         className={cn(
-                            'cash-island cash-fab-sheen cash-brand relative flex size-10 items-center justify-center overflow-hidden rounded-full',
+                            'cash-island cash-fab-sheen cash-brand relative flex size-8 items-center justify-center overflow-hidden rounded-full',
                             changed ? (delta.amount > 0 ? 'cash-island-flash' : 'cash-island-flash-out') : 'cash-blink',
                         )}
                     >
-                        <Wallet className="cash-fab-icon size-5" strokeWidth={2.25} />
+                        <Wallet className="cash-fab-icon size-[18px]" />
                     </button>
                 ) : (
                     <button
                         type="button"
                         onClick={() => setOpen(true)}
                         aria-label="Mi caja: cerrada (Alt + C)"
-                        className="cash-island cash-blink-soft bg-muted/60 text-muted-foreground hover:border-primary/40 hover:bg-background hover:text-primary relative flex size-10 items-center justify-center rounded-full border border-dashed transition-colors"
+                        className="cash-island cash-blink-soft bg-muted/60 text-muted-foreground hover:border-primary/40 hover:bg-background hover:text-primary relative flex size-8 items-center justify-center rounded-full border border-dashed transition-colors"
                     >
-                        <Wallet className="cash-fab-icon size-5" strokeWidth={2.25} />
+                        <Wallet className="cash-fab-icon size-[18px]" />
                     </button>
                 )}
 
                 {/* Punto de estado: verde que late = turno abierto · gris = caja cerrada */}
                 {cash ? (
-                    <span className="pointer-events-none absolute -top-0.5 -right-0.5 flex size-3">
+                    <span className="pointer-events-none absolute -top-0.5 -right-0.5 flex size-2.5">
                         <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                        <span className="border-background relative inline-flex size-3 rounded-full border-2 bg-emerald-500" />
+                        <span className="border-background relative inline-flex size-2.5 rounded-full border-2 bg-emerald-500" />
                     </span>
                 ) : (
-                    <span className="border-background bg-muted-foreground/40 pointer-events-none absolute -top-0.5 -right-0.5 size-3 rounded-full border-2" />
+                    <span className="border-background bg-muted-foreground/40 pointer-events-none absolute -top-0.5 -right-0.5 size-2.5 rounded-full border-2" />
                 )}
 
                 {/* Aviso que baja debajo de la isla cuando cambia el dinero: "+ Bs 25,00" / "+1 venta" */}

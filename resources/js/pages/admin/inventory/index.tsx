@@ -11,6 +11,7 @@
 import { BranchMenu } from '@/components/admin/common/branch-menu';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
 import { ExpiryBadge } from '@/components/admin/common/doc-status';
+import { StoredImage } from '@/components/admin/common/image-upload';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
@@ -198,21 +199,39 @@ export default function InventoryIndex({ products, filters, branches, alertDays,
                                             </button>
                                         </Td>
                                         <Td>
-                                            <p className="font-medium">
-                                                {product.name} <span className="text-muted-foreground font-normal">{product.concentration}</span>
-                                            </p>
-                                            <p className="text-muted-foreground text-xs">
-                                                {[product.generic_name, product.pharmaceutical_form, product.laboratory?.name, product.category?.name]
-                                                    .filter(Boolean)
-                                                    .join(' · ') || '—'}
-                                                {product.is_controlled ? (
-                                                    <span className="ml-2 font-medium text-red-600">Controlado</span>
-                                                ) : (
-                                                    product.requires_prescription && (
-                                                        <span className="ml-2 font-medium text-amber-600">Con receta</span>
-                                                    )
-                                                )}
-                                            </p>
+                                            {/* Foto del producto (se agranda al tocarla, igual que en Productos) */}
+                                            <div className="flex items-center gap-3">
+                                                <StoredImage
+                                                    path={product.image}
+                                                    alt={product.name}
+                                                    fallback={<Pill className="size-4" />}
+                                                    className="size-10"
+                                                    zoomable
+                                                />
+                                                <div className="min-w-0">
+                                                    <p className="font-medium">
+                                                        {product.name}{' '}
+                                                        <span className="text-muted-foreground font-normal">{product.concentration}</span>
+                                                    </p>
+                                                    <p className="text-muted-foreground text-xs">
+                                                        {[
+                                                            product.generic_name,
+                                                            product.pharmaceutical_form,
+                                                            product.laboratory?.name,
+                                                            product.category?.name,
+                                                        ]
+                                                            .filter(Boolean)
+                                                            .join(' · ') || '—'}
+                                                        {product.is_controlled ? (
+                                                            <span className="ml-2 font-medium text-red-600">Controlado</span>
+                                                        ) : (
+                                                            product.requires_prescription && (
+                                                                <span className="ml-2 font-medium text-amber-600">Con receta</span>
+                                                            )
+                                                        )}
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </Td>
                                         <Td align="right">
                                             <span className={cn('num font-semibold', status.tone === 'red' && 'text-red-600')}>
