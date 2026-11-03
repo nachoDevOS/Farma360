@@ -30,4 +30,7 @@ return [
     // para que el cierre siga siendo ciego (el cajero cuenta sin saber cuánto debería dar).
     'show_expected_cash' => true,
 
+    // Descuento general máximo de una venta (% del subtotal), para quien tiene el permiso ventas.descontar.
+    'discount_limit' => 20,
+
 ];

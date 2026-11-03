@@ -3,7 +3,7 @@
  * Botón Imprimir: imprime solo el ticket (ver clase print:hidden). Anular: SaleController@cancel.
  */
 import { ReasonDialog } from '@/components/admin/common/confirm-dialog';
-import { DocStatus, PromoBadge } from '@/components/admin/common/doc-status';
+import { DocStatus } from '@/components/admin/common/doc-status';
 import { describeLevels, levelsOf } from '@/components/admin/common/package-chain';
 import { countOf } from '@/components/admin/products/presentation-levels';
 import { Button } from '@/components/ui/button';
@@ -87,10 +87,15 @@ export default function SaleShow({ sale, paymentMethods }: { sale: Sale; payment
                                             ? countOf(item.units / item.factor, item.presentation.package)
                                             : `${item.units / item.factor} ${item.presentation?.name ?? ''}`}{' '}
                                         × {money(item.list_price, false)}
-                                        {Number(item.discount_percent) > 0 && <PromoBadge percent={item.discount_percent} className="ml-1" />}
                                     </span>
-                                    <span className="text-foreground">{money(item.subtotal, false)}</span>
+                                    {/* Como en una factura: cantidad × precio − descuento = subtotal de la línea */}
+                                    <span className="text-foreground">{money(item.total, false)}</span>
                                 </div>
+                                {Number(item.discount_amount) > 0 && (
+                                    <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                                        Descuento por vencimiento {Number(item.discount_percent)}%: {money(item.discount_amount, false)}
+                                    </p>
+                                )}
                                 <TicketLevels item={item} />
                                 <p className="text-muted-foreground text-[11px]">
                                     Lote {item.batch.batch_number} ·{' '}
@@ -100,6 +105,16 @@ export default function SaleShow({ sale, paymentMethods }: { sale: Sale; payment
                         ))}
                     </ul>
                     <div className="my-3 border-t border-dashed" />
+                    <div className="flex justify-between text-xs">
+                        <span>Subtotal</span>
+                        <span>{money(sale.subtotal, false)}</span>
+                    </div>
+                    {Number(sale.discount) > 0 && (
+                        <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400">
+                            <span>Descuento{sale.discount_reason && ` (${sale.discount_reason})`}</span>
+                            <span>{money(sale.discount, false)}</span>
+                        </div>
+                    )}
                     <div className="flex justify-between text-base font-semibold">
                         <span>TOTAL</span>
                         <span>{money(sale.total)}</span>

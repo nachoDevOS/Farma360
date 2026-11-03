@@ -61,7 +61,94 @@ class SaleTest extends TestCase
         $sale = Sale::with('items')->firstOrFail();
         // 4 x 2.00 = 8.00 con 25% = 6.00
         $this->assertEquals(6, $sale->total);
-        $this->assertEquals(25, $sale->items->first()->discount_percent);
+        $item = $sale->items->first();
+        $this->assertEquals(25, $item->discount_percent);
+        $this->assertEquals([8, 2, 6], [$item->subtotal, $item->discount_amount, $item->total]);
+        $this->assertEquals([6, 0], [$sale->subtotal, $sale->discount]);
+    }
+
+    public function test_only_the_units_of_the_batch_on_promotion_get_the_discount_in_percent_and_in_bs()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0);
+        $promo = $this->batch($product, $branch, 4, '+40 days', 0.4);
+        $normal = $this->batch($product, $branch, 50, '+1 year', 0.4);
+        app(PromotionService::class)->apply($promo, 25, $this->userWithRole('Administrador'));
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+
+        // 9 tabletas: las 4 del lote en promoción con −25% y las otras 5 del siguiente a precio normal
+        $this->sell($cashier, [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 9]], [['method' => 'qr', 'amount' => 8]])
+            ->assertRedirect();
+
+        $sale = Sale::with('items')->firstOrFail();
+        $this->assertSame(
+            [
+                [$promo->id, 4, '4.00', '25.00', '1.00', '3.00'],
+                [$normal->id, 5, '5.00', '0.00', '0.00', '5.00'],
+            ],
+            $sale->items->map(fn ($i) => [$i->batch_id, $i->units, $i->subtotal, $i->discount_percent, $i->discount_amount, $i->total])->all(),
+        );
+        // El subtotal de la venta ya trae la promoción; sin descuento general
+        $this->assertSame(['8.00', '0.00', '8.00'], [$sale->subtotal, $sale->discount, $sale->total]);
+    }
+
+    public function test_a_general_discount_lowers_the_total_like_an_invoice()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0);
+        $promo = $this->batch($product, $branch, 4, '+40 days', 0.4);
+        $this->batch($product, $branch, 50, '+1 year', 0.4);
+        $admin = $this->userWithRole('Administrador', $branch);
+        app(PromotionService::class)->apply($promo, 25, $admin);
+        $this->openCash($admin, $branch);
+
+        // 9 tabletas: 3.00 (4 con −25%) + 5.00 = subtotal 8.00; Bs 1 de descuento general por redondeo
+        $this->sell($admin, [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 9]], [['method' => 'qr', 'amount' => 7]], [
+            'discount' => 1,
+            'discount_reason' => 'Redondeo',
+        ])->assertRedirect();
+
+        $sale = Sale::with('items')->firstOrFail();
+        $this->assertSame(['8.00', '1.00', 'Redondeo', '7.00'], [$sale->subtotal, $sale->discount, $sale->discount_reason, $sale->total]);
+        // Cada ítem guarda solo su propio descuento (la promoción); el general queda en la venta
+        $this->assertSame(['1.00', '0.00'], $sale->items->pluck('discount_amount')->all());
+
+        // Reportes: ingresos y producto ya sin el descuento general (repartido al calcular); cuánto, por qué y quién
+        $this->actingAs($admin)->get('/admin/reports')->assertInertia(fn ($page) => $page
+            ->where('summary.revenue', 7)
+            ->where('summary.general_discount', 1)
+            ->where('topProducts.0.revenue', 7)
+            ->where('discountByReason.0', ['name' => 'Redondeo', 'count' => 1, 'total' => 1])
+            ->where('discountBySeller.0.name', $admin->name));
+    }
+
+    public function test_a_general_discount_needs_the_permission_a_reason_stays_within_the_limit_and_above_the_cost()
+    {
+        $branch = $this->branch();
+        $product = $this->product(10.0);
+        $this->batch($product, $branch, 10, '+1 year', 9.0);
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+        $item = [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 1]];
+        $sell = fn (float $discount, array $extra = ['discount_reason' => 'Cortesía']) => $this->sell(
+            $cashier, $item, [['method' => 'qr', 'amount' => 10 - $discount]], ['discount' => $discount] + $extra,
+        );
+
+        // El Cajero no tiene ventas.descontar
+        $sell(0.5)->assertSessionHas('error', 'No tienes permiso para dar descuentos.');
+
+        $cashier->givePermissionTo('ventas.descontar');
+        // Sin motivo no pasa la validación
+        $sell(0.5, [])->assertSessionHasErrors('discount_reason');
+        // Tope 20%: Bs 2.50 de Bs 10 es 25%
+        $sell(2.5)->assertSessionHas('error', fn (string $error) => str_contains($error, 'no puede pasar del 20%'));
+        // Bs 2 deja la venta en 8, debajo del costo (9): necesita promociones.aprobar
+        $sell(2)->assertSessionHas('error', fn (string $error) => str_contains($error, 'por debajo del costo'));
+        $this->assertSame(0, Sale::count());
+
+        $sell(0.5)->assertRedirect();
+        $this->assertDatabaseHas('sales', ['subtotal' => 10, 'discount' => 0.5, 'discount_reason' => 'Cortesía', 'total' => 9.5]);
     }
 
     public function test_boxes_and_units_of_the_same_product_share_the_stock()

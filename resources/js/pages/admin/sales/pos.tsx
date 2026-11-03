@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useCan } from '@/hooks/use-can';
 import AdminLayout from '@/layouts/admin/admin-layout';
 import { formatDay, money } from '@/lib/format';
 import { useStorageUrl } from '@/lib/storage';
@@ -28,17 +29,16 @@ import { cn } from '@/lib/utils';
 import { type CashSession, type PosLookup } from '@/types/admin/pharmacy';
 import { Head, Link, useForm } from '@inertiajs/react';
 import {
-    ArrowLeftRight,
     BadgePercent,
     Banknote,
     Beaker,
-    CreditCard,
     Factory,
     FlaskConical,
     LoaderCircle,
     Minus,
     Package,
     PackageOpen,
+    Pencil,
     Pill,
     Plus,
     QrCode,
@@ -49,8 +49,9 @@ import {
     Tag,
     Trash2,
     TriangleAlert,
+    Undo2,
+    UserPlus,
     UserRound,
-    Wallet,
     X,
     type LucideIcon,
 } from 'lucide-react';
@@ -59,6 +60,8 @@ import { FormEventHandler, useEffect, useRef, useState } from 'react';
 interface Props {
     session: CashSession;
     paymentMethods: Record<string, string>;
+    /** Tope del descuento general (% del subtotal). config/farmacia.php → discount_limit */
+    discountLimit: number;
 }
 
 /** siblings: las presentaciones a la venta del mismo producto (para sugerir 1 blíster + 1 tableta en vez de 11 tabletas) */
@@ -68,13 +71,13 @@ type Packing = { option: PosLookup; quantity: number }[];
 type PosProduct = PosLookup & { options: PosLookup[] };
 /** Producto abierto en la ventana de cantidad: sus presentaciones y lo que ya trae puesto (por presentation_id). */
 type Choosing = { options: PosLookup[]; initial: Record<number, number>; editing: boolean };
-type PaymentRow = { method: string; amount: string; reference: string };
+/** Descuento general de la venta (el "descuento adicional" de una factura): monto en Bs y su motivo. */
+type GeneralDiscount = { amount: number; reason: string };
+/** Cómo paga: solo efectivo, solo QR o mixto (una parte por QR y el resto en efectivo). */
+type PayMode = 'efectivo' | 'qr' | 'mixto';
 type CustomerLookup = { id: number; name: string; document_type: string; document_number: string | null };
 
 const round = (n: number) => Math.round(n * 100) / 100;
-
-/** Ícono de cada forma de pago (config/farmacia.php → payment_methods); las nuevas usan la billetera. */
-const PAYMENT_ICONS: Record<string, LucideIcon> = { efectivo: Banknote, qr: QrCode, tarjeta: CreditCard, transferencia: ArrowLeftRight };
 
 /** Agrupa las presentaciones que manda el servidor (una fila por presentación) en un resultado por producto. */
 function groupByProduct(rows: PosLookup[]): PosProduct[] {
@@ -97,6 +100,8 @@ function parseQuantity(query: string): { quantity: number; text: string } {
     return quantity >= 1 && match ? { quantity, text: match[2].trim() } : { quantity: 1, text: query.trim() };
 }
 
+/** Importe de una línea del carrito con la promoción del lote que sale primero. */
+const lineTotal = (line: CartLine) => round(line.sale_price * line.quantity * (1 - (line.promo_discount ?? 0) / 100));
 const priceOf = (option: PosLookup, quantity: number) => round(option.sale_price * quantity * (1 - (option.promo_discount ?? 0) / 100));
 
 /** Arma las unidades con los empaques más grandes primero: 11 tabletas → 1 blíster (10) + 1 tableta. left: lo que no entra justo. */
@@ -147,6 +152,19 @@ function baseUnitWord(options: PosLookup[], count: number): string {
     return options.find((option) => option.breakdown?.length)?.breakdown.at(-1)?.unit ?? 'unidades';
 }
 
+/**
+ * Pagos que viajan a Laravel según el modo: efectivo → lo entregado; QR → el total; mixto → la parte por QR y el
+ * efectivo entregado. El servidor guarda el efectivo sin el cambio.
+ */
+function paymentsOf(payment: { mode: PayMode; cash: string; qr: string; reference: string }, total: number) {
+    const qr = payment.mode === 'qr' ? total : payment.mode === 'mixto' ? round(Number(payment.qr || 0)) : 0;
+    const cash = payment.mode === 'qr' ? 0 : round(Number(payment.cash || 0));
+    return [
+        ...(qr > 0 ? [{ method: 'qr', amount: qr, reference: payment.reference || null }] : []),
+        ...(cash > 0 ? [{ method: 'efectivo', amount: cash, reference: null }] : []),
+    ];
+}
+
 /** Billetes de Bolivia para sugerir con cuánto paga el cliente. */
 const BILLS = [10, 20, 50, 100, 200];
 
@@ -159,31 +177,41 @@ function cashSuggestions(total: number): number[] {
     return [...new Set(amounts)].sort((a, b) => a - b).slice(0, 4);
 }
 
-export default function Pos({ session, paymentMethods }: Props) {
+export default function Pos({ session, paymentMethods, discountLimit }: Props) {
+    const can = useCan();
     const search = useRef<HTMLInputElement>(null);
-    const firstAmount = useRef<HTMLInputElement>(null);
+    // Primer campo del cobro (F4): el efectivo recibido, el monto por QR (mixto) o el N° de operación (QR)
+    const payAmount = useRef<HTMLInputElement>(null);
     // Cantidad escrita antes del producto ("3*alergin"): la toma el buscador al pedir resultados
     const [pendingQuantity, setPendingQuantity] = useState(1);
     // Última línea agregada: destella en el carrito (la clave cambia en cada agregado para repetir el destello)
     const [flash, setFlash] = useState<{ id: number; key: number } | null>(null);
     // Producto en la ventana "¿cuántas lleva?" (null = cerrada)
     const [choosing, setChoosing] = useState<Choosing | null>(null);
+    // Datos del cliente: opcionales, plegados hasta que el cajero los pida (o si ya hay alguno puesto)
+    const [showCustomer, setShowCustomer] = useState(false);
+    // Ventana "Descuento a la venta" abierta
+    const [discounting, setDiscounting] = useState(false);
     // Con clave: si se recarga la página no se pierde el carrito a medio cobrar
-    const { data, setData, transform, post, processing, errors, reset } = useForm('pos-sale', {
+    const { data, setData, transform, post, processing, errors, reset } = useForm('pos-cart', {
         cart: [] as CartLine[],
         customer_id: null as number | null,
         customer_name: '',
         customer_document: '',
         prescription_number: '',
         prescription_doctor: '',
-        payments: [{ method: 'efectivo', amount: '', reference: '' }] as PaymentRow[],
+        // cash = efectivo que entrega el cliente · qr = monto por QR (en mixto) · reference = N° de operación del QR
+        payment: { mode: 'efectivo' as PayMode, cash: '', qr: '', reference: '' },
+        discount: null as GeneralDiscount | null,
     });
     const err = errors as Record<string, string | undefined>;
 
     // Lo que viaja a Laravel (SaleController@store)
     transform((d) => ({
         items: d.cart.map((line) => ({ product_presentation_id: line.presentation_id, quantity: line.quantity })),
-        payments: d.payments.map((p) => ({ method: p.method, amount: Number(p.amount || 0), reference: p.reference || null })),
+        payments: paymentsOf(d.payment, round(d.cart.reduce((sum, line) => sum + lineTotal(line), 0) - (d.discount?.amount ?? 0))),
+        discount: d.discount?.amount ?? 0,
+        discount_reason: d.discount?.reason ?? null,
         customer_id: d.customer_id,
         customer_name: d.customer_name,
         customer_document: d.customer_document,
@@ -199,21 +227,30 @@ export default function Pos({ session, paymentMethods }: Props) {
                 search.current?.focus();
             } else if (e.key === 'F4') {
                 e.preventDefault();
-                firstAmount.current?.focus();
-                firstAmount.current?.select();
+                payAmount.current?.focus();
+                payAmount.current?.select();
             }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, []);
 
-    const lineTotal = (line: CartLine) => round(line.sale_price * line.quantity * (1 - (line.promo_discount ?? 0) / 100));
-    const subtotal = round(data.cart.reduce((sum, line) => sum + line.sale_price * line.quantity, 0));
-    const total = round(data.cart.reduce((sum, line) => sum + lineTotal(line), 0));
-    const savings = round(subtotal - total);
-    const paid = round(data.payments.reduce((sum, p) => sum + Number(p.amount || 0), 0));
+    // Como en una factura: Subtotal (suma de los productos, ya con su promoción) − Descuento general = Total
+    const fullPrice = round(data.cart.reduce((sum, line) => sum + line.sale_price * line.quantity, 0));
+    const subtotal = round(data.cart.reduce((sum, line) => sum + lineTotal(line), 0));
+    const savings = round(fullPrice - subtotal);
+    const generalDiscount = data.discount?.amount ?? 0;
+    const discountOverLimit = generalDiscount > round((subtotal * discountLimit) / 100);
+    const total = round(Math.max(0, subtotal - generalDiscount));
+    const { mode } = data.payment;
+    // Por QR: todo en QR; en mixto lo que escribe el cajero. En efectivo: lo que falta después del QR
+    const qrAmount = mode === 'qr' ? total : mode === 'mixto' ? round(Number(data.payment.qr || 0)) : 0;
+    const cashDue = round(Math.max(0, total - qrAmount));
+    const cashGiven = mode === 'qr' ? 0 : round(Number(data.payment.cash || 0));
+    const paid = round(qrAmount + cashGiven);
     const change = round(paid - total);
     const needsPrescription = data.cart.some((line) => line.is_controlled);
+    const customerOpen = showCustomer || data.customer_id !== null || data.customer_name !== '' || data.customer_document !== '';
     const unitsInCart = (productId: number) => data.cart.filter((l) => l.product_id === productId).reduce((s, l) => s + l.quantity * l.factor, 0);
     // Una fila por producto en el carrito: sus líneas de caja, blíster y tableta van juntas
     const cartGroups = data.cart.reduce<CartLine[][]>((groups, line) => {
@@ -309,25 +346,28 @@ export default function Pos({ session, paymentMethods }: Props) {
         }
     };
 
-    const setPayment = (index: number, field: keyof PaymentRow, value: string) =>
-        setData(
-            'payments',
-            data.payments.map((p, i) => (i === index ? { ...p, [field]: value } : p)),
-        );
-
-    /** Lo que falta para cubrir el total, en la última forma de pago (botón "Exacto"). */
-    const payExact = () => {
-        const last = data.payments.length - 1;
-        setPayment(last, 'amount', String(round(total - (paid - Number(data.payments[last].amount || 0)))));
-    };
+    const setPayment = (field: keyof typeof data.payment, value: string) => setData('payment', { ...data.payment, [field]: value });
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        post(route('admin.sales.store'), { onSuccess: () => reset() });
+        post(route('admin.sales.store'), {
+            onSuccess: () => {
+                reset();
+                setShowCustomer(false);
+            },
+        });
     };
 
-    const singleCash = data.payments.length === 1 && data.payments[0].method === 'efectivo';
-    const blocker = data.cart.length === 0 ? 'Agrega al menos un producto' : change < 0 ? `Falta cobrar ${money(Math.abs(change))}` : null;
+    const blocker =
+        data.cart.length === 0
+            ? 'Agrega al menos un producto'
+            : discountOverLimit
+              ? `El descuento pasa del ${discountLimit}% del subtotal: ajústalo`
+              : qrAmount > total
+                ? 'El monto por QR no puede pasar del total'
+                : change < 0
+                  ? `Falta cobrar ${money(Math.abs(change))}`
+                  : null;
 
     return (
         <AdminLayout breadcrumbs={[{ title: 'Punto de venta', href: route('admin.pos') }]}>
@@ -388,7 +428,7 @@ export default function Pos({ session, paymentMethods }: Props) {
                                         variant="ghost"
                                         size="sm"
                                         className="text-muted-foreground hover:text-destructive h-7"
-                                        onClick={() => setData('cart', [])}
+                                        onClick={() => setData((d) => ({ ...d, cart: [], discount: null }))}
                                     >
                                         <Trash2 className="size-3.5" /> Vaciar
                                     </Button>
@@ -434,6 +474,23 @@ export default function Pos({ session, paymentMethods }: Props) {
                     <InputError message={err.items} />
                 </div>
 
+                {discounting && (
+                    <GeneralDiscountDialog
+                        base={subtotal}
+                        current={data.discount}
+                        limit={discountLimit}
+                        onApply={(discount) => {
+                            setData('discount', discount);
+                            setDiscounting(false);
+                        }}
+                        onReset={() => {
+                            setData('discount', null);
+                            setDiscounting(false);
+                        }}
+                        onClose={() => setDiscounting(false)}
+                    />
+                )}
+
                 {choosing && (
                     <QuantityDialog
                         {...choosing}
@@ -448,68 +505,99 @@ export default function Pos({ session, paymentMethods }: Props) {
                 {/* DERECHA: cliente, receta, pago y cobro (queda fija al bajar) */}
                 <div className="flex flex-col gap-4 xl:sticky xl:top-4">
                     <Panel>
-                        <PanelHeader title="Cliente" description="Opcional: sin datos sale a nombre de S/N." />
-                        <div className="grid gap-3 p-4">
-                            {data.customer_id ? (
-                                <div className="bg-primary/5 ring-primary/15 flex items-center justify-between rounded-lg px-3 py-2 text-sm ring-1">
-                                    <span className="flex min-w-0 items-center gap-2">
-                                        <span className="bg-primary/10 text-primary flex size-7 shrink-0 items-center justify-center rounded-full">
-                                            <UserRound className="size-4" />
-                                        </span>
-                                        <span className="min-w-0">
-                                            <span className="block truncate font-medium">{data.customer_name}</span>
-                                            <span className="text-muted-foreground num block text-xs">{data.customer_document}</span>
-                                        </span>
-                                    </span>
+                        <PanelHeader
+                            title="Cliente"
+                            description={customerOpen ? 'Opcional: sin datos sale a nombre de S/N.' : 'Opcional · la venta sale a nombre de S/N.'}
+                            aside={
+                                !data.customer_id && (
                                     <Button
                                         type="button"
                                         variant="ghost"
-                                        size="icon"
-                                        className="size-7"
-                                        onClick={() => setData((d) => ({ ...d, customer_id: null, customer_name: '', customer_document: '' }))}
-                                        aria-label="Quitar cliente"
+                                        size="sm"
+                                        onClick={() => {
+                                            setShowCustomer(!customerOpen);
+                                            if (customerOpen) {
+                                                setData((d) => ({ ...d, customer_name: '', customer_document: '' }));
+                                            }
+                                        }}
                                     >
-                                        <X className="size-4" />
-                                    </Button>
-                                </div>
-                            ) : (
-                                <>
-                                    <SearchPicker<CustomerLookup>
-                                        url={(q) => route('admin.customers.search', { q })}
-                                        onPick={(c) =>
-                                            setData((d) => ({
-                                                ...d,
-                                                customer_id: c.id,
-                                                customer_name: c.name,
-                                                customer_document: c.document_number ?? '',
-                                            }))
-                                        }
-                                        itemKey={(c) => c.id}
-                                        placeholder="Buscar cliente registrado…"
-                                        renderItem={(c) => (
-                                            <span>
-                                                {c.name}{' '}
-                                                <span className="text-muted-foreground">
-                                                    · {c.document_type} {c.document_number}
-                                                </span>
-                                            </span>
+                                        {customerOpen ? (
+                                            <>
+                                                <X /> Quitar
+                                            </>
+                                        ) : (
+                                            <>
+                                                <UserPlus /> Agregar
+                                            </>
                                         )}
-                                    />
-                                    <div className="grid grid-cols-[1fr_8rem] gap-2">
-                                        <Input
-                                            value={data.customer_name}
-                                            onChange={(e) => setData('customer_name', e.target.value)}
-                                            placeholder="Nombre (S/N si vacío)"
-                                        />
-                                        <Input
-                                            value={data.customer_document}
-                                            onChange={(e) => setData('customer_document', e.target.value)}
-                                            placeholder="CI / NIT"
-                                        />
+                                    </Button>
+                                )
+                            }
+                        />
+                        {customerOpen && (
+                            <div className="animate-in fade-in slide-in-from-top-1 grid gap-3 p-4 duration-200">
+                                {data.customer_id ? (
+                                    <div className="bg-primary/5 ring-primary/15 flex items-center justify-between rounded-lg px-3 py-2 text-sm ring-1">
+                                        <span className="flex min-w-0 items-center gap-2">
+                                            <span className="bg-primary/10 text-primary flex size-7 shrink-0 items-center justify-center rounded-full">
+                                                <UserRound className="size-4" />
+                                            </span>
+                                            <span className="min-w-0">
+                                                <span className="block truncate font-medium">{data.customer_name}</span>
+                                                <span className="text-muted-foreground num block text-xs">{data.customer_document}</span>
+                                            </span>
+                                        </span>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="size-7"
+                                            onClick={() => setData((d) => ({ ...d, customer_id: null, customer_name: '', customer_document: '' }))}
+                                            aria-label="Quitar cliente"
+                                        >
+                                            <X className="size-4" />
+                                        </Button>
                                     </div>
-                                </>
-                            )}
-                        </div>
+                                ) : (
+                                    <>
+                                        <SearchPicker<CustomerLookup>
+                                            url={(q) => route('admin.customers.search', { q })}
+                                            onPick={(c) =>
+                                                setData((d) => ({
+                                                    ...d,
+                                                    customer_id: c.id,
+                                                    customer_name: c.name,
+                                                    customer_document: c.document_number ?? '',
+                                                }))
+                                            }
+                                            itemKey={(c) => c.id}
+                                            placeholder="Buscar cliente registrado…"
+                                            autoFocus={showCustomer}
+                                            renderItem={(c) => (
+                                                <span>
+                                                    {c.name}{' '}
+                                                    <span className="text-muted-foreground">
+                                                        · {c.document_type} {c.document_number}
+                                                    </span>
+                                                </span>
+                                            )}
+                                        />
+                                        <div className="grid grid-cols-[1fr_8rem] gap-2">
+                                            <Input
+                                                value={data.customer_name}
+                                                onChange={(e) => setData('customer_name', e.target.value)}
+                                                placeholder="Nombre (S/N si vacío)"
+                                            />
+                                            <Input
+                                                value={data.customer_document}
+                                                onChange={(e) => setData('customer_document', e.target.value)}
+                                                placeholder="CI / NIT"
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </Panel>
 
                     {needsPrescription && (
@@ -532,95 +620,137 @@ export default function Pos({ session, paymentMethods }: Props) {
                         </Panel>
                     )}
 
+                    {/* COBRO: Subtotal → Descuento → Total, cómo paga y el cambio */}
                     <Panel>
-                        <PanelHeader
-                            title="Pago"
-                            aside={
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setData('payments', [...data.payments, { method: 'qr', amount: '', reference: '' }])}
-                                >
-                                    <Plus /> Combinar
-                                </Button>
-                            }
-                        />
+                        <PanelHeader title="Cobro" />
                         <div className="grid gap-4 p-4">
-                            {data.payments.map((payment, i) => (
-                                <div key={i} className={cn('grid gap-2', i > 0 && 'border-t pt-4')}>
-                                    <div className="flex items-center gap-2">
-                                        <MethodPicker
-                                            methods={paymentMethods}
-                                            value={payment.method}
-                                            onChange={(value) => setPayment(i, 'method', value)}
-                                        />
-                                        {data.payments.length > 1 && (
-                                            <Button
+                            <dl className="grid gap-1.5 text-sm">
+                                <div className="flex items-baseline justify-between">
+                                    <dt className="text-muted-foreground">Subtotal</dt>
+                                    <dd className="num font-medium">{money(subtotal)}</dd>
+                                </div>
+                                <div className="flex items-baseline justify-between gap-2">
+                                    <dt className="text-muted-foreground min-w-0">
+                                        {can('ventas.descontar') && subtotal > 0 ? (
+                                            // Con permiso: se pone o se cambia tocando la línea
+                                            <button
                                                 type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="size-8 shrink-0"
-                                                onClick={() =>
-                                                    setData(
-                                                        'payments',
-                                                        data.payments.filter((_, j) => j !== i),
-                                                    )
-                                                }
-                                                aria-label="Quitar pago"
+                                                onClick={() => setDiscounting(true)}
+                                                className="text-primary hover:text-primary/80 inline-flex items-center gap-1 font-medium"
+                                                title="Descuento a la venta"
                                             >
-                                                <X className="size-4" />
-                                            </Button>
+                                                Descuento <Pencil className="size-3" />
+                                            </button>
+                                        ) : (
+                                            'Descuento'
                                         )}
-                                    </div>
-                                    <div className="relative">
-                                        <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
-                                            Bs
-                                        </span>
-                                        <Input
-                                            type="number"
-                                            min={0}
-                                            step="0.01"
-                                            ref={i === 0 ? firstAmount : undefined}
-                                            className="num h-11 pl-9 text-lg font-semibold"
-                                            value={payment.amount}
-                                            onChange={(e) => setPayment(i, 'amount', e.target.value)}
-                                            placeholder="0.00"
-                                            aria-label={`Monto en ${paymentMethods[payment.method] ?? payment.method}`}
-                                        />
-                                    </div>
-                                    {payment.method !== 'efectivo' && (
-                                        <Input
-                                            value={payment.reference}
-                                            onChange={(e) => setPayment(i, 'reference', e.target.value)}
-                                            placeholder="Referencia / N° de operación (opcional)"
-                                        />
+                                        {data.discount && <span className="text-muted-foreground ml-1.5 text-xs">· {data.discount.reason}</span>}
+                                    </dt>
+                                    <dd
+                                        className={cn(
+                                            'num font-medium',
+                                            generalDiscount > 0
+                                                ? discountOverLimit
+                                                    ? 'text-red-600'
+                                                    : 'text-emerald-600 dark:text-emerald-400'
+                                                : 'text-muted-foreground',
+                                        )}
+                                    >
+                                        {money(generalDiscount)}
+                                    </dd>
+                                </div>
+                                <div className="mt-1 flex items-baseline justify-between border-t pt-2.5">
+                                    <dt className="font-semibold">Total</dt>
+                                    <dd key={total} className="num font-display animate-in fade-in text-2xl font-bold tracking-tight duration-200">
+                                        {money(total)}
+                                    </dd>
+                                </div>
+                                {savings > 0 && (
+                                    <p className="text-right text-xs text-emerald-600 dark:text-emerald-400">
+                                        Ahorro por promociones: {money(savings)} (ya en el subtotal)
+                                    </p>
+                                )}
+                            </dl>
+
+                            <PayModePicker
+                                value={mode}
+                                labels={paymentMethods}
+                                onChange={(value) => setData('payment', { ...data.payment, mode: value })}
+                            />
+
+                            {/* QR: solo QR o la parte por QR del mixto */}
+                            {mode === 'qr' && (
+                                <div className="flex items-baseline justify-between text-sm">
+                                    <span className="text-muted-foreground">Monto por QR</span>
+                                    <span className="num font-semibold">{money(total)}</span>
+                                </div>
+                            )}
+                            {mode === 'mixto' && (
+                                <MoneyField
+                                    label="Por QR"
+                                    value={data.payment.qr}
+                                    onChange={(value) => setPayment('qr', value)}
+                                    inputRef={payAmount}
+                                    invalid={qrAmount > total}
+                                />
+                            )}
+                            {mode !== 'efectivo' && (
+                                <Input
+                                    ref={mode === 'qr' ? payAmount : undefined}
+                                    value={data.payment.reference}
+                                    onChange={(e) => setPayment('reference', e.target.value)}
+                                    placeholder="N° de operación del QR (opcional)"
+                                    className="h-9 text-sm"
+                                />
+                            )}
+
+                            {/* Efectivo: solo efectivo o lo que falta después del QR */}
+                            {mode !== 'qr' && (
+                                <div className="grid gap-2">
+                                    {mode === 'mixto' && (
+                                        <div className="flex items-baseline justify-between text-sm">
+                                            <span className="text-muted-foreground">Falta en efectivo</span>
+                                            <span className="num font-semibold">{money(cashDue)}</span>
+                                        </div>
+                                    )}
+                                    <MoneyField
+                                        label="Efectivo recibido"
+                                        value={data.payment.cash}
+                                        onChange={(value) => setPayment('cash', value)}
+                                        inputRef={mode === 'efectivo' ? payAmount : undefined}
+                                    />
+                                    {cashDue > 0 && (
+                                        <div className="flex flex-wrap justify-end gap-1">
+                                            <QuickAmount label="Exacto" onClick={() => setPayment('cash', String(cashDue))} highlight />
+                                            {cashSuggestions(cashDue).map((amount) => (
+                                                <QuickAmount key={amount} label={money(amount)} onClick={() => setPayment('cash', String(amount))} />
+                                            ))}
+                                        </div>
                                     )}
                                 </div>
-                            ))}
-                            {total > 0 && (
-                                <div className="flex flex-wrap gap-1.5">
-                                    <QuickAmount label="Exacto" onClick={payExact} highlight />
-                                    {singleCash &&
-                                        cashSuggestions(total).map((amount) => (
-                                            <QuickAmount key={amount} label={money(amount)} onClick={() => setPayment(0, 'amount', String(amount))} />
-                                        ))}
+                            )}
+
+                            {/* Cambio (o lo que falta) */}
+                            {total > 0 && paid > 0 && (
+                                <div
+                                    className={cn(
+                                        'animate-in fade-in flex items-baseline justify-between rounded-lg px-3 py-2 duration-200',
+                                        change >= 0
+                                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                            : 'bg-red-500/10 text-red-600 dark:text-red-400',
+                                    )}
+                                >
+                                    <span className="text-sm font-medium">{change >= 0 ? 'Cambio' : 'Falta'}</span>
+                                    <span className="num text-lg font-bold">{money(Math.abs(change))}</span>
                                 </div>
                             )}
                             <InputError message={err.payments} />
                         </div>
                     </Panel>
 
-                    <Summary subtotal={subtotal} savings={savings} total={total} paid={paid} change={change} />
-
                     <div className="grid gap-1.5">
-                        <Button
-                            type="submit"
-                            size="lg"
-                            className="btn-brand h-12 text-base shadow-lg shadow-sky-500/20"
-                            disabled={processing || blocker !== null}
-                        >
-                            {processing ? <LoaderCircle className="size-5 animate-spin" /> : <ShoppingCart className="size-5" />}
+                        <Button type="submit" className="btn-brand h-10 w-full" disabled={processing || blocker !== null}>
+                            {processing ? <LoaderCircle className="animate-spin" /> : <ShoppingCart />}
                             Cobrar {money(total)}
                         </Button>
                         <p className="text-muted-foreground text-center text-xs">
@@ -1368,12 +1498,206 @@ function EmptyCart() {
     );
 }
 
-/** Formas de pago como botones con ícono (en vez de una lista desplegable). */
-function MethodPicker({ methods, value, onChange }: { methods: Record<string, string>; value: string; onChange: (value: string) => void }) {
+/** Motivos frecuentes del descuento general (quedan guardados en la venta). "Otro" deja escribir uno. */
+const DISCOUNT_REASONS = ['Redondeo', 'Cliente frecuente', 'Tercera edad', 'Cortesía'];
+
+/**
+ * DESCUENTO GENERAL de la venta (el "descuento adicional" de una factura; permiso ventas.descontar). Se escribe el monto
+ * en Bs; los botones de % son un atajo opcional. Tope: limit % del subtotal. El servidor lo vuelve a revisar al cobrar
+ * (permiso, tope, motivo y que la venta no quede por debajo del costo).
+ */
+function GeneralDiscountDialog({
+    base,
+    current,
+    limit,
+    onApply,
+    onReset,
+    onClose,
+}: {
+    /** Subtotal de la venta: los productos ya con su promoción */
+    base: number;
+    current: GeneralDiscount | null;
+    limit: number;
+    onApply: (discount: GeneralDiscount) => void;
+    onReset: () => void;
+    onClose: () => void;
+}) {
+    const maxAmount = round((base * limit) / 100);
+    const [value, setValue] = useState(current ? String(current.amount) : '');
+    const [reason, setReason] = useState(current?.reason ?? '');
+    const [otherReason, setOtherReason] = useState(!!current && !DISCOUNT_REASONS.includes(current.reason));
+
+    const amount = round(Math.max(0, Number(value) || 0));
+    const percent = base > 0 ? (amount / base) * 100 : 0;
+    const overLimit = amount > maxAmount;
+    const canApply = amount > 0 && !overLimit && reason.trim() !== '';
+    const apply = () => {
+        if (canApply) onApply({ amount, reason: reason.trim() });
+    };
+
     return (
-        <div role="radiogroup" aria-label="Forma de pago" className="bg-muted/60 grid flex-1 grid-cols-4 gap-1 rounded-lg p-1">
-            {Object.entries(methods).map(([key, label]) => {
-                const Icon = PAYMENT_ICONS[key] ?? Wallet;
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent
+                className="max-w-md gap-0 p-0"
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
+                        e.preventDefault();
+                        apply();
+                    }
+                }}
+            >
+                <div className="flex items-center gap-3 border-b px-5 py-4 pr-12">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
+                        <BadgePercent className="size-5" />
+                    </span>
+                    <div className="min-w-0">
+                        <DialogTitle className="text-base">Descuento a la venta</DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Sobre el subtotal de {money(base)} (los productos ya con su promoción).
+                        </DialogDescription>
+                    </div>
+                </div>
+
+                <div className="grid gap-4 px-5 py-4">
+                    {/* Cuánto: el monto en Bs; los % son un atajo */}
+                    <div className="grid gap-2">
+                        <label htmlFor="general-discount" className="text-sm font-medium">
+                            Descuento en Bs
+                        </label>
+                        <div className="relative">
+                            <Input
+                                id="general-discount"
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                inputMode="decimal"
+                                autoFocus
+                                placeholder="0.00"
+                                value={value}
+                                onChange={(e) => setValue(e.target.value)}
+                                onFocus={(e) => e.target.select()}
+                                className={cn(
+                                    'num h-11 pr-20 text-right text-lg font-semibold',
+                                    overLimit && 'border-red-400 focus-visible:ring-red-300',
+                                )}
+                            />
+                            <span className="num text-muted-foreground pointer-events-none absolute top-1/2 right-9 -translate-y-1/2 text-xs">
+                                = {round(percent)}%
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-muted-foreground text-xs">o elige:</span>
+                            {[5, 10, 15, 20]
+                                .filter((p) => p <= limit)
+                                .map((p) => {
+                                    const quickAmount = round((base * p) / 100);
+                                    return (
+                                        <QuickAmount
+                                            key={p}
+                                            label={`${p}%`}
+                                            onClick={() => setValue(String(quickAmount))}
+                                            highlight={amount > 0 && amount === quickAmount}
+                                        />
+                                    );
+                                })}
+                        </div>
+                        {overLimit && (
+                            <p className="flex items-center gap-1.5 text-xs font-medium text-red-600">
+                                <TriangleAlert className="size-3.5" /> El descuento máximo es {money(maxAmount)} ({limit}%).
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Por qué */}
+                    <div className="grid gap-2">
+                        <span className="text-sm font-medium">Motivo</span>
+                        <div className="flex flex-wrap gap-1.5">
+                            {[...DISCOUNT_REASONS, 'Otro…'].map((r) => {
+                                const isOther = r === 'Otro…';
+                                const selected = isOther ? otherReason : !otherReason && reason === r;
+                                return (
+                                    <button
+                                        key={r}
+                                        type="button"
+                                        onClick={() => {
+                                            setOtherReason(isOther);
+                                            setReason(isOther ? '' : r);
+                                        }}
+                                        className={cn(
+                                            'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                                            selected
+                                                ? 'border-primary bg-primary text-primary-foreground'
+                                                : 'text-muted-foreground hover:border-primary/40 hover:bg-primary/5',
+                                        )}
+                                    >
+                                        {r}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {otherReason && (
+                            <Input
+                                value={reason}
+                                maxLength={100}
+                                autoFocus
+                                onChange={(e) => setReason(e.target.value)}
+                                placeholder="Escribe el motivo"
+                            />
+                        )}
+                    </div>
+
+                    {/* Así queda */}
+                    <dl className="bg-muted/40 grid gap-1 rounded-xl border p-3 text-sm">
+                        <div className="flex justify-between">
+                            <dt className="text-muted-foreground">Subtotal</dt>
+                            <dd className="num">{money(base)}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                            <dt className="text-muted-foreground">Descuento {amount > 0 && `(${round(percent)}%)`}</dt>
+                            <dd className={cn('num', amount > 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+                                {money(Math.min(amount, base))}
+                            </dd>
+                        </div>
+                        <div className="mt-0.5 flex justify-between border-t pt-1.5">
+                            <dt className="font-semibold">Total</dt>
+                            <dd className="num text-base font-bold">{money(Math.max(0, base - amount))}</dd>
+                        </div>
+                    </dl>
+                </div>
+
+                <div className="bg-muted/40 flex items-center justify-between gap-2 border-t px-5 py-3">
+                    {current ? (
+                        <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={onReset}>
+                            <Undo2 /> Quitar descuento
+                        </Button>
+                    ) : (
+                        <span />
+                    )}
+                    <div className="flex gap-2">
+                        <Button type="button" variant="ghost" onClick={onClose}>
+                            Cancelar
+                        </Button>
+                        <Button type="button" className="btn-brand" disabled={!canApply} onClick={apply}>
+                            Aplicar
+                        </Button>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/** Las 3 formas de cobrar como pestañas: Efectivo, QR y Mixto (QR + efectivo). Los nombres salen de config/farmacia.php. */
+function PayModePicker({ value, labels, onChange }: { value: PayMode; labels: Record<string, string>; onChange: (value: PayMode) => void }) {
+    const modes: { key: PayMode; label: string; icons: LucideIcon[] }[] = [
+        { key: 'efectivo', label: labels.efectivo ?? 'Efectivo', icons: [Banknote] },
+        { key: 'qr', label: labels.qr ?? 'QR', icons: [QrCode] },
+        { key: 'mixto', label: 'Mixto', icons: [QrCode, Banknote] },
+    ];
+
+    return (
+        <div role="radiogroup" aria-label="Forma de pago" className="bg-muted/60 grid grid-cols-3 gap-1 rounded-lg p-1">
+            {modes.map(({ key, label, icons }) => {
                 const selected = key === value;
                 return (
                     <button
@@ -1383,16 +1707,58 @@ function MethodPicker({ methods, value, onChange }: { methods: Record<string, st
                         aria-checked={selected}
                         onClick={() => onChange(key)}
                         className={cn(
-                            'flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[11px] font-medium transition-all duration-150',
+                            'flex h-8 items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-all duration-150',
                             selected ? 'bg-card text-primary shadow-sm ring-1 ring-black/5' : 'text-muted-foreground hover:text-foreground',
                         )}
                     >
-                        <Icon className="size-4" />
-                        <span className="truncate">{label}</span>
+                        <span className="flex -space-x-0.5">
+                            {icons.map((Icon, i) => (
+                                <Icon key={i} className="size-3.5" />
+                            ))}
+                        </span>
+                        {label}
                     </button>
                 );
             })}
         </div>
+    );
+}
+
+/** Monto en Bs en una fila: nombre a la izquierda, campo a la derecha. */
+function MoneyField({
+    label,
+    value,
+    onChange,
+    inputRef,
+    invalid,
+}: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    inputRef?: React.Ref<HTMLInputElement>;
+    invalid?: boolean;
+}) {
+    return (
+        <label className="flex items-center justify-between gap-3">
+            <span className="text-muted-foreground text-sm">{label}</span>
+            <span className="relative w-36">
+                <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-xs">Bs</span>
+                <Input
+                    ref={inputRef}
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    inputMode="decimal"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    placeholder="0.00"
+                    aria-label={label}
+                    aria-invalid={invalid}
+                    className={cn('num h-9 pl-8 text-right font-semibold', invalid && 'border-red-400 focus-visible:ring-red-300')}
+                />
+            </span>
+        </label>
     );
 }
 
@@ -1402,62 +1768,11 @@ function QuickAmount({ label, onClick, highlight }: { label: string; onClick: ()
             type="button"
             onClick={onClick}
             className={cn(
-                'num rounded-full px-3 py-1 text-xs font-medium ring-1 transition-colors active:scale-95',
+                'num rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 transition-colors active:scale-95',
                 highlight ? 'bg-primary/10 text-primary ring-primary/20 hover:bg-primary/15' : 'bg-card ring-border hover:bg-muted',
             )}
         >
             {label}
         </button>
-    );
-}
-
-/** Resumen del cobro: subtotal, ahorro por promociones, total, pagado y el cambio (o lo que falta) bien grande. */
-function Summary({ subtotal, savings, total, paid, change }: { subtotal: number; savings: number; total: number; paid: number; change: number }) {
-    return (
-        <div className="surface grid gap-2 rounded-xl p-4">
-            {/* Siempre en el mismo orden que cada producto del carrito: Subtotal − Descuento = Total */}
-            <Row label="Subtotal" value={money(subtotal)} />
-            <Row
-                label="Descuento por promociones"
-                value={money(savings)}
-                tone={savings > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}
-            />
-            <div className="from-primary relative overflow-hidden rounded-lg bg-gradient-to-br to-sky-500 px-4 py-3 text-white shadow-lg shadow-sky-500/20">
-                <span aria-hidden className="absolute -top-8 -right-6 size-24 rounded-full bg-white/10 blur-sm" />
-                <span aria-hidden className="absolute -bottom-10 left-8 size-20 rounded-full bg-white/10 blur-sm" />
-                <div className="relative flex items-baseline justify-between">
-                    <span className="text-sm font-medium text-white/80">Total a cobrar</span>
-                    <span
-                        key={total}
-                        className="num font-display animate-in fade-in slide-in-from-bottom-1 text-3xl font-bold tracking-tight duration-200"
-                    >
-                        {money(total)}
-                    </span>
-                </div>
-            </div>
-            <Row label="Pagado" value={money(paid)} />
-            {total > 0 && paid > 0 && (
-                <div
-                    className={cn(
-                        'animate-in fade-in zoom-in-95 mt-1 flex items-center justify-between rounded-lg px-3 py-2.5 duration-200',
-                        change >= 0
-                            ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-900'
-                            : 'bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-950/50 dark:text-red-300 dark:ring-red-900',
-                    )}
-                >
-                    <span className="text-sm font-medium">{change >= 0 ? 'Cambio a entregar' : 'Falta cobrar'}</span>
-                    <span className="num font-display text-2xl font-bold">{money(Math.abs(change))}</span>
-                </div>
-            )}
-        </div>
-    );
-}
-
-function Row({ label, value, tone }: { label: string; value: string; tone?: string }) {
-    return (
-        <div className="flex items-baseline justify-between">
-            <span className="text-muted-foreground text-sm">{label}</span>
-            <span className={cn('num text-base font-semibold', tone)}>{value}</span>
-        </div>
     );
 }

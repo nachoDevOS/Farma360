@@ -18,13 +18,13 @@ class Sale extends Model
     public const PREFIX = 'V';
 
     protected $fillable = [
-        'branch_id', 'cash_session_id', 'customer_id', 'customer_name', 'customer_document', 'total',
+        'branch_id', 'cash_session_id', 'customer_id', 'customer_name', 'customer_document', 'subtotal', 'discount', 'discount_reason', 'total',
         'cash_received', 'change', 'prescription_number', 'prescription_doctor', 'status',
     ];
 
     protected function casts(): array
     {
-        return ['total' => 'decimal:2', 'cash_received' => 'decimal:2', 'change' => 'decimal:2', 'cancelled_at' => 'datetime'];
+        return ['subtotal' => 'decimal:2', 'discount' => 'decimal:2', 'total' => 'decimal:2', 'cash_received' => 'decimal:2', 'change' => 'decimal:2', 'cancelled_at' => 'datetime'];
     }
 
     public function branch(): BelongsTo

@@ -64,6 +64,7 @@ class SaleController extends Controller
         return Inertia::render('admin/sales/pos', [
             'session' => $session->load('cashRegister:id,name', 'branch:id,name'),
             'paymentMethods' => config('farmacia.payment_methods'),
+            'discountLimit' => (float) config('farmacia.discount_limit'),
         ]);
     }
 
@@ -150,7 +151,10 @@ class SaleController extends Controller
             'customer_document' => ['nullable', 'string', 'max:30'],
             'prescription_number' => ['nullable', 'string', 'max:50'],
             'prescription_doctor' => ['nullable', 'string', 'max:255'],
-        ], [], ['items' => 'productos', 'items.*.quantity' => 'cantidad', 'payments' => 'pagos', 'payments.*.amount' => 'monto']);
+            // Descuento general en Bs (SaleService revisa permiso, tope y costo)
+            'discount' => ['nullable', 'numeric', 'min:0'],
+            'discount_reason' => ['nullable', 'string', 'max:100', Rule::requiredIf(fn () => (float) $request->input('discount') > 0)],
+        ], [], ['items' => 'productos', 'items.*.quantity' => 'cantidad', 'payments' => 'pagos', 'payments.*.amount' => 'monto', 'discount' => 'descuento', 'discount_reason' => 'motivo del descuento']);
 
         $session = $this->cash->currentSession($request->user());
         if (! $session) {

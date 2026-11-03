@@ -17,7 +17,10 @@ use Illuminate\Support\Facades\DB;
  *   1. Pasa la cantidad a unidades base (2 blísters x10 = 20 tabletas).
  *   2. Elige los lotes con FEFO: primero el que vence antes (InventoryService::allocate). Nunca lotes vencidos.
  *   3. Si el lote tiene promoción por vencimiento, cobra su precio con descuento.
+ *      Cada ítem guarda subtotal (sin descuento), discount_percent y discount_amount (en % y en Bs) y total (lo cobrado).
  *   4. Si las unidades salen de 2 lotes, se guardan 2 ítems (cada uno con su precio y su costo).
+ *   5. Descuento general (como el "descuento adicional" de una factura): Subtotal (suma de los ítems) − Descuento = Total.
+ *      Va solo en la venta (sales.discount); el de cada producto está en sale_items.discount_amount.
  * Los pagos pueden combinarse (efectivo + QR). El cambio solo se da en efectivo.
  */
 class SaleService
@@ -28,7 +31,8 @@ class SaleService
      * @param  array{items: list<array{product_presentation_id: int, quantity: int}>,
      *     payments: list<array{method: string, amount: float|string, reference?: ?string}>,
      *     customer_id?: ?int, customer_name?: ?string, customer_document?: ?string,
-     *     prescription_number?: ?string, prescription_doctor?: ?string}  $data
+     *     prescription_number?: ?string, prescription_doctor?: ?string,
+     *     discount?: float|string|null, discount_reason?: ?string}  $data
      */
     public function create(CashSession $session, User $user, array $data): Sale
     {
@@ -37,7 +41,7 @@ class SaleService
         }
         $this->cash->ensureOpen($session);
 
-        return DB::transaction(function () use ($session, $data) {
+        return DB::transaction(function () use ($session, $user, $data) {
             // 1-3. Armar las líneas (todavía sin tocar el stock)
             $lines = [];
             $reserved = [];
@@ -58,6 +62,9 @@ class SaleService
                 foreach ($this->inventory->allocate($product->id, $session->branch_id, $units, $reserved) as $allocation) {
                     $batch = $allocation['batch'];
                     $discount = (float) ($batch->activePromotion?->discount_percent ?? 0);
+                    // Sin descuento, con el precio de la presentación vendida (el blíster puede salir más barato por tableta)
+                    $subtotal = round($unitPrice * $allocation['units'], 2);
+                    $discountAmount = round($subtotal * $discount / 100, 2);
 
                     $lines[] = [
                         'product_id' => $product->id,
@@ -66,8 +73,10 @@ class SaleService
                         'units' => $allocation['units'],
                         'factor' => $presentation->factor,
                         'list_price' => $presentation->sale_price,
+                        'subtotal' => $subtotal,
                         'discount_percent' => $discount,
-                        'subtotal' => round($unitPrice * $allocation['units'] * (1 - $discount / 100), 2),
+                        'discount_amount' => $discountAmount,
+                        'total' => round($subtotal - $discountAmount, 2),
                         'unit_cost' => $batch->unit_cost,
                     ];
                 }
@@ -80,7 +89,11 @@ class SaleService
                 throw new BusinessException('Hay un medicamento controlado: registra el número de receta y el médico.');
             }
 
-            $total = round(array_sum(array_column($lines, 'subtotal')), 2);
+            // 5. Subtotal (los productos ya con su promoción) − descuento general = total
+            $subtotal = round(array_sum(array_column($lines, 'total')), 2);
+            $discount = round((float) ($data['discount'] ?? 0), 2);
+            $this->checkGeneralDiscount($lines, $discount, $data['discount_reason'] ?? null, $subtotal, $user);
+            $total = round($subtotal - $discount, 2);
 
             // Pagos
             $payments = collect($data['payments'] ?? [])
@@ -108,6 +121,9 @@ class SaleService
                 'customer_id' => $customer?->id,
                 'customer_name' => $customer?->name ?? (($data['customer_name'] ?? '') ?: 'S/N'),
                 'customer_document' => $customer?->document_number ?? ($data['customer_document'] ?? null),
+                'subtotal' => $subtotal,
+                'discount' => $discount,
+                'discount_reason' => $discount > 0 ? trim((string) $data['discount_reason']) : null,
                 'total' => $total,
                 'cash_received' => $cash,
                 'change' => $change,
@@ -134,6 +150,34 @@ class SaleService
 
             return $sale;
         });
+    }
+
+    /**
+     * Revisa el descuento general: necesita el permiso ventas.descontar y un motivo; tope: farmacia.discount_limit % del
+     * subtotal; sin promociones.aprobar no puede dejar la venta por debajo del costo de lo que sale.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function checkGeneralDiscount(array $lines, float $discount, ?string $reason, float $subtotal, User $user): void
+    {
+        if ($discount <= 0) {
+            return;
+        }
+        if (! $user->can('ventas.descontar')) {
+            throw new BusinessException('No tienes permiso para dar descuentos.');
+        }
+        if (blank($reason)) {
+            throw new BusinessException('Indica el motivo del descuento.');
+        }
+        $limit = (float) config('farmacia.discount_limit');
+        $max = round($subtotal * $limit / 100, 2);
+        if ($discount > $max) {
+            throw new BusinessException("El descuento no puede pasar del {$limit}% (Bs ".number_format($max, 2).').');
+        }
+        $cost = round(array_sum(array_map(fn (array $line) => $line['units'] * (float) $line['unit_cost'], $lines)), 2);
+        if ($subtotal - $discount < $cost && ! $user->can('promociones.aprobar')) {
+            throw new BusinessException('Con ese descuento la venta queda por debajo del costo. Necesitas el permiso para aprobarlo.');
+        }
     }
 
     /** Anula la venta: el stock vuelve a los mismos lotes. Solo mientras su turno de caja siga abierto. */

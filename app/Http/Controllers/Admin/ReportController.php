@@ -40,6 +40,9 @@ class ReportController extends Controller
             ->whereIn('sales.branch_id', $branches)
             ->whereBetween('sales.created_at', [$from, $to]);
 
+        // Lo que entró por cada ítem: su total menos la parte del descuento general que le toca (según su total)
+        $itemNet = 'sale_items.total - CASE WHEN sales.subtotal > 0 THEN sales.discount * 1.0 * sale_items.total / sales.subtotal ELSE 0 END';
+
         $revenue = round((float) (clone $sales)->sum('sales.total'), 2);
         $cost = round((float) (clone $items)->sum(DB::raw('sale_items.units * sale_items.unit_cost')), 2);
 
@@ -54,8 +57,19 @@ class ReportController extends Controller
                 'profit' => round($revenue - $cost, 2),
                 'average_ticket' => (clone $sales)->count() ? round($revenue / (clone $sales)->count(), 2) : 0,
                 'cancelled' => Sale::where('status', 'anulada')->whereIn('branch_id', $branches)->whereBetween('created_at', [$from, $to])->count(),
-                'promo_revenue' => round((float) (clone $items)->where('sale_items.discount_percent', '>', 0)->sum('sale_items.subtotal'), 2),
+                'promo_revenue' => round((float) (clone $items)->where('sale_items.discount_percent', '>', 0)->sum('sale_items.total'), 2),
+                'general_discount' => round((float) (clone $sales)->sum('sales.discount'), 2),
             ],
+            // Descuentos generales (permiso ventas.descontar): por qué y quién los dio
+            'discountByReason' => (clone $sales)->where('sales.discount', '>', 0)
+                ->selectRaw('sales.discount_reason as name, COUNT(*) as count, SUM(sales.discount) as total')
+                ->groupBy('sales.discount_reason')->orderByDesc('total')->get()
+                ->map(fn ($r) => ['name' => $r->name, 'count' => (int) $r->count, 'total' => round((float) $r->total, 2)]),
+            'discountBySeller' => (clone $sales)->where('sales.discount', '>', 0)
+                ->join('users', 'users.id', '=', 'sales.registerUser_id')
+                ->selectRaw('users.name, COUNT(*) as count, SUM(sales.discount) as total')
+                ->groupBy('users.name')->orderByDesc('total')->get()
+                ->map(fn ($r) => ['name' => $r->name, 'count' => (int) $r->count, 'total' => round((float) $r->total, 2)]),
             'byDay' => (clone $sales)
                 ->selectRaw('DATE(sales.created_at) as day, COUNT(*) as count, SUM(sales.total) as total')
                 ->groupBy('day')->orderBy('day')->get()
@@ -68,7 +82,7 @@ class ReportController extends Controller
                 ->map(fn ($r) => ['method' => $r->method, 'total' => round((float) $r->total, 2)]),
             'topProducts' => (clone $items)
                 ->join('products', 'products.id', '=', 'sale_items.product_id')
-                ->selectRaw('products.id, products.name, products.base_unit, SUM(sale_items.units) as units, SUM(sale_items.subtotal) as revenue, SUM(sale_items.subtotal - sale_items.units * sale_items.unit_cost) as profit')
+                ->selectRaw("products.id, products.name, products.base_unit, SUM(sale_items.units) as units, SUM({$itemNet}) as revenue, SUM({$itemNet} - sale_items.units * sale_items.unit_cost) as profit")
                 ->groupBy('products.id', 'products.name', 'products.base_unit')
                 ->orderByDesc('revenue')->limit(15)->get()
                 ->map(fn ($r) => ['id' => $r->id, 'name' => $r->name, 'base_unit' => $r->base_unit, 'units' => (int) $r->units, 'revenue' => round((float) $r->revenue, 2), 'profit' => round((float) $r->profit, 2)]),

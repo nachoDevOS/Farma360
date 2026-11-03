@@ -84,12 +84,13 @@ class ProductAnalytics
             ->where('sales.created_at', '>=', $from)
             ->get([
                 'sales.id as sale_id', 'sales.branch_id', 'sales.created_at', 'sale_items.product_presentation_id',
-                'sale_items.units', 'sale_items.factor', 'sale_items.subtotal', 'sale_items.unit_cost',
+                'sale_items.units', 'sale_items.factor', // Lo que entró: el total del ítem menos su parte del descuento general de la venta
+                DB::raw('sale_items.total - CASE WHEN sales.subtotal > 0 THEN sales.discount * 1.0 * sale_items.total / sales.subtotal ELSE 0 END as total'), 'sale_items.unit_cost',
             ])
             ->each(function (object $row) {
                 $row->at = Carbon::parse($row->created_at);
                 $row->units = (int) $row->units;
-                $row->subtotal = (float) $row->subtotal;
+                $row->total = (float) $row->total;
                 $row->cost = $row->units * (float) $row->unit_cost;
             });
     }
@@ -102,7 +103,7 @@ class ProductAnalytics
      */
     private function totals(Collection $rows): array
     {
-        $amount = (float) $rows->sum('subtotal');
+        $amount = (float) $rows->sum('total');
 
         return [
             'units' => (int) $rows->sum('units'),
@@ -167,7 +168,7 @@ class ProductAnalytics
                     'branch_id' => $id,
                     'branch' => $names->get($id),
                     'units' => (int) $rows->sum('units'),
-                    'amount' => round((float) $rows->sum('subtotal'), 2),
+                    'amount' => round((float) $rows->sum('total'), 2),
                     'stock' => (int) $stock->get($id, 0),
                     'daily_rate' => round($rows->sum('units') / $rateDays, 2),
                 ];
@@ -193,7 +194,7 @@ class ProductAnalytics
                 'factor' => (int) $rows->first()->factor,
                 'quantity' => (int) $rows->sum(fn (object $row) => intdiv($row->units, max(1, (int) $row->factor))),
                 'units' => (int) $rows->sum('units'),
-                'amount' => round((float) $rows->sum('subtotal'), 2),
+                'amount' => round((float) $rows->sum('total'), 2),
             ])
             ->sortBy('factor')
             ->values()

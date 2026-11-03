@@ -32,6 +32,7 @@ return [
         'recibir' => 'Recibir',
         'operar' => 'Operar',
         'aprobar' => 'Aprobar',
+        'descontar' => 'Descontar',
     ],
 
     // Módulos del sistema (filas de la tabla de permisos)
@@ -88,8 +89,8 @@ return [
         ],
         'ventas' => [
             'label' => 'Ventas',
-            'description' => 'Punto de venta. Crear necesita una caja abierta.',
-            'actions' => ['ver', 'crear', 'anular'],
+            'description' => 'Punto de venta. Crear necesita una caja abierta. Descontar = poner un descuento general a la venta.',
+            'actions' => ['ver', 'crear', 'anular', 'descontar'],
         ],
         'caja' => [
             'label' => 'Caja',
@@ -116,7 +117,7 @@ return [
             'inventario.ver', 'inventario.ajustar',
             'transferencias.ver', 'transferencias.crear', 'transferencias.recibir',
             'promociones.ver', 'promociones.crear',
-            'ventas.ver', 'reportes.ver',
+            'ventas.ver', 'ventas.descontar', 'reportes.ver',
         ],
         'Cajero' => [
             'productos.ver', 'clientes.ver', 'clientes.crear',

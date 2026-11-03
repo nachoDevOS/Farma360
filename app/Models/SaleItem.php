@@ -15,7 +15,7 @@ class SaleItem extends Model
 
     protected $fillable = [
         'sale_id', 'product_id', 'product_presentation_id', 'batch_id', 'units', 'factor',
-        'list_price', 'discount_percent', 'subtotal', 'unit_cost',
+        'list_price', 'subtotal', 'discount_percent', 'discount_amount', 'total', 'unit_cost',
     ];
 
     protected function casts(): array
@@ -24,8 +24,10 @@ class SaleItem extends Model
             'units' => 'integer',
             'factor' => 'integer',
             'list_price' => 'decimal:2',
-            'discount_percent' => 'decimal:2',
             'subtotal' => 'decimal:2',
+            'discount_percent' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
+            'total' => 'decimal:2',
             'unit_cost' => 'decimal:4',
         ];
     }

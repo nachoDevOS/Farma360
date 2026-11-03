@@ -1,7 +1,7 @@
 /*
  * PÁGINA: Reportes  (ruta /admin/reports?from=&to=&branch=)
  * Ventas, ganancia (venta − costo de los lotes vendidos), productos, formas de pago, vendedores, sucursales,
- * inventario valorizado, vencimientos, bajas y compras por proveedor.
+ * descuentos generales (por motivo y por vendedor), inventario valorizado, vencimientos, bajas y compras por proveedor.
  * Datos: app/Http/Controllers/Admin/ReportController.php
  */
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
@@ -26,12 +26,24 @@ interface Props {
     filters: { from: string; to: string; branch: number | null };
     branches: Option[];
     paymentMethods: Record<string, string>;
-    summary: { sales_count: number; revenue: number; cost: number; profit: number; average_ticket: number; cancelled: number; promo_revenue: number };
+    summary: {
+        sales_count: number;
+        revenue: number;
+        cost: number;
+        profit: number;
+        average_ticket: number;
+        cancelled: number;
+        promo_revenue: number;
+        general_discount: number;
+    };
     byDay: { day: string; count: number; total: number }[];
     byMethod: { method: string; total: number }[];
     topProducts: { id: number; name: string; base_unit: string; units: number; revenue: number; profit: number }[];
     bySeller: Total[];
     byBranch: Total[];
+    /** Descuentos generales del POS: count = ventas, total = Bs descontados */
+    discountByReason: Total[];
+    discountBySeller: Total[];
     inventory: { name: string; value: number; products: number }[];
     expiring: {
         product: string;
@@ -59,6 +71,8 @@ export default function Reports(props: Props) {
         topProducts,
         bySeller,
         byBranch,
+        discountByReason,
+        discountBySeller,
         inventory,
         expiring,
         writeOffs,
@@ -209,6 +223,23 @@ export default function Reports(props: Props) {
                     <TotalsTable title="Compras por proveedor" rows={purchases} countLabel="Compras" />
                 </div>
 
+                <div className="grid gap-6 lg:grid-cols-2">
+                    <TotalsTable
+                        title="Descuentos a la venta por motivo"
+                        description={`Descontado en el punto de venta: ${money(summary.general_discount)}.`}
+                        rows={discountByReason}
+                        countLabel="Ventas"
+                        emptyText="Sin descuentos en el período."
+                    />
+                    <TotalsTable
+                        title="Descuentos a la venta por vendedor"
+                        description="Quién los dio (permiso ventas.descontar)."
+                        rows={discountBySeller}
+                        countLabel="Ventas"
+                        emptyText="Sin descuentos en el período."
+                    />
+                </div>
+
                 <div className="grid gap-6 xl:grid-cols-3">
                     <Panel className="overflow-hidden">
                         <PanelHeader icon={Boxes} title="Inventario valorizado" description="Stock actual al costo de cada lote." />
@@ -275,10 +306,22 @@ export default function Reports(props: Props) {
     );
 }
 
-function TotalsTable({ title, rows, countLabel }: { title: string; rows: Total[]; countLabel: string }) {
+function TotalsTable({
+    title,
+    description,
+    rows,
+    countLabel,
+    emptyText,
+}: {
+    title: string;
+    description?: string;
+    rows: Total[];
+    countLabel: string;
+    emptyText?: string;
+}) {
     return (
         <Panel className="overflow-hidden">
-            <PanelHeader title={title} />
+            <PanelHeader title={title} description={description} />
             <DataTable
                 head={
                     <>
@@ -297,7 +340,7 @@ function TotalsTable({ title, rows, countLabel }: { title: string; rows: Total[]
                         </Td>
                     </tr>
                 ))}
-                {rows.length === 0 && <EmptyRow colSpan={3} />}
+                {rows.length === 0 && <EmptyRow colSpan={3} text={emptyText} />}
             </DataTable>
         </Panel>
     );

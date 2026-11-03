@@ -368,8 +368,14 @@ export interface SaleItem {
     units: number;
     factor: number;
     list_price: string;
-    discount_percent: string;
+    /** Sin descuento: list_price / factor × units */
     subtotal: string;
+    /** Descuento en % */
+    discount_percent: string;
+    /** Descuento en Bs */
+    discount_amount: string;
+    /** Subtotal de la línea con su promoción: subtotal − discount_amount */
+    total: string;
     unit_cost: string;
     product: { id: number; name: string; concentration: string | null; pharmaceutical_form: string | null; presentations?: Presentation[] };
     presentation: { id: number; name: string; package?: string } | null;
@@ -379,6 +385,11 @@ export interface SaleItem {
 export interface Sale {
     id: number;
     number: string;
+    /** Suma de los ítems, ya con su promoción */
+    subtotal: string;
+    /** Descuento general en Bs */
+    discount: string;
+    discount_reason: string | null;
     total: string;
     cash_received: string;
     change: string;
