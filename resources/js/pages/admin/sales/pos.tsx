@@ -27,6 +27,7 @@ import { type CashSession, type PosLookup } from '@/types/admin/pharmacy';
 import { Head, Link, useForm } from '@inertiajs/react';
 import {
     ArrowLeftRight,
+    BadgePercent,
     Banknote,
     Beaker,
     CreditCard,
@@ -391,7 +392,7 @@ export default function Pos({ session, paymentMethods }: Props) {
                                     </Button>
                                 </div>
                                 {/* Encabezado de columnas (mismas medidas que CartProduct) */}
-                                <div className="text-muted-foreground hidden grid-cols-[1fr_8.5rem_7.5rem_2rem] gap-4 border-b px-4 py-1.5 text-[11px] font-medium tracking-wide uppercase sm:grid">
+                                <div className="text-muted-foreground hidden grid-cols-[1fr_8.5rem_9.5rem_2rem] gap-4 border-b px-4 py-1.5 text-[11px] font-medium tracking-wide uppercase sm:grid">
                                     <span>Producto</span>
                                     <span className="text-center">Cantidad</span>
                                     <span className="text-right">Importe</span>
@@ -1005,6 +1006,8 @@ function CartProduct({
     const value = options ? units : line.quantity;
     const sorted = [...lines].sort((a, b) => b.factor - a.factor);
     const unitOptions = options ?? [line];
+    // Descuentos por vencimiento de las líneas (normalmente uno solo: el del lote que sale primero)
+    const promoPercents = [...new Set(lines.filter((l) => l.promo_discount).map((l) => Number(l.promo_discount)))];
     const caption = options
         ? baseUnitWord(options, units)
         : line.factor > 1
@@ -1014,7 +1017,7 @@ function CartProduct({
     return (
         <li
             className={cn(
-                'group animate-in fade-in slide-in-from-top-1 hover:bg-muted/30 relative grid grid-cols-[1fr_auto_auto] items-start gap-x-4 gap-y-2 px-4 py-3.5 transition-colors duration-200 sm:grid-cols-[1fr_8.5rem_7.5rem_2rem]',
+                'group animate-in fade-in slide-in-from-top-1 hover:bg-muted/30 relative grid grid-cols-[1fr_auto_auto] items-start gap-x-4 gap-y-2 px-4 py-3.5 transition-colors duration-200 sm:grid-cols-[1fr_8.5rem_9.5rem_2rem]',
                 overStock && 'bg-red-50/60 hover:bg-red-50/60 dark:bg-red-950/20',
             )}
         >
@@ -1051,6 +1054,13 @@ function CartProduct({
                                 </span>
                             )
                         )}
+                        {/* Promoción por vencimiento del lote que sale primero */}
+                        {promoPercents.length > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                <BadgePercent className="size-3" />
+                                {promoPercents.length === 1 ? `−${promoPercents[0]}% por vencimiento` : 'Promoción por vencimiento'}
+                            </span>
+                        )}
                     </p>
                     {(line.generic_name || line.laboratory) && (
                         <p className="text-muted-foreground truncate text-xs">{[line.generic_name, line.laboratory].filter(Boolean).join(' · ')}</p>
@@ -1066,7 +1076,15 @@ function CartProduct({
                             >
                                 <Package className="text-primary size-3.5" />
                                 <span className="num font-semibold">{countOf(l.quantity, l.package ?? l.presentation_name)}</span>
-                                <span className="num text-muted-foreground">× {money(priceOf(l, 1))}</span>
+                                <span className="num text-muted-foreground">×</span>
+                                {l.promo_discount ? (
+                                    <>
+                                        <span className="num text-muted-foreground/70 line-through">{money(l.sale_price)}</span>
+                                        <span className="num font-semibold text-emerald-700 dark:text-emerald-400">{money(priceOf(l, 1))}</span>
+                                    </>
+                                ) : (
+                                    <span className="num text-muted-foreground">{money(priceOf(l, 1))}</span>
+                                )}
                                 {l.promo_discount && (
                                     <span className="num rounded bg-emerald-500/10 px-1 font-semibold text-emerald-700 dark:text-emerald-400">
                                         −{Number(l.promo_discount)}%
@@ -1088,8 +1106,9 @@ function CartProduct({
             </div>
 
             {/* − cantidad + en una sola pieza (clase .stepper de app.css) */}
-            <div className="flex flex-col items-center gap-0.5 sm:justify-self-center">
-                <div className="stepper" data-active="true">
+            {/* Un poco más abajo, a la altura del medio del importe */}
+            <div className="flex flex-col items-center gap-0.5 sm:justify-self-center sm:pt-3">
+                <div className="stepper stepper-sm" data-active="true">
                     <button
                         type="button"
                         onClick={() => (options ? onUnits(units - step) : onQuantity(line.quantity - 1))}
@@ -1129,13 +1148,23 @@ function CartProduct({
                 {caption && <span className="text-muted-foreground num text-[10px]">{caption}</span>}
             </div>
 
-            {/* Importe: lo que se cobra; si hay promoción, cuánto ahorra el cliente (en vez de tachar el precio) */}
-            <div className="pt-1.5 text-right">
-                <span className="num block text-base font-bold">{money(total)}</span>
-                {full > total && (
-                    <span className="num block text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Ahorra {money(full - total)}</span>
-                )}
-            </div>
+            {/* Importe, siempre en el mismo orden: Subtotal (precio normal) − Descuento = Total que se cobra */}
+            <dl className="grid gap-0.5 pt-1 text-xs">
+                <div className="flex items-baseline justify-between gap-2">
+                    <dt className="text-muted-foreground">Subtotal</dt>
+                    <dd className="num">{money(full)}</dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                    <dt className="text-muted-foreground">Descuento</dt>
+                    <dd className={cn('num', full > total ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+                        {money(full - total)}
+                    </dd>
+                </div>
+                <div className="mt-0.5 flex items-baseline justify-between gap-2 border-t pt-1">
+                    <dt className="font-semibold">Total</dt>
+                    <dd className="num text-base font-bold">{money(total)}</dd>
+                </div>
+            </dl>
             <Button
                 type="button"
                 variant="ghost"
@@ -1236,12 +1265,13 @@ function QuickAmount({ label, onClick, highlight }: { label: string; onClick: ()
 function Summary({ subtotal, savings, total, paid, change }: { subtotal: number; savings: number; total: number; paid: number; change: number }) {
     return (
         <div className="surface grid gap-2 rounded-xl p-4">
-            {savings > 0 && (
-                <>
-                    <Row label="Subtotal" value={money(subtotal)} />
-                    <Row label="Ahorro por promociones" value={`− ${money(savings)}`} tone="text-emerald-600 dark:text-emerald-400" />
-                </>
-            )}
+            {/* Siempre en el mismo orden que cada producto del carrito: Subtotal − Descuento = Total */}
+            <Row label="Subtotal" value={money(subtotal)} />
+            <Row
+                label="Descuento por promociones"
+                value={money(savings)}
+                tone={savings > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}
+            />
             <div className="from-primary relative overflow-hidden rounded-lg bg-gradient-to-br to-sky-500 px-4 py-3 text-white shadow-lg shadow-sky-500/20">
                 <span aria-hidden className="absolute -top-8 -right-6 size-24 rounded-full bg-white/10 blur-sm" />
                 <span aria-hidden className="absolute -bottom-10 left-8 size-20 rounded-full bg-white/10 blur-sm" />

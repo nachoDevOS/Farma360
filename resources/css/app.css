@@ -337,6 +337,17 @@
     appearance: textfield;
 }
 
+/* Versión un poco más chica (carrito del punto de venta) */
+.stepper.stepper-sm {
+    height: 2rem;
+}
+.stepper.stepper-sm > button {
+    width: 2rem;
+}
+.stepper.stepper-sm > input {
+    width: 3rem;
+}
+
 .stepper > input::-webkit-inner-spin-button,
 .stepper > input::-webkit-outer-spin-button {
     appearance: none;
