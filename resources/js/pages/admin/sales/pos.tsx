@@ -20,8 +20,10 @@ import InputError from '@/components/shared/input-error';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import AdminLayout from '@/layouts/admin/admin-layout';
-import { money } from '@/lib/format';
+import { formatDay, money } from '@/lib/format';
+import { useStorageUrl } from '@/lib/storage';
 import { cn } from '@/lib/utils';
 import { type CashSession, type PosLookup } from '@/types/admin/pharmacy';
 import { Head, Link, useForm } from '@inertiajs/react';
@@ -1034,13 +1036,15 @@ function CartProduct({
                 <span className="bg-primary/10 text-primary num mt-3 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold">
                     {position}
                 </span>
-                <StoredImage
-                    path={line.image}
-                    alt={line.product_name}
-                    fallback={<Pill className="size-4" />}
-                    className="size-12 shrink-0 rounded-xl"
-                    zoomable
-                />
+                {/* Al pasar el puntero: la foto en grande y la ficha completa del producto */}
+                <ProductPreview line={line} options={unitOptions}>
+                    <StoredImage
+                        path={line.image}
+                        alt={line.product_name}
+                        fallback={<Pill className="size-4" />}
+                        className="hover:ring-primary/40 size-12 shrink-0 rounded-xl transition-shadow hover:ring-2"
+                    />
+                </ProductPreview>
                 <div className="grid min-w-0 gap-1">
                     <p className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 leading-tight">
                         <span className="truncate text-[15px] font-semibold">{line.commercial_name ?? line.product_name}</span>
@@ -1183,6 +1187,152 @@ function CartProduct({
                 </p>
             )}
         </li>
+    );
+}
+
+/**
+ * FICHA AL PASAR EL PUNTERO por la foto de un producto del carrito: la foto en grande y todo lo del producto
+ * (genérico, forma, categoría, laboratorio, código, para qué sirve, presentaciones con su precio, stock y vencimiento).
+ * Sale fuera del carrito (Tooltip de Radix), así no se corta.
+ */
+function ProductPreview({ line, options, children }: { line: CartLine; options: PosLookup[]; children: React.ReactNode }) {
+    const imageUrl = useStorageUrl();
+    const url = imageUrl(line.image);
+    const presentations = [...options].sort((a, b) => a.factor - b.factor);
+    const details: { icon: LucideIcon; label: string; value: string | null }[] = [
+        { icon: FlaskConical, label: 'Genérico', value: line.generic_name },
+        { icon: Pill, label: 'Forma', value: line.pharmaceutical_form },
+        { icon: Tag, label: 'Categoría', value: line.category },
+        { icon: Factory, label: 'Laboratorio', value: line.laboratory },
+        { icon: ScanBarcode, label: 'Código', value: line.barcode },
+    ];
+
+    return (
+        <TooltipProvider delayDuration={200}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="cursor-zoom-in">{children}</span>
+                </TooltipTrigger>
+                <TooltipContent
+                    side="right"
+                    align="start"
+                    sideOffset={10}
+                    collisionPadding={16}
+                    className="bg-popover text-popover-foreground w-80 rounded-xl border p-0 text-left text-sm font-normal shadow-xl"
+                >
+                    {/* Foto grande */}
+                    <div className="bg-muted/60 flex h-44 items-center justify-center border-b">
+                        {url ? (
+                            <img src={url} alt={line.product_name} className="size-full object-contain p-2" />
+                        ) : (
+                            <Pill className="text-muted-foreground/40 size-14" />
+                        )}
+                    </div>
+
+                    <div className="grid gap-3 p-4">
+                        {/* Nombre y avisos */}
+                        <div className="grid gap-1.5">
+                            <p className="leading-tight">
+                                <span className="text-base font-bold">{line.commercial_name ?? line.product_name}</span>{' '}
+                                {line.concentration && <span className="text-muted-foreground">{line.concentration}</span>}
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                                {line.is_controlled ? (
+                                    <span className="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-red-600">
+                                        Controlado · pide receta
+                                    </span>
+                                ) : line.requires_prescription ? (
+                                    <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                                        Con receta
+                                    </span>
+                                ) : (
+                                    <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-semibold">
+                                        Venta libre
+                                    </span>
+                                )}
+                                {line.promo_discount && (
+                                    <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                        −{Number(line.promo_discount)}% por vencimiento
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Datos del producto (solo los que tiene) */}
+                        <dl className="grid gap-1.5 text-xs">
+                            {details
+                                .filter((d) => d.value)
+                                .map((d) => (
+                                    <div key={d.label} className="flex items-center gap-2">
+                                        <d.icon className="text-primary size-3.5 shrink-0" />
+                                        <dt className="text-muted-foreground w-20 shrink-0">{d.label}</dt>
+                                        <dd className="num min-w-0 truncate font-medium">{d.value}</dd>
+                                    </div>
+                                ))}
+                        </dl>
+
+                        {/* Para qué sirve */}
+                        {line.indications.length > 0 && (
+                            <div className="grid gap-1.5">
+                                <p className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase">
+                                    <Stethoscope className="size-3.5" /> Sirve para
+                                </p>
+                                <div className="flex flex-wrap gap-1">
+                                    {line.indications.map((indication) => (
+                                        <span
+                                            key={indication}
+                                            className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                        >
+                                            {indication}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Presentaciones a la venta con su precio */}
+                        <div className="grid gap-1.5">
+                            <p className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase">
+                                <Package className="size-3.5" /> Precios
+                            </p>
+                            <ul className="divide-y rounded-lg border text-xs">
+                                {presentations.map((p) => (
+                                    <li key={p.presentation_id} className="flex items-center justify-between gap-2 px-2.5 py-1.5">
+                                        <span className="min-w-0 truncate">{p.presentation_name}</span>
+                                        <span className="num shrink-0 font-semibold">
+                                            {p.promo_discount ? (
+                                                <>
+                                                    <span className="text-muted-foreground/70 mr-1 font-normal line-through">
+                                                        {money(p.sale_price)}
+                                                    </span>
+                                                    <span className="text-emerald-700 dark:text-emerald-400">{money(priceOf(p, 1))}</span>
+                                                </>
+                                            ) : (
+                                                money(p.sale_price)
+                                            )}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* Stock y vencimiento en esta sucursal */}
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="bg-muted/50 rounded-lg px-2.5 py-2">
+                                <p className="text-muted-foreground">Stock aquí</p>
+                                <p className="num font-semibold">
+                                    {line.stock_units.toLocaleString('es')} {baseUnitWord(presentations, line.stock_units)}
+                                </p>
+                            </div>
+                            <div className="bg-muted/50 rounded-lg px-2.5 py-2">
+                                <p className="text-muted-foreground">Vence primero</p>
+                                <p className="num font-semibold">{line.next_expiry ? formatDay(line.next_expiry) : 'Sin vencimiento'}</p>
+                            </div>
+                        </div>
+                    </div>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     );
 }
 
