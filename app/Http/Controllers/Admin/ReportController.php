@@ -84,12 +84,12 @@ class ReportController extends Controller
                 ->map(fn ($r) => ['name' => $r->name, 'count' => (int) $r->count, 'total' => round((float) $r->total, 2)]),
             'inventory' => Batch::query()
                 ->join('branches', 'branches.id', '=', 'batches.branch_id')
-                ->whereIn('batches.branch_id', $branches)->where('batches.quantity', '>', 0)
-                ->selectRaw('branches.name, SUM(batches.quantity * batches.unit_cost) as value, COUNT(DISTINCT batches.product_id) as products')
+                ->whereIn('batches.branch_id', $branches)->where('batches.stock', '>', 0)
+                ->selectRaw('branches.name, SUM(batches.stock * batches.unit_cost) as value, COUNT(DISTINCT batches.product_id) as products')
                 ->groupBy('branches.name')->get()
                 ->map(fn ($r) => ['name' => $r->name, 'value' => round((float) $r->value, 2), 'products' => (int) $r->products]),
             'expiring' => Batch::with('product:id,name,concentration,pharmaceutical_form,base_unit', 'branch:id,name')
-                ->whereIn('branch_id', $branches)->where('quantity', '>', 0)
+                ->whereIn('branch_id', $branches)->where('stock', '>', 0)
                 ->whereDate('expires_at', '<=', today()->addDays((int) config('farmacia.expiry_alert_days')))
                 ->orderBy('expires_at')->limit(50)->get()
                 ->map(fn (Batch $b) => [
@@ -98,9 +98,9 @@ class ReportController extends Controller
                     'batch_number' => $b->batch_number,
                     'expires_at' => $b->expires_at->toDateString(),
                     'days_left' => $b->daysToExpire(),
-                    'quantity' => $b->quantity,
+                    'stock' => $b->stock,
                     'base_unit' => $b->product->base_unit,
-                    'value' => round($b->quantity * (float) $b->unit_cost, 2),
+                    'value' => round($b->stock * (float) $b->unit_cost, 2),
                 ]),
             // Pérdida: lo dado de baja (vencido / dañado) en el rango, valorizado al costo
             'writeOffs' => round((float) DB::table('stock_movements')

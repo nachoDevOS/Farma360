@@ -127,7 +127,7 @@ export default function InventoryShow({
 
     const units = plural(product.base_unit);
     const branchName = branches.find((b) => b.id === branchId)?.name ?? 'Esta sucursal';
-    const lots = batches.filter((b) => b.quantity > 0);
+    const lots = batches.filter((b) => b.stock > 0);
     const nextExpiry = lots.flatMap((b) => (b.expires_at ? [b.expires_at.slice(0, 10)] : [])).sort()[0] ?? null;
     const daysLeft = nextExpiry ? daysUntil(nextExpiry) : null;
     const otherTotal = otherBranches.reduce((sum, b) => sum + b.stock, 0);
@@ -313,7 +313,7 @@ export default function InventoryShow({
                                     const isOpen = openBatches.has(batch.id);
                                     return (
                                         <Fragment key={batch.id}>
-                                            <tr className={cn(batch.quantity === 0 && !isOpen && 'opacity-50', isOpen && 'bg-muted/40')}>
+                                            <tr className={cn(batch.stock === 0 && !isOpen && 'opacity-50', isOpen && 'bg-muted/40')}>
                                                 <Td className="w-px">
                                                     <button
                                                         type="button"
@@ -338,7 +338,7 @@ export default function InventoryShow({
                                                     <ExpiryBadge date={batch.expires_at} emptyLabel="Sin vencimiento" />
                                                 </Td>
                                                 <Td>
-                                                    <StockLeft left={batch.quantity} total={batch.initial} unit={product.base_unit} />
+                                                    <StockLeft left={batch.stock} total={batch.received_quantity} unit={product.base_unit} />
                                                 </Td>
                                                 <Td align="right">{money(batch.unit_cost)}</Td>
                                                 <Td>
@@ -358,14 +358,14 @@ export default function InventoryShow({
                                                                 label="Salida: al contar faltan unidades"
                                                                 tone="warning"
                                                                 onClick={() => setAdjust({ mode: 'out', batch })}
-                                                                disabled={batch.quantity === 0}
+                                                                disabled={batch.stock === 0}
                                                             />
                                                             <ActionButton
                                                                 icon={PackageX}
                                                                 label="Dar de baja: vencido o dañado (pérdida)"
                                                                 tone="danger"
                                                                 onClick={() => setAdjust({ mode: 'writeoff', batch })}
-                                                                disabled={batch.quantity === 0}
+                                                                disabled={batch.stock === 0}
                                                             />
                                                         </RowActions>
                                                     </Td>
@@ -570,7 +570,7 @@ function AdjustDialog({
                         <DialogTitle>{modeTitles[mode]}</DialogTitle>
                         <DialogDescription>
                             {adjust?.batch
-                                ? `Lote ${adjust.batch.batch_number} · hay ${adjust.batch.quantity} ${product.base_unit}.`
+                                ? `Lote ${adjust.batch.batch_number} · hay ${adjust.batch.stock} ${product.base_unit}.`
                                 : 'Para mercadería que no vino de una compra: inventario inicial, donación, devolución o corrección de conteo.'}{' '}
                             Queda registrado en el kardex con tu usuario.
                         </DialogDescription>

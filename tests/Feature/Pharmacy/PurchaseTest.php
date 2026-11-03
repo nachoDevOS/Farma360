@@ -50,7 +50,7 @@ class PurchaseTest extends TestCase
         $this->assertEquals(100, $purchase->total);
         $batch = $product->batches()->firstOrFail();
         // 2 cajas x 100 = 200 tabletas, costo 50 / 100 = 0.50 por tableta
-        $this->assertSame(200, $batch->quantity);
+        $this->assertSame(200, $batch->stock);
         $this->assertEquals(0.5, $batch->unit_cost);
         $this->assertSame('AB-1', $batch->batch_number);
         $this->assertDatabaseHas('stock_movements', ['batch_id' => $batch->id, 'type' => 'compra', 'quantity' => 200]);
@@ -190,7 +190,7 @@ class PurchaseTest extends TestCase
                 ->where('month.count', 2)
                 ->where('month.top_supplier.name', 'Inti')
                 ->where('canSeeAllBranches', true)
-                ->where('purchases.data.0.items.0.batch.quantity', 200));
+                ->where('purchases.data.0.items.0.batch.stock', 200));
 
         // Asignado a Central: la lista y los números son solo de su sucursal
         $this->actingAs($this->userWithRole('Administrador', $central))->get("/admin/purchases?branch={$north->id}")

@@ -44,7 +44,7 @@ interface Props {
 function stockLeft(purchase: Purchase) {
     const items = purchase.items ?? [];
     const bought = items.reduce((sum, i) => sum + i.units, 0);
-    const left = items.reduce((sum, i) => sum + Math.min(i.units, i.batch?.quantity ?? 0), 0);
+    const left = items.reduce((sum, i) => sum + Math.min(i.units, i.batch?.stock ?? 0), 0);
     return { bought, left, percent: bought > 0 ? (left / bought) * 100 : 0 };
 }
 
@@ -287,7 +287,7 @@ function PurchaseItems({ purchase }: { purchase: Purchase }) {
                 </thead>
                 <tbody className="divide-y">
                     {(purchase.items ?? []).map((item) => {
-                        const left = Math.min(item.units, item.batch?.quantity ?? 0);
+                        const left = Math.min(item.units, item.batch?.stock ?? 0);
                         return (
                             <tr key={item.id}>
                                 <td className="px-4 py-2">

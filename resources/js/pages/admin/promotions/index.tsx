@@ -36,7 +36,8 @@ interface BatchRow {
     branch_name: string;
     expires_at: string | null;
     days_left: number | null;
-    quantity: number;
+    /** Unidades base que quedan en el lote */
+    stock: number;
     base_unit: string;
     unit_cost: number;
     unit_price: number | null;
@@ -247,7 +248,7 @@ function BatchCells({ row }: { row: BatchRow }) {
                 <ExpiryBadge date={row.expires_at} emptyLabel="Sin vencimiento" />
             </Td>
             <Td align="right">
-                {row.quantity.toLocaleString('es')} <span className="text-muted-foreground text-xs">{row.base_unit}</span>
+                {row.stock.toLocaleString('es')} <span className="text-muted-foreground text-xs">{row.base_unit}</span>
             </Td>
             <Td align="right">{money(row.unit_cost)}</Td>
             <Td align="right">{row.unit_price === null ? '—' : money(row.unit_price)}</Td>
@@ -288,7 +289,7 @@ function ApplyDialog({
                     <DialogHeader>
                         <DialogTitle>Promoción para el lote {row?.batch_number}</DialogTitle>
                         <DialogDescription>
-                            {row?.product_name} · {row?.days_left != null ? `vence en ${row.days_left} días` : 'sin vencimiento'} · {row?.quantity}{' '}
+                            {row?.product_name} · {row?.days_left != null ? `vence en ${row.days_left} días` : 'sin vencimiento'} · {row?.stock}{' '}
                             {row?.base_unit}
                         </DialogDescription>
                     </DialogHeader>

@@ -39,7 +39,8 @@ interface Props {
         batch_number: string;
         expires_at: string;
         days_left: number;
-        quantity: number;
+        /** Unidades base que quedan en el lote */
+        stock: number;
         base_unit: string;
         value: number;
     }[];
@@ -260,7 +261,7 @@ export default function Reports(props: Props) {
                                         <ExpiryBadge date={row.expires_at} emptyLabel="Sin vencimiento" />
                                     </Td>
                                     <Td align="right">
-                                        {row.quantity.toLocaleString('es')} <span className="text-muted-foreground text-xs">{row.base_unit}</span>
+                                        {row.stock.toLocaleString('es')} <span className="text-muted-foreground text-xs">{row.base_unit}</span>
                                     </Td>
                                     <Td align="right">{money(row.value)}</Td>
                                 </tr>

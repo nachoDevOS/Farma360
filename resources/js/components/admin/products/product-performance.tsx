@@ -60,7 +60,8 @@ export interface Performance {
         branch: string | null;
         expires_at: string;
         days_left: number;
-        quantity: number;
+        /** Unidades base que quedan en el lote */
+        stock: number;
         unit_cost: number;
         units_at_risk: number | null;
     }[];
@@ -586,10 +587,10 @@ function ExpiryRisk({ batches, units }: { batches: Performance['batches']; units
     if (!batches.length) {
         return <EmptyChart height={220} text="No hay stock en ninguna sucursal." />;
     }
-    const total = sum(batches, (b) => b.quantity);
+    const total = sum(batches, (b) => b.stock);
     const buckets = EXPIRY_BUCKETS.map((bucket) => {
         const rows = batches.filter((b) => bucket.test(b.days_left));
-        return { ...bucket, units: sum(rows, (b) => b.quantity), cost: sum(rows, (b) => b.quantity * b.unit_cost) };
+        return { ...bucket, units: sum(rows, (b) => b.stock), cost: sum(rows, (b) => b.stock * b.unit_cost) };
     });
     const riskUnits = sum(batches, (b) => b.units_at_risk ?? 0);
     const riskCost = sum(batches, (b) => (b.units_at_risk ?? 0) * b.unit_cost);
@@ -664,7 +665,7 @@ function ExpiryRisk({ batches, units }: { batches: Performance['batches']; units
             <div className="grid gap-2.5">
                 {urgent.map((b) => {
                     const risk = b.units_at_risk;
-                    const sold = risk === null ? 0 : b.quantity - risk;
+                    const sold = risk === null ? 0 : b.stock - risk;
                     return (
                         <div key={b.id} className="grid gap-1">
                             <div className="flex items-baseline justify-between gap-3 text-xs">
@@ -677,13 +678,13 @@ function ExpiryRisk({ batches, units }: { batches: Performance['batches']; units
                                 </span>
                                 <span className="num shrink-0">
                                     {risk === null ? (
-                                        <span className="text-muted-foreground">{b.quantity} · sin ritmo</span>
+                                        <span className="text-muted-foreground">{b.stock} · sin ritmo</span>
                                     ) : risk > 0 ? (
                                         <span className="font-semibold text-red-700 dark:text-red-400">
-                                            {risk} de {b.quantity} en riesgo
+                                            {risk} de {b.stock} en riesgo
                                         </span>
                                     ) : (
-                                        <span className="text-emerald-700 dark:text-emerald-400">{b.quantity} se venden a tiempo</span>
+                                        <span className="text-emerald-700 dark:text-emerald-400">{b.stock} se venden a tiempo</span>
                                     )}
                                 </span>
                             </div>

@@ -206,7 +206,7 @@ class CatalogTest extends TestCase
                 ->where('branchLots.0.batch_number', 'L-1')
                 ->where('branchLots.0.branch_id', $branch->id)
                 ->where('branchLots.0.origin.kind', 'compra')
-                ->where('branchLots.0.initial', 200)
+                ->where('branchLots.0.received_quantity', 200)
                 ->has('movementTypes'));
     }
 
@@ -278,7 +278,7 @@ class CatalogTest extends TestCase
                 // El de 100 días empieza a venderse cuando se acaba el anterior: 90 días → 90 tabletas.
                 // Norte no vendió nada: no se puede estimar.
                 ->where('performance.batches.0.units_at_risk', 4)
-                ->where('performance.batches.1.quantity', 13)
+                ->where('performance.batches.1.stock', 13)
                 ->where('performance.batches.1.units_at_risk', 3)
                 ->where('performance.batches.2.branch', 'Norte')
                 ->where('performance.batches.2.units_at_risk', null)

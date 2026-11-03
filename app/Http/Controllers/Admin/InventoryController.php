@@ -51,22 +51,22 @@ class InventoryController extends Controller
                 'laboratory:id,name',
                 'category:id,name',
                 // Lotes con stock de la sucursal, el que vence primero adelante (detalle desplegable)
-                'batches' => fn ($q) => $q->where('branch_id', $branchId)->where('quantity', '>', 0)->orderByExpiry()
-                    ->select('id', 'product_id', 'batch_number', 'expires_at', 'quantity', 'unit_cost'),
+                'batches' => fn ($q) => $q->where('branch_id', $branchId)->where('stock', '>', 0)->orderByExpiry()
+                    ->select('id', 'product_id', 'batch_number', 'expires_at', 'received_quantity', 'stock', 'unit_cost'),
             ])
-            ->withSum(['batches as stock' => fn ($q) => $q->where('branch_id', $branchId)], 'quantity')
-            ->withSum(['batches as stock_value' => fn ($q) => $q->where('branch_id', $branchId)], DB::raw('quantity * unit_cost'))
-            ->withMin(['batches as next_expiry' => fn ($q) => $q->where('branch_id', $branchId)->where('quantity', '>', 0)], 'expires_at')
+            ->withSum(['batches as stock' => fn ($q) => $q->where('branch_id', $branchId)], 'stock')
+            ->withSum(['batches as stock_value' => fn ($q) => $q->where('branch_id', $branchId)], DB::raw('stock * unit_cost'))
+            ->withMin(['batches as next_expiry' => fn ($q) => $q->where('branch_id', $branchId)->where('stock', '>', 0)], 'expires_at')
             ->search($search)
             ->when(($filters['alert'] ?? null) === 'low', fn (Builder $q) => $q->whereRaw(
-                '(select coalesce(sum(quantity), 0) from batches where batches.product_id = products.id and batches.branch_id = ? and batches.deleted_at is null) <= products.min_stock',
+                '(select coalesce(sum(stock), 0) from batches where batches.product_id = products.id and batches.branch_id = ? and batches.deleted_at is null) <= products.min_stock',
                 [$branchId],
             ))
             ->when(($filters['alert'] ?? null) === 'expiring', fn (Builder $q) => $q->whereHas('batches', fn (Builder $b) => $b
-                ->where('branch_id', $branchId)->where('quantity', '>', 0)
+                ->where('branch_id', $branchId)->where('stock', '>', 0)
                 ->whereDate('expires_at', '>=', today())->whereDate('expires_at', '<=', today()->addDays($alertDays))))
             ->when(($filters['alert'] ?? null) === 'expired', fn (Builder $q) => $q->whereHas('batches', fn (Builder $b) => $b
-                ->where('branch_id', $branchId)->where('quantity', '>', 0)->whereDate('expires_at', '<', today())))
+                ->where('branch_id', $branchId)->where('stock', '>', 0)->whereDate('expires_at', '<', today())))
             ->orderBy('name')
             ->paginate($this->perPage($request))
             ->withQueryString();
@@ -78,10 +78,10 @@ class InventoryController extends Controller
             'branches' => $branches,
             'alertDays' => $alertDays,
             'totals' => [
-                'value' => round((float) Batch::where('branch_id', $branchId)->sum(DB::raw('quantity * unit_cost')), 2),
-                'expiring' => Batch::where('branch_id', $branchId)->where('quantity', '>', 0)
+                'value' => round((float) Batch::where('branch_id', $branchId)->sum(DB::raw('stock * unit_cost')), 2),
+                'expiring' => Batch::where('branch_id', $branchId)->where('stock', '>', 0)
                     ->whereDate('expires_at', '>=', today())->whereDate('expires_at', '<=', today()->addDays($alertDays))->count(),
-                'expired' => Batch::where('branch_id', $branchId)->where('quantity', '>', 0)->whereDate('expires_at', '<', today())->count(),
+                'expired' => Batch::where('branch_id', $branchId)->where('stock', '>', 0)->whereDate('expires_at', '<', today())->count(),
             ],
         ]);
     }
@@ -112,9 +112,9 @@ class InventoryController extends Controller
         $others = Batch::with('branch:id,name')
             ->whereIn('product_id', $ids)
             ->where('branch_id', '!=', $branchId)
-            ->where('quantity', '>', 0)
+            ->where('stock', '>', 0)
             ->groupBy('product_id', 'branch_id')
-            ->selectRaw('product_id, branch_id, SUM(quantity) as stock')
+            ->selectRaw('product_id, branch_id, SUM(stock) as stock')
             ->get()
             ->groupBy('product_id');
 
@@ -137,7 +137,7 @@ class InventoryController extends Controller
         abort_unless($branches->contains('id', $branchId), 403);
 
         // Stock del producto en las demás sucursales (para decidir una transferencia)
-        $stockByBranch = Batch::where('product_id', $product->id)->groupBy('branch_id')->selectRaw('branch_id, SUM(quantity) as stock')->pluck('stock', 'branch_id');
+        $stockByBranch = Batch::where('product_id', $product->id)->groupBy('branch_id')->selectRaw('branch_id, SUM(stock) as stock')->pluck('stock', 'branch_id');
         $otherBranches = Branch::where('id', '!=', $branchId)->orderBy('name')->get(['id', 'name'])
             ->map(fn (Branch $branch) => [
                 'id' => $branch->id,
@@ -155,7 +155,7 @@ class InventoryController extends Controller
             // Último costo por unidad base registrado (compra o ingreso, cualquier sucursal): sugerencia en "Ingreso sin compra"
             'lastUnitCost' => ($cost = Batch::where('product_id', $product->id)->latest('id')->value('unit_cost')) !== null ? (float) $cost : null,
             // Plata invertida en el stock de la sucursal (costo de cada lote × sus unidades)
-            'stockValue' => round((float) Batch::where('product_id', $product->id)->where('branch_id', $branchId)->sum(DB::raw('quantity * unit_cost')), 2),
+            'stockValue' => round((float) Batch::where('product_id', $product->id)->where('branch_id', $branchId)->sum(DB::raw('stock * unit_cost')), 2),
             'otherBranches' => $otherBranches,
             'alertDays' => (int) config('farmacia.expiry_alert_days'),
             'batches' => $this->batchHistory->for($product->id, [$branchId]),
@@ -266,7 +266,7 @@ class InventoryController extends Controller
                 if (blank($data['batch_number'] ?? null)) {
                     $batch->update(['batch_number' => 'SL-'.str_pad((string) $batch->id, 6, '0', STR_PAD_LEFT)]);
                 }
-                $this->inventory->increase($batch, $units, 'ajuste_entrada', null, $data['note'] ?? 'Ingreso sin compra');
+                $this->inventory->receive($batch, $units, 'ingreso', null, $data['note'] ?? 'Ingreso sin compra');
 
                 return;
             }
@@ -296,7 +296,7 @@ class InventoryController extends Controller
         return response()->json(
             Batch::with('product:id,name,concentration,pharmaceutical_form,base_unit')
                 ->where('branch_id', $branchId)
-                ->where('quantity', '>', 0)
+                ->where('stock', '>', 0)
                 ->when($search !== '', fn (Builder $q) => $q->whereHas('product', fn (Builder $p) => $p
                     ->where('name', 'like', "%{$search}%")->orWhere('barcode', $search)))
                 ->orderByExpiry()
@@ -308,7 +308,7 @@ class InventoryController extends Controller
                     'base_unit' => $b->product->base_unit,
                     'batch_number' => $b->batch_number,
                     'expires_at' => $b->expires_at?->toDateString(),
-                    'quantity' => $b->quantity,
+                    'stock' => $b->stock,
                     'expired' => $b->isExpired(),
                 ]),
         );

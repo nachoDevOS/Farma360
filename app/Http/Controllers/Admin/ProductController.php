@@ -47,7 +47,7 @@ class ProductController extends Controller
 
         $products = Product::search($filters['search'] ?? null)
             ->with(['laboratory:id,name', 'category:id,name', 'presentations', 'indications:id,name', 'registeredBy:id,name'])
-            ->withSum(['batches as stock' => fn ($q) => $q->when($branchId, fn ($q) => $q->where('branch_id', $branchId))], 'quantity')
+            ->withSum(['batches as stock' => fn ($q) => $q->when($branchId, fn ($q) => $q->where('branch_id', $branchId))], 'stock')
             ->when($filters['category'] ?? null, fn (Builder $q, $id) => $q->where('category_id', $id))
             ->when($filters['laboratory'] ?? null, fn (Builder $q, $id) => $q->where('laboratory_id', $id))
             // Filtro por uso / síntoma (ej: todos los productos para "Dolor de cabeza")
@@ -294,7 +294,7 @@ class ProductController extends Controller
 
     public function destroy(Product $product): RedirectResponse
     {
-        if (Batch::where('product_id', $product->id)->where('quantity', '>', 0)->exists()) {
+        if (Batch::where('product_id', $product->id)->where('stock', '>', 0)->exists()) {
             throw new BusinessException("No se puede eliminar {$product->name}: todavía tiene stock. Puedes desactivarlo.");
         }
 
@@ -313,7 +313,7 @@ class ProductController extends Controller
 
         $products = Product::where('is_active', true)->search($request->query('q'))
             ->with(['presentations', 'laboratory:id,name', 'category:id,name'])
-            ->when($branchId, fn (Builder $q) => $q->withSum(['batches as stock' => fn ($b) => $b->where('branch_id', $branchId)], 'quantity'))
+            ->when($branchId, fn (Builder $q) => $q->withSum(['batches as stock' => fn ($b) => $b->where('branch_id', $branchId)], 'stock'))
             ->orderBy('name')
             ->limit(15)
             ->get();
@@ -416,8 +416,8 @@ class ProductController extends Controller
     {
         return Batch::query()
             ->whereIn('product_id', $productIds)
-            ->where('quantity', '>', 0)
-            ->selectRaw('product_id, branch_id, SUM(quantity) as stock, SUM(quantity * unit_cost) as value, COUNT(*) as batches, MIN(expires_at) as next_expiry')
+            ->where('stock', '>', 0)
+            ->selectRaw('product_id, branch_id, SUM(stock) as stock, SUM(stock * unit_cost) as value, COUNT(*) as batches, MIN(expires_at) as next_expiry')
             ->groupBy('product_id', 'branch_id')
             ->with('branch:id,name')
             ->get()

@@ -10,18 +10,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
- * LOTE: el stock real vive aquí. quantity = unidades base disponibles en esa sucursal.
- * Nunca se cambia quantity directo: se usa App\Services\InventoryService (deja el movimiento en el kardex).
+ * LOTE: el stock real vive aquí, en unidades base y en una sucursal.
+ *   received_quantity = lo que ENTRÓ al lote (compra, ingreso sin compra, transferencia recibida). Las ventas no lo tocan.
+ *   stock             = lo que QUEDA ahora.
+ * Nunca se cambian directo: se usa App\Services\InventoryService (deja el movimiento en el kardex).
  */
 class Batch extends Model
 {
     use Auditable;
 
-    protected $fillable = ['product_id', 'branch_id', 'batch_number', 'expires_at', 'quantity', 'unit_cost'];
+    protected $fillable = ['product_id', 'branch_id', 'batch_number', 'expires_at', 'received_quantity', 'stock', 'unit_cost'];
 
     protected function casts(): array
     {
-        return ['expires_at' => 'date', 'quantity' => 'integer', 'unit_cost' => 'decimal:4'];
+        return ['expires_at' => 'date', 'received_quantity' => 'integer', 'stock' => 'integer', 'unit_cost' => 'decimal:4'];
     }
 
     public function product(): BelongsTo
@@ -48,7 +50,7 @@ class Batch extends Model
     /** Lotes que se pueden vender: con stock y sin vencer (los que no tienen vencimiento nunca vencen). */
     public function scopeSellable(Builder $query): void
     {
-        $query->where('quantity', '>', 0)
+        $query->where('stock', '>', 0)
             ->where(fn (Builder $q) => $q->whereNull('expires_at')->orWhereDate('expires_at', '>=', today()));
     }
 

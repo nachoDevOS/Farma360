@@ -366,11 +366,11 @@ function RowDetail({ product, branchName, branches, alertDays }: { product: Prod
                                             )}
                                         </td>
                                         <td className="num px-4 py-2 text-right">
-                                            {lot.quantity.toLocaleString('es')}
-                                            <StockBreakdown units={lot.quantity} product={product} />
+                                            {lot.stock.toLocaleString('es')}
+                                            <StockBreakdown units={lot.stock} product={product} />
                                         </td>
                                         <td className="num px-4 py-2 text-right">{money(lot.unit_cost)}</td>
-                                        <td className="num px-4 py-2 text-right">{money(lot.quantity * Number(lot.unit_cost))}</td>
+                                        <td className="num px-4 py-2 text-right">{money(lot.stock * Number(lot.unit_cost))}</td>
                                     </tr>
                                 ))}
                             </tbody>

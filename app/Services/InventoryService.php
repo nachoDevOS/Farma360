@@ -11,7 +11,12 @@ use Illuminate\Support\Collection;
 
 /**
  * INVENTARIO: la ÚNICA forma de cambiar el stock.
- * Cada entrada o salida cambia la cantidad del lote y deja su movimiento en el kardex (stock_movements).
+ * Cada entrada o salida cambia el stock del lote y deja su movimiento en el kardex (stock_movements).
+ *   receive()          → mercadería que ENTRA al lote (compra, ingreso sin compra, transferencia recibida):
+ *                        sube el stock y también lo recibido (received_quantity).
+ *   increase()         → vuelve stock sin ser mercadería nueva (anulación de venta, ajuste de entrada): solo el stock.
+ *   decrease()         → salida (venta, transferencia enviada, ajuste de salida, baja): solo el stock.
+ *   revertReception()  → se anula una recepción (anulación de compra): baja el stock y lo recibido.
  * Llamarlo siempre dentro de DB::transaction() (lo hacen los otros servicios).
  */
 class InventoryService
@@ -19,52 +24,67 @@ class InventoryService
     /** Stock de un producto en una sucursal (suma de sus lotes, vencidos incluidos). */
     public function stock(int $productId, int $branchId): int
     {
-        return (int) Batch::where('product_id', $productId)->where('branch_id', $branchId)->sum('quantity');
+        return (int) Batch::where('product_id', $productId)->where('branch_id', $branchId)->sum('stock');
     }
 
     /** Stock que se puede vender (lotes sin vencer). */
     public function sellableStock(int $productId, int $branchId): int
     {
-        return (int) Batch::where('product_id', $productId)->where('branch_id', $branchId)->sellable()->sum('quantity');
+        return (int) Batch::where('product_id', $productId)->where('branch_id', $branchId)->sellable()->sum('stock');
     }
 
     /**
-     * Crea un lote vacío (sin stock). Después se le suma con increase().
+     * Crea un lote vacío (sin stock). Después se le suma con receive().
      *
      * @param  array{product_id: int, branch_id: int, batch_number: string, expires_at: mixed, unit_cost: float|string}  $data
      */
     public function createBatch(array $data): Batch
     {
-        return Batch::create($data + ['quantity' => 0]);
+        return Batch::create($data + ['received_quantity' => 0, 'stock' => 0]);
     }
 
-    /** ENTRADA: suma unidades base al lote. */
-    public function increase(Batch $batch, int $units, string $type, ?Model $reference = null, ?string $note = null): StockMovement
+    /** RECEPCIÓN: mercadería que entra al lote. Suma al stock y a lo recibido. */
+    public function receive(Batch $batch, int $units, string $type, ?Model $reference = null, ?string $note = null): StockMovement
     {
-        if ($units <= 0) {
-            throw new BusinessException('La cantidad debe ser mayor a cero.');
-        }
+        $this->ensurePositive($units);
 
         $batch = $this->lock($batch);
-        $batch->increment('quantity', $units);
+        $batch->increment('stock', $units, ['received_quantity' => $batch->received_quantity + $units]);
 
         return $this->record($batch, $units, $type, $reference, $note);
+    }
+
+    /** ENTRADA que no es mercadería nueva (vuelve una venta anulada, ajuste de entrada): suma solo al stock. */
+    public function increase(Batch $batch, int $units, string $type, ?Model $reference = null, ?string $note = null): StockMovement
+    {
+        $this->ensurePositive($units);
+
+        $batch = $this->lock($batch);
+        $batch->increment('stock', $units);
+
+        return $this->record($batch, $units, $type, $reference, $note);
+    }
+
+    /** Se anula una recepción (anulación de compra): resta del stock y de lo recibido. Falla si ya se usaron unidades. */
+    public function revertReception(Batch $batch, int $units, string $type, ?Model $reference = null, ?string $note = null): StockMovement
+    {
+        $this->ensurePositive($units);
+
+        $batch = $this->lock($batch);
+        $this->ensureEnough($batch, $units);
+        $batch->decrement('stock', $units, ['received_quantity' => max(0, $batch->received_quantity - $units)]);
+
+        return $this->record($batch, -$units, $type, $reference, $note);
     }
 
     /** SALIDA: resta unidades base del lote. Falla si el lote no tiene suficiente. */
     public function decrease(Batch $batch, int $units, string $type, ?Model $reference = null, ?string $note = null): StockMovement
     {
-        if ($units <= 0) {
-            throw new BusinessException('La cantidad debe ser mayor a cero.');
-        }
+        $this->ensurePositive($units);
 
         $batch = $this->lock($batch);
-
-        if ($batch->quantity < $units) {
-            throw new BusinessException("Stock insuficiente en el lote {$batch->batch_number}: hay {$batch->quantity} y se piden {$units}.");
-        }
-
-        $batch->decrement('quantity', $units);
+        $this->ensureEnough($batch, $units);
+        $batch->decrement('stock', $units);
 
         return $this->record($batch, -$units, $type, $reference, $note);
     }
@@ -86,9 +106,9 @@ class InventoryService
             ->orderByExpiry()
             ->orderBy('id')
             ->get()
-            ->each(fn (Batch $batch) => $batch->quantity -= $reserved[$batch->id] ?? 0);
+            ->each(fn (Batch $batch) => $batch->stock -= $reserved[$batch->id] ?? 0);
 
-        $available = $batches->sum('quantity');
+        $available = $batches->sum('stock');
         if ($available < $units) {
             $name = Product::find($productId)?->name ?? 'el producto';
             throw new BusinessException("Stock insuficiente de {$name}: hay {$available} y se piden {$units}.");
@@ -101,7 +121,7 @@ class InventoryService
             if ($pending === 0) {
                 break;
             }
-            $take = min($pending, $batch->quantity);
+            $take = min($pending, $batch->stock);
             if ($take <= 0) {
                 continue;
             }
@@ -111,6 +131,20 @@ class InventoryService
         }
 
         return $allocation;
+    }
+
+    private function ensurePositive(int $units): void
+    {
+        if ($units <= 0) {
+            throw new BusinessException('La cantidad debe ser mayor a cero.');
+        }
+    }
+
+    private function ensureEnough(Batch $batch, int $units): void
+    {
+        if ($batch->stock < $units) {
+            throw new BusinessException("Stock insuficiente en el lote {$batch->batch_number}: hay {$batch->stock} y se piden {$units}.");
+        }
     }
 
     /** Vuelve a leer el lote bloqueándolo: dos ventas al mismo tiempo no pueden sacar el mismo stock. */

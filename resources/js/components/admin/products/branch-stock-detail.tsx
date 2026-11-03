@@ -265,15 +265,15 @@ export function BranchStockDetail({
                                                                             </td>
                                                                             <td className="num px-3 py-2 text-right whitespace-nowrap">
                                                                                 <span className="text-muted-foreground">
-                                                                                    {lot.initial.toLocaleString('es')} →{' '}
+                                                                                    {lot.received_quantity.toLocaleString('es')} →{' '}
                                                                                 </span>
                                                                                 <span className="font-semibold">
-                                                                                    {lot.quantity.toLocaleString('es')}
+                                                                                    {lot.stock.toLocaleString('es')}
                                                                                 </span>
                                                                             </td>
                                                                             <td className="num px-3 py-2 text-right">{money(lot.unit_cost)}</td>
                                                                             <td className="num px-3 py-2 text-right">
-                                                                                {money(lot.quantity * Number(lot.unit_cost))}
+                                                                                {money(lot.stock * Number(lot.unit_cost))}
                                                                             </td>
                                                                             <td className="px-3 py-2">
                                                                                 {lot.active_promotion ? (

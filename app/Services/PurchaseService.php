@@ -54,7 +54,7 @@ class PurchaseService
                     'unit_cost' => $unitCost,
                 ]);
 
-                $this->inventory->increase($batch, $units, 'compra', $purchase);
+                $this->inventory->receive($batch, $units, 'compra', $purchase);
 
                 $purchase->items()->create([
                     'product_id' => $presentation->product_id,
@@ -93,10 +93,10 @@ class PurchaseService
             }
 
             foreach ($purchase->items()->with('batch')->get() as $item) {
-                if ($item->batch->quantity < $item->units) {
+                if ($item->batch->stock < $item->units) {
                     throw new BusinessException("No se puede anular: del lote {$item->batch_number} ya se usaron unidades (ventas o transferencias).");
                 }
-                $this->inventory->decrease($item->batch, $item->units, 'anulacion_compra', $purchase, $reason);
+                $this->inventory->revertReception($item->batch, $item->units, 'anulacion_compra', $purchase, $reason);
             }
 
             $purchase->forceFill([

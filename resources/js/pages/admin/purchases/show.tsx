@@ -504,8 +504,8 @@ function LotsList({ purchase, lots, movementTypes }: { purchase: Purchase; lots:
                                 </Td>
                                 <Td>
                                     <StockLeft
-                                        left={lot.quantity}
-                                        total={lot.initial}
+                                        left={lot.stock}
+                                        total={lot.received_quantity}
                                         unit={item?.product.base_unit ?? 'unidad'}
                                         pkg={item?.presentation}
                                     />

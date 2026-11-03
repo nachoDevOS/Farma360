@@ -70,7 +70,7 @@ class BranchController extends ResourceController
 
     protected function deleteBlocker(Model $model): ?string
     {
-        if (Batch::where('branch_id', $model->id)->where('quantity', '>', 0)->exists()) {
+        if (Batch::where('branch_id', $model->id)->where('stock', '>', 0)->exists()) {
             return "No se puede eliminar: {$model->name} todavía tiene stock. Transfiérelo o dalo de baja primero.";
         }
         if (CashSession::where('branch_id', $model->id)->where('status', CashSession::OPEN)->exists()) {

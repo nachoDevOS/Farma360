@@ -17,6 +17,7 @@ class StockMovement extends Model
     /** Tipos de movimiento y su nombre en pantalla. */
     public const TYPES = [
         'compra' => 'Compra',
+        'ingreso' => 'Ingreso sin compra',
         'venta' => 'Venta',
         'ajuste_entrada' => 'Ajuste (entrada)',
         'ajuste_salida' => 'Ajuste (salida)',

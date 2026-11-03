@@ -41,8 +41,8 @@ class SaleTest extends TestCase
         $this->assertEquals(5, $sale->change);
         // 3 del lote que vence primero, 2 del siguiente
         $this->assertSame([[$soon->id, 3], [$late->id, 2]], $sale->items->map(fn ($i) => [$i->batch_id, $i->units])->all());
-        $this->assertSame(0, $soon->fresh()->quantity);
-        $this->assertSame(8, $late->fresh()->quantity);
+        $this->assertSame(0, $soon->fresh()->stock);
+        $this->assertSame(8, $late->fresh()->stock);
         // Lo guardado en caja es el efectivo menos el cambio
         $this->assertDatabaseHas('sale_payments', ['sale_id' => $sale->id, 'method' => 'efectivo', 'amount' => 5]);
     }
@@ -136,7 +136,7 @@ class SaleTest extends TestCase
         $this->actingAs($admin)->post("/admin/sales/{$sale->id}/cancel", ['reason' => 'Cliente devolvió'])->assertSessionHas('success');
 
         $this->assertSame('anulada', $sale->fresh()->status);
-        $this->assertSame(10, $batch->fresh()->quantity);
+        $this->assertSame(10, $batch->fresh()->stock);
         $this->assertDatabaseHas('stock_movements', ['batch_id' => $batch->id, 'type' => 'anulacion_venta', 'quantity' => 4]);
         // La venta anulada ya no cuenta en el efectivo esperado
         $this->assertEquals(100, app(CashService::class)->expectedCash($sale->cashSession));
@@ -154,13 +154,13 @@ class SaleTest extends TestCase
         // 20 unidades: 15 del lote que vence antes y 5 del siguiente
         $this->sell($cashier, [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 20]], [['method' => 'efectivo', 'amount' => 20]]);
         $sale = Sale::firstOrFail();
-        $this->assertSame([0, 35], [$first->fresh()->quantity, $second->fresh()->quantity]);
+        $this->assertSame([0, 35], [$first->fresh()->stock, $second->fresh()->stock]);
         $this->assertSame([$first->id => 15, $second->id => 5], $sale->items()->pluck('units', 'batch_id')->all());
 
         $this->actingAs($this->userWithRole('Administrador'))->post("/admin/sales/{$sale->id}/cancel", ['reason' => 'Cliente devolvió'])
             ->assertSessionHas('success');
 
-        $this->assertSame([15, 40], [$first->fresh()->quantity, $second->fresh()->quantity]);
+        $this->assertSame([15, 40], [$first->fresh()->stock, $second->fresh()->stock]);
         $this->assertDatabaseHas('stock_movements', ['batch_id' => $first->id, 'type' => 'anulacion_venta', 'quantity' => 15]);
         $this->assertDatabaseHas('stock_movements', ['batch_id' => $second->id, 'type' => 'anulacion_venta', 'quantity' => 5]);
     }

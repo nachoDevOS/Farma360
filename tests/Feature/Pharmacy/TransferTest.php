@@ -30,7 +30,7 @@ class TransferTest extends TestCase
 
         $transfer = Transfer::firstOrFail();
         $this->assertSame('enviada', $transfer->status);
-        $this->assertSame(30, $batch->fresh()->quantity);
+        $this->assertSame(30, $batch->fresh()->stock);
         // Mientras viaja, el destino todavía no lo tiene
         $this->assertSame(0, app(InventoryService::class)->stock($product->id, $to->id));
 
@@ -40,7 +40,7 @@ class TransferTest extends TestCase
         $this->assertSame('LT-9', $destination->batch_number);
         $this->assertSame($batch->expires_at->toDateString(), $destination->expires_at->toDateString());
         $this->assertEquals(0.7, $destination->unit_cost);
-        $this->assertSame(20, $destination->quantity);
+        $this->assertSame(20, $destination->stock);
         $this->assertSame('recibida', $transfer->fresh()->status);
     }
 
@@ -56,7 +56,7 @@ class TransferTest extends TestCase
         $this->actingAs($admin)->post('/admin/transfers', ['from_branch_id' => $from->id, 'to_branch_id' => $to->id, 'items' => [['batch_id' => $origin->id, 'quantity' => 10]]]);
         $this->actingAs($admin)->post('/admin/transfers/'.Transfer::first()->id.'/receive');
 
-        $this->assertSame(15, $existing->fresh()->quantity);
+        $this->assertSame(15, $existing->fresh()->stock);
         $this->assertSame(1, Batch::where('branch_id', $to->id)->count());
     }
 
@@ -70,7 +70,7 @@ class TransferTest extends TestCase
         $transfer = Transfer::firstOrFail();
 
         $this->actingAs($admin)->post("/admin/transfers/{$transfer->id}/cancel", ['reason' => 'Error de envío'])->assertSessionHas('success');
-        $this->assertSame(10, $batch->fresh()->quantity);
+        $this->assertSame(10, $batch->fresh()->stock);
         $this->assertSame('anulada', $transfer->fresh()->status);
 
         $this->actingAs($admin)->post("/admin/transfers/{$transfer->id}/receive")->assertSessionHas('error');
@@ -88,7 +88,7 @@ class TransferTest extends TestCase
             ->assertSessionHasErrors('to_branch_id');
 
         $this->assertSame(0, Transfer::count());
-        $this->assertSame(5, $batch->fresh()->quantity);
+        $this->assertSame(5, $batch->fresh()->stock);
     }
 
     public function test_only_the_destination_branch_receives()

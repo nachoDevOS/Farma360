@@ -40,7 +40,7 @@ trait PharmacyHelpers
             'unit_cost' => $unitCost,
         ]);
         if ($quantity > 0) {
-            $inventory->increase($batch, $quantity, 'ajuste_entrada', null, 'Prueba');
+            $inventory->receive($batch, $quantity, 'ingreso', null, 'Prueba');
         }
 
         return $batch->fresh();

@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
  *   product_id                     BIGINT UNSIGNED, FK products    Producto.
  *   branch_id                      BIGINT UNSIGNED, FK branches    Sucursal.
  *   batch_id                       BIGINT UNSIGNED, FK batches     Lote que se movió.
- *   type                           VARCHAR(30)                     compra, venta, ajuste_entrada, ajuste_salida, baja, transferencia_salida,
+ *   type                           VARCHAR(30)                     compra, ingreso (sin compra), venta, ajuste_entrada, ajuste_salida, baja, transferencia_salida,
  *                                                                  transferencia_entrada, anulacion_compra, anulacion_venta, anulacion_transferencia.
  *   quantity                       INT                             Unidades base: positivo = entra, negativo = sale.
  *   unit_cost                      DECIMAL(14,4)                   Costo de una unidad base del lote.

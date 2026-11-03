@@ -7,6 +7,7 @@ use App\Models\Batch;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Services\InventoryService;
+use App\Services\TransferService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -23,6 +24,45 @@ class InventoryTest extends TestCase
     {
         parent::setUp();
         $this->inventory = app(InventoryService::class);
+    }
+
+    public function test_received_quantity_only_changes_with_receptions_while_stock_follows_every_movement()
+    {
+        $branch = $this->branch();
+        $product = $this->product();
+        $inventory = app(InventoryService::class);
+        $batch = $this->batch($product, $branch, 100);
+
+        // Venta, anulación de venta, ajuste de entrada y baja: solo cambian el stock
+        $inventory->decrease($batch, 30, 'venta');
+        $inventory->increase($batch, 5, 'anulacion_venta');
+        $inventory->increase($batch, 2, 'ajuste_entrada');
+        $inventory->decrease($batch, 7, 'baja');
+        $batch->refresh();
+        $this->assertSame([100, 70], [$batch->received_quantity, $batch->stock]);
+
+        // Otra recepción suma a los dos; anular una recepción resta de los dos
+        $inventory->receive($batch, 20, 'transferencia_entrada');
+        $inventory->revertReception($batch, 10, 'anulacion_compra');
+        $batch->refresh();
+        $this->assertSame([110, 80], [$batch->received_quantity, $batch->stock]);
+    }
+
+    public function test_a_received_transfer_counts_as_received_only_in_the_destination()
+    {
+        $origin = $this->branch();
+        $destination = $this->branch();
+        $product = $this->product();
+        $batch = $this->batch($product, $origin, 50);
+        $transfers = app(TransferService::class);
+
+        $transfer = $transfers->send($origin->id, $destination->id, [['batch_id' => $batch->id, 'quantity' => 20]]);
+        $transfers->receive($transfer, $this->userWithRole('Administrador'));
+
+        $batch->refresh();
+        $received = Batch::where('branch_id', $destination->id)->firstOrFail();
+        $this->assertSame([50, 30], [$batch->received_quantity, $batch->stock]);
+        $this->assertSame([20, 20], [$received->received_quantity, $received->stock]);
     }
 
     public function test_fefo_takes_the_batch_that_expires_first_and_skips_expired_ones()
@@ -101,14 +141,14 @@ class InventoryTest extends TestCase
         ])->assertSessionHas('success');
 
         $batch = $product->batches()->first();
-        $this->assertSame(130, $batch->quantity);
+        $this->assertSame(130, $batch->stock);
         $this->assertEquals(0.4, $batch->unit_cost);
         $this->assertSame(1, $product->batches()->count());
         $this->actingAs($admin)->post('/admin/inventory/adjust', [
             'mode' => 'writeoff', 'batch_id' => $batch->id, 'quantity' => 10, 'note' => 'Cajas mojadas',
         ])->assertSessionHas('success');
 
-        $this->assertSame(120, $batch->fresh()->quantity);
+        $this->assertSame(120, $batch->fresh()->stock);
         $this->assertDatabaseHas('stock_movements', ['batch_id' => $batch->id, 'type' => 'baja', 'quantity' => -10, 'note' => 'Cajas mojadas']);
     }
 
@@ -130,7 +170,7 @@ class InventoryTest extends TestCase
         $this->actingAs($admin)->post('/admin/inventory/adjust', $screen('writeoff', 2))->assertSessionHasNoErrors()->assertSessionHas('success');
 
         // 110 + 3 − 5 − 2
-        $this->assertSame(106, $batch->fresh()->quantity);
+        $this->assertSame(106, $batch->fresh()->stock);
     }
 
     public function test_initial_stock_only_accepts_presentations_of_the_same_product()
@@ -289,11 +329,11 @@ class InventoryTest extends TestCase
 
         $this->actingAs($admin)->get("/admin/inventory/{$product->id}?branch={$branch->id}")
             ->assertInertia(fn ($page) => $page
-                ->where('batches.0.quantity', 92)
+                ->where('batches.0.stock', 92)
                 ->where('batches.0.origin.kind', 'compra')
                 ->where('batches.0.origin.document.kind', 'compra')
                 ->where('batches.0.origin.document.label', fn (string $label) => str_contains($label, 'factura F-9') && str_contains($label, 'Droguería Inti'))
-                ->where('batches.0.initial', 100)
+                ->where('batches.0.received_quantity', 100)
                 // 100 − 7 + 2 − 3 = 92
                 ->where('batches.0.summary', fn ($summary) => collect($summary)->pluck('units', 'key')->all() === ['ventas' => -7, 'ajustes' => 2, 'bajas' => -3])
                 ->where('batches.0.movements_count', 4)
@@ -319,7 +359,7 @@ class InventoryTest extends TestCase
             'mode' => 'out', 'batch_id' => $batch->id, 'quantity' => 1, 'note' => 'x',
         ])->assertSessionHas('error');
 
-        $this->assertSame(10, $batch->fresh()->quantity);
+        $this->assertSame(10, $batch->fresh()->stock);
     }
 
     public function test_inventory_screens_show_stock_by_branch()
@@ -362,7 +402,7 @@ class InventoryTest extends TestCase
                 // Lotes con stock de la sucursal, el que vence primero adelante (la venta salió de ese)
                 ->has('products.data.0.batches', 2)
                 ->where('products.data.0.batches.0.batch_number', 'L-A')
-                ->where('products.data.0.batches.0.quantity', 33)
+                ->where('products.data.0.batches.0.stock', 33)
                 ->where('products.data.0.sold_30', 7)
                 ->has('products.data.0.other_branches', 1)
                 ->where('products.data.0.other_branches.0.branch', 'Norte')

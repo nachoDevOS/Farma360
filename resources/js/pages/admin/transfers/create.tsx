@@ -47,9 +47,9 @@ export default function TransferCreate({ fromBranches, toBranches }: { fromBranc
                 label: batch.product_name,
                 batch_number: batch.batch_number,
                 expires_at: batch.expires_at,
-                available: batch.quantity,
+                available: batch.stock,
                 base_unit: batch.base_unit,
-                quantity: String(batch.quantity),
+                quantity: String(batch.stock),
             },
         ]);
     };
@@ -121,7 +121,7 @@ export default function TransferCreate({ fromBranches, toBranches }: { fromBranc
                                         <span className="flex items-center gap-2 text-xs">
                                             <ExpiryBadge date={b.expires_at} emptyLabel="Sin vencimiento" />
                                             <span className="text-muted-foreground">
-                                                {b.quantity} {b.base_unit}
+                                                {b.stock} {b.base_unit}
                                             </span>
                                         </span>
                                     </div>

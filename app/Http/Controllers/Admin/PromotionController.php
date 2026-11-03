@@ -34,7 +34,7 @@ class PromotionController extends Controller
 
         $active = BatchPromotion::with('batch.product.presentations', 'batch.branch:id,name', 'registeredBy:id,name')
             ->where('is_active', true)
-            ->whereHas('batch', fn ($q) => $q->where('quantity', '>', 0)->whereIn('branch_id', $branchId ? [$branchId] : $allowed))
+            ->whereHas('batch', fn ($q) => $q->where('stock', '>', 0)->whereIn('branch_id', $branchId ? [$branchId] : $allowed))
             // Primero lo que vence antes
             ->orderBy(Batch::select('expires_at')->whereColumn('batches.id', 'batch_promotions.batch_id'))
             ->paginate($this->perPage($request), ['*'], 'active_page')
@@ -144,7 +144,7 @@ class PromotionController extends Controller
             'branch_name' => $batch->branch->name,
             'expires_at' => $batch->expires_at?->toDateString(),
             'days_left' => $batch->daysToExpire(),
-            'quantity' => $batch->quantity,
+            'stock' => $batch->stock,
             'base_unit' => $batch->product->base_unit,
             'unit_cost' => (float) $batch->unit_cost,
             // Precio normal de una unidad base (de la presentación más chica)

@@ -128,7 +128,7 @@ class SaleController extends Controller
                     'breakdown' => $pres->breakdown($p->presentations),
                     'factor' => $pres->factor,
                     'sale_price' => (float) $pres->sale_price,
-                    'stock_units' => (int) $productBatches->sum('quantity'),
+                    'stock_units' => (int) $productBatches->sum('stock'),
                     'next_expiry' => $first?->expires_at?->toDateString(),
                     'promo_discount' => $first?->activePromotion ? (float) $first->activePromotion->discount_percent : null,
                 ]);

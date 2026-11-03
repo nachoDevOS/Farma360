@@ -45,7 +45,7 @@ class PurchaseController extends Controller
                 'product:id,name,concentration,base_unit',
                 'product.presentations:id,product_id,parent_id,package,contains,factor,name',
                 'presentation' => fn ($p) => $p->withTrashed()->select('id', 'name', 'package', 'factor'),
-                'batch:id,quantity',
+                'batch:id,stock',
             ]),
         ])
             ->withCount('items')
@@ -154,11 +154,11 @@ class PurchaseController extends Controller
         $purchase->load([
             'branch:id,name', 'supplier:id,name,nit,phone', 'registeredBy:id,name', 'cancelledBy:id,name',
             'items.product:id,name,generic_name,concentration,pharmaceutical_form,base_unit,laboratory_id', 'items.product.laboratory:id,name', 'items.product.presentations',
-            'items.presentation' => fn ($q) => $q->withTrashed(), 'items.batch:id,quantity',
+            'items.presentation' => fn ($q) => $q->withTrashed(), 'items.batch:id,stock',
         ]);
         $purchase->items->each(function (PurchaseItem $item) {
             $smallest = $item->product->presentations->first(fn ($p) => $p->is_sellable && $p->sale_price);
-            $item->setAttribute('remaining', (int) ($item->batch?->quantity ?? 0));
+            $item->setAttribute('remaining', (int) ($item->batch?->stock ?? 0));
             $item->setAttribute('sale_unit_price', $smallest ? round((float) $smallest->sale_price / $smallest->factor, 4) : null);
         });
 

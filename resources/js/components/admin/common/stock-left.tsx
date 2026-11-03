@@ -2,7 +2,7 @@
  * CUÁNTO QUEDA DE LO QUE ENTRÓ (un lote, lo de una compra): "30 de 30 tabletas", porcentaje, barra con color
  * (verde = bastante, ámbar = 25% o menos, gris = agotado) y en palabras qué pasó.
  *
- *   <StockLeft left={batch.quantity} total={batch.initial} unit="tableta" />
+ *   <StockLeft left={batch.stock} total={batch.received_quantity} unit="tableta" />
  *   <StockLeft left={24} total={30} unit="tableta" pkg={{ package: 'blíster', factor: 10 }} />  → "quedan 2 blísteres"… solo si da justo
  *
  * Dice "salieron" (no "se vendieron"): el stock también baja por transferencias, ajustes y bajas.

@@ -39,7 +39,7 @@ class ProductAnalytics
      *     branches: list<array{branch_id: int, branch: ?string, units: int, amount: float, stock: int, daily_rate: float}>,
      *     mix: list<array{presentation_id: int, name: string, factor: int, quantity: int, units: int, amount: float}>,
      *     hours: list<array{day: int, hour: int, units: int, sales: int}>,
-     *     batches: list<array{id: int, batch_number: string, branch: ?string, expires_at: string, days_left: int, quantity: int, unit_cost: float, units_at_risk: ?int}>
+     *     batches: list<array{id: int, batch_number: string, branch: ?string, expires_at: string, days_left: int, stock: int, unit_cost: float, units_at_risk: ?int}>
      * }
      */
     public function for(Product $product, ?int $branchId = null): array
@@ -151,9 +151,9 @@ class ProductAnalytics
     private function branches(Product $product, Collection $recent, int $rateDays): array
     {
         $stock = Batch::where('product_id', $product->id)
-            ->where('quantity', '>', 0)
+            ->where('stock', '>', 0)
             ->groupBy('branch_id')
-            ->selectRaw('branch_id, SUM(quantity) as stock')
+            ->selectRaw('branch_id, SUM(stock) as stock')
             ->pluck('stock', 'branch_id');
         $sales = $recent->groupBy('branch_id');
         $ids = $stock->keys()->merge($sales->keys())->unique();
@@ -228,14 +228,14 @@ class ProductAnalytics
      *
      * @param  Collection<int, float>  $rates  unidades por día de cada sucursal
      * @param  ?int  $branchId  solo los lotes de esta sucursal (null = todas)
-     * @return list<array{id: int, batch_number: string, branch: ?string, expires_at: string, days_left: int, quantity: int, unit_cost: float, units_at_risk: ?int}>
+     * @return list<array{id: int, batch_number: string, branch: ?string, expires_at: string, days_left: int, stock: int, unit_cost: float, units_at_risk: ?int}>
      */
     private function batchesAtRisk(Product $product, Collection $rates, ?int $branchId): array
     {
         return Batch::with(['branch' => fn ($q) => $q->withTrashed()])
             ->where('product_id', $product->id)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('quantity', '>', 0)
+            ->where('stock', '>', 0)
             // Sin vencimiento no hay riesgo de perderlo
             ->whereNotNull('expires_at')
             ->orderBy('expires_at')
@@ -250,12 +250,12 @@ class ProductAnalytics
                 return $batches->map(function (Batch $batch) use ($rate, &$busyDays) {
                     $daysLeft = $batch->daysToExpire();
                     if ($daysLeft < 0) {
-                        $atRisk = $batch->quantity;
+                        $atRisk = $batch->stock;
                     } elseif ($rate <= 0) {
                         $atRisk = null;
                     } else {
-                        $sold = (int) min($batch->quantity, floor(max(0, $daysLeft - $busyDays) * $rate));
-                        $atRisk = $batch->quantity - $sold;
+                        $sold = (int) min($batch->stock, floor(max(0, $daysLeft - $busyDays) * $rate));
+                        $atRisk = $batch->stock - $sold;
                         $busyDays += $sold / $rate;
                     }
 
@@ -265,7 +265,7 @@ class ProductAnalytics
                         'branch' => $batch->branch?->name,
                         'expires_at' => $batch->expires_at->toDateString(),
                         'days_left' => $daysLeft,
-                        'quantity' => $batch->quantity,
+                        'stock' => $batch->stock,
                         'unit_cost' => (float) $batch->unit_cost,
                         'units_at_risk' => $atRisk,
                     ];

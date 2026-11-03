@@ -52,9 +52,7 @@ export interface BatchWithDetail extends Batch {
     days_left: number | null;
     /** Cómo entró: compra, ingreso sin compra o transferencia recibida */
     origin: (BatchMovement & { kind: 'compra' | 'ingreso' | 'transferencia' | 'otro' }) | null;
-    /** Unidades que entraron al principio */
-    initial: number;
-    /** Lo que se movió después, por grupo (con signo): initial + Σ units = quantity */
+    /** Lo que salió o volvió después de recibirlo, por grupo (con signo): received_quantity + Σ units = stock */
     summary: { key: string; label: string; units: number; count: number }[];
     movements_count: number;
     /** Los últimos 15, el más reciente primero */
@@ -72,6 +70,7 @@ const ORIGIN: Record<string, { icon: LucideIcon; label: string; tone: string }> 
 /** Ícono y color de cada tipo de movimiento del kardex. */
 const MOVEMENT: Record<string, { icon: LucideIcon; tone: string }> = {
     compra: { icon: Truck, tone: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
+    ingreso: { icon: PackagePlus, tone: 'bg-violet-500/10 text-violet-700 dark:text-violet-400' },
     venta: { icon: ShoppingCart, tone: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
     ajuste_entrada: { icon: Plus, tone: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
     ajuste_salida: { icon: Minus, tone: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' },
@@ -155,7 +154,11 @@ export function BatchDetail({
                 {/* La cuenta del lote */}
                 <Section icon={History} title="Cuenta del lote" hint={`En ${units}`}>
                     <div className="grid gap-1.5 text-[13px]">
-                        <Line label="Entró" value={`+${batch.initial.toLocaleString('es')}`} tone="text-emerald-700 dark:text-emerald-400" />
+                        <Line
+                            label="Recibido"
+                            value={`+${batch.received_quantity.toLocaleString('es')}`}
+                            tone="text-emerald-700 dark:text-emerald-400"
+                        />
                         {batch.summary.map((row) => (
                             <Line
                                 key={row.key}
@@ -167,19 +170,19 @@ export function BatchDetail({
                         ))}
                         <div className="mt-1 flex items-baseline justify-between gap-3 border-t pt-2">
                             <span className="font-semibold">Queda hoy</span>
-                            <span className="num text-base font-bold">{batch.quantity.toLocaleString('es')}</span>
+                            <span className="num text-base font-bold">{batch.stock.toLocaleString('es')}</span>
                         </div>
-                        {/* Barrita: qué parte de lo que entró sigue en el lote */}
-                        {batch.initial > 0 && (
+                        {/* Barrita: qué parte de lo recibido sigue en el lote */}
+                        {batch.received_quantity > 0 && (
                             <div className="grid gap-1">
                                 <div className="bg-muted h-1.5 overflow-hidden rounded-full">
                                     <div
                                         className="bg-chart-1 h-full rounded-full"
-                                        style={{ width: `${Math.min(100, (batch.quantity / batch.initial) * 100)}%` }}
+                                        style={{ width: `${Math.min(100, (batch.stock / batch.received_quantity) * 100)}%` }}
                                     />
                                 </div>
                                 <p className="text-muted-foreground text-[11px]">
-                                    Queda el {Math.round((batch.quantity / batch.initial) * 100)}% de lo que entró
+                                    Queda el {Math.round((batch.stock / batch.received_quantity) * 100)}% de lo recibido
                                 </p>
                             </div>
                         )}
@@ -206,8 +209,8 @@ export function BatchDetail({
                     <Fact
                         icon={Wallet}
                         label="Valor al costo"
-                        value={money(batch.quantity * unitCost)}
-                        sub={`${money(unitCost)} c/u · ${batch.quantity.toLocaleString('es')} ${units}`}
+                        value={money(batch.stock * unitCost)}
+                        sub={`${money(unitCost)} c/u · ${batch.stock.toLocaleString('es')} ${units}`}
                     />
                 </div>
             </div>

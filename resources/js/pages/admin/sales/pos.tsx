@@ -271,7 +271,10 @@ export default function Pos({ session, paymentMethods }: Props) {
         }
     };
 
-    /** Abre "¿cuántas lleva?": con lo que ya hay en el carrito de ese producto, o con la cantidad pedida de la presentación más chica. */
+    /**
+     * Abre "¿cuántas lleva?": con lo que ya hay en el carrito de ese producto; si es nuevo, vacío para que el cajero escriba
+     * la cantidad (solo viene llena si la pidieron en el buscador, ej: "3*alergin").
+     */
     const openChooser = (options: PosLookup[], quantity = 1) => {
         const lines = data.cart.filter((line) => line.product_id === options[0].product_id);
         const smallest = [...options].sort((a, b) => a.factor - b.factor)[0];
@@ -279,7 +282,9 @@ export default function Pos({ session, paymentMethods }: Props) {
             options,
             initial: lines.length
                 ? Object.fromEntries(lines.map((line) => [line.presentation_id, line.quantity]))
-                : { [smallest.presentation_id]: quantity },
+                : quantity > 1
+                  ? { [smallest.presentation_id]: quantity }
+                  : {},
             editing: lines.length > 0,
         });
         setPendingQuantity(1);
@@ -747,7 +752,8 @@ function QuantityDialog({
     const sorted = [...options].sort((a, b) => b.factor - a.factor);
     const unitsOf = (quantities: Record<number, number>) => sorted.reduce((sum, o) => sum + (quantities[o.presentation_id] ?? 0) * o.factor, 0);
     const [quantities, setQuantities] = useState<Record<number, number>>(initial);
-    const [typed, setTyped] = useState(String(unitsOf(initial)));
+    // Vacío cuando no hay nada elegido todavía (no se propone una cantidad)
+    const [typed, setTyped] = useState(unitsOf(initial) > 0 ? String(unitsOf(initial)) : '');
     // Tabletas que no se pudieron armar porque ese empaque no se vende suelto
     const [left, setLeft] = useState(0);
     const unitsInput = useRef<HTMLInputElement>(null);
@@ -837,6 +843,7 @@ function QuantityDialog({
                                 onKeyDown={blockFractionKeys}
                                 value={typed}
                                 onChange={(e) => typeUnits(e.target.value)}
+                                placeholder="0"
                                 className="num h-14 pr-28 text-2xl font-semibold"
                             />
                             <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm">
@@ -859,7 +866,7 @@ function QuantityDialog({
                                         className={cn('flex items-center gap-3 px-3 py-2.5 transition-colors', quantity > 0 && 'bg-primary/5')}
                                     >
                                         <div className="min-w-0 flex-1">
-                                            <p className={cn('text-sm capitalize', quantity > 0 ? 'font-semibold' : 'text-muted-foreground')}>
+                                            <p className={cn('text-foreground text-sm capitalize', quantity > 0 ? 'font-semibold' : 'font-medium')}>
                                                 {option.package}
                                             </p>
                                             <p className="text-muted-foreground num text-xs">
@@ -946,7 +953,7 @@ function QuantityDialog({
                             Cancelar
                         </Button>
                         <Button type="button" variant={editing && units === 0 ? 'destructive' : 'default'} disabled={!canConfirm} onClick={confirm}>
-                            {editing && units === 0 ? 'Quitar del carrito' : `${editing ? 'Actualizar' : 'Agregar'} ${money(total)} al carrito`}
+                            {editing && units === 0 ? 'Quitar del carrito' : editing ? 'Actualizar carrito' : 'Agregar al carrito'}
                         </Button>
                     </div>
                 </div>

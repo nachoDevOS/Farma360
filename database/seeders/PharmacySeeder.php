@@ -51,7 +51,7 @@ class PharmacySeeder extends Seeder
         app(PromotionService::class)->applySuggested($admin);
 
         // Transferencia del almacén a la sucursal Norte, todavía en camino
-        $batch = $almacen->batches()->where('quantity', '>', 0)->first();
+        $batch = $almacen->batches()->where('stock', '>', 0)->first();
         app(TransferService::class)->send($almacen->id, $norte->id, [['batch_id' => $batch->id, 'quantity' => 100]], 'Reposición semanal');
 
         $this->sales($central, $users['cajero'], $products);
@@ -238,7 +238,7 @@ class PharmacySeeder extends Seeder
             'product_id' => $p['diclofenaco']->id, 'branch_id' => $central->id, 'batch_number' => 'DIC-OLD',
             'expires_at' => today()->subDays(10)->toDateString(), 'unit_cost' => 0.3,
         ]);
-        $inventory->increase($expired, 30, 'ajuste_entrada', null, 'Inventario inicial');
+        $inventory->receive($expired, 30, 'ingreso', null, 'Inventario inicial');
     }
 
     /** @param  array<string, Product>  $p */

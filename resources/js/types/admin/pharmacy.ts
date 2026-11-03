@@ -67,7 +67,7 @@ export interface Product {
     stock_value?: string | number | null;
     next_expiry?: string | null;
     /** Lista de inventario (detalle desplegable de la fila): lotes con stock de la sucursal, el que vence primero adelante */
-    batches?: Pick<Batch, 'id' | 'batch_number' | 'expires_at' | 'quantity' | 'unit_cost'>[];
+    batches?: Pick<Batch, 'id' | 'batch_number' | 'expires_at' | 'received_quantity' | 'stock' | 'unit_cost'>[];
     /** Lista de inventario: unidades vendidas en la sucursal en los últimos 30 días */
     sold_30?: number;
     /** Lista de inventario: stock en las demás sucursales (solo las que tienen) */
@@ -166,7 +166,8 @@ export interface BatchLookup {
     base_unit: string;
     batch_number: string;
     expires_at: string | null;
-    quantity: number;
+    /** Unidades base que quedan en el lote */
+    stock: number;
     expired: boolean;
 }
 
@@ -183,7 +184,10 @@ export interface Batch {
     branch_id: number;
     batch_number: string;
     expires_at: string | null;
-    quantity: number;
+    /** Unidades base que ENTRARON al lote (compra, ingreso sin compra, transferencia recibida). No baja al vender */
+    received_quantity: number;
+    /** Unidades base que QUEDAN ahora en el lote */
+    stock: number;
     unit_cost: string;
     active_promotion?: BatchPromotion | null;
 }
@@ -228,7 +232,7 @@ export interface PurchaseItem {
     /** package: empaque en minúscula ("caja"); factor: unidades base que trae */
     presentation: { id: number; name: string; package: string; factor: number } | null;
     /** Lista de compras: el lote que creó (cuánto queda en él hoy) */
-    batch?: { id: number; quantity: number } | null;
+    batch?: { id: number; stock: number } | null;
     /** Ficha de la compra: lo que queda hoy en su lote */
     remaining?: number;
     /** Ficha de la compra: precio de venta de una unidad base (null = no se vende suelto) */

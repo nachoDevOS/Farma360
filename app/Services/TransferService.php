@@ -69,10 +69,10 @@ class TransferService
                         'batch_number' => $item->batch_number,
                         'expires_at' => $item->expires_at,
                     ],
-                    ['unit_cost' => $item->unit_cost, 'quantity' => 0],
+                    ['unit_cost' => $item->unit_cost, 'received_quantity' => 0, 'stock' => 0],
                 );
 
-                $this->inventory->increase($destination, $item->quantity, 'transferencia_entrada', $transfer);
+                $this->inventory->receive($destination, $item->quantity, 'transferencia_entrada', $transfer);
                 $item->update(['destination_batch_id' => $destination->id]);
             }
 
