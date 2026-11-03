@@ -28,6 +28,7 @@ import { StockBreakdown } from '@/components/admin/products/stock-breakdown';
 import InputError from '@/components/shared/input-error';
 import { Pagination } from '@/components/shared/pagination';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,7 +39,24 @@ import { cn } from '@/lib/utils';
 import { type Paginated } from '@/types';
 import { type Batch, type Option, type Product, type StockMovement } from '@/types/admin/pharmacy';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { Boxes, CalendarClock, ChevronRight, Eye, Layers, LoaderCircle, Minus, PackageX, Pencil, Plus, Wallet, Warehouse, X } from 'lucide-react';
+import {
+    AlertTriangle,
+    ArrowRight,
+    Boxes,
+    CalendarClock,
+    ChevronRight,
+    Eye,
+    Layers,
+    Lightbulb,
+    LoaderCircle,
+    Minus,
+    PackageX,
+    Pencil,
+    Plus,
+    Wallet,
+    Warehouse,
+    X,
+} from 'lucide-react';
 import { FormEventHandler, Fragment, useEffect, useState } from 'react';
 
 interface Props {
@@ -58,12 +76,14 @@ interface Props {
     otherBranches: { id: number; name: string; stock: number; allowed: boolean }[];
     /** Días antes del vencimiento en que se avisa (config farmacia.expiry_alert_days) */
     alertDays: number;
+    /** Último costo por unidad base registrado del producto (sugerencia en el ingreso sin compra). Null = nunca tuvo lotes */
+    lastUnitCost: number | null;
 }
 
 type Mode = 'new' | 'in' | 'out' | 'writeoff';
 
 const modeTitles: Record<Mode, string> = {
-    new: 'Ingreso sin compra (inventario inicial)',
+    new: 'Ingreso sin compra',
     in: 'Ajuste de entrada',
     out: 'Ajuste de salida',
     writeoff: 'Baja por vencimiento o daño',
@@ -81,6 +101,7 @@ export default function InventoryShow({
     stockValue,
     otherBranches,
     alertDays,
+    lastUnitCost,
 }: Props) {
     const can = useCan();
     const [adjust, setAdjust] = useState<{ mode: Mode; batch: Batch | null } | null>(null);
@@ -416,19 +437,36 @@ export default function InventoryShow({
                 </div>
             </div>
 
-            <AdjustDialog product={product} branchId={branchId} adjust={adjust} onClose={() => setAdjust(null)} />
+            <AdjustDialog
+                product={product}
+                branchId={branchId}
+                branchName={branchName}
+                stock={stock}
+                lastUnitCost={lastUnitCost}
+                adjust={adjust}
+                onClose={() => setAdjust(null)}
+            />
         </AdminLayout>
     );
 }
 
+/** Motivos frecuentes del ingreso sin compra (quedan en el kardex). "Otro" deja escribir uno. */
+const ENTRY_REASONS = ['Inventario inicial', 'Donación', 'Devolución de cliente', 'Corrección de conteo'];
+
 function AdjustDialog({
     product,
     branchId,
+    branchName,
+    stock,
+    lastUnitCost,
     adjust,
     onClose,
 }: {
     product: Product;
     branchId: number;
+    branchName: string;
+    stock: number;
+    lastUnitCost: number | null;
     adjust: { mode: Mode; batch: Batch | null } | null;
     onClose: () => void;
 }) {
@@ -443,6 +481,7 @@ function AdjustDialog({
         branch_id: String(branchId),
         batch_number: '',
         expires_at: '',
+        no_expiry: false as boolean,
         // Solo en "Ingreso sin compra": líneas por presentación (1 caja + 5 blísteres) y el costo de compra de UNA presentación
         items: [{ product_presentation_id: defaultPresentation, quantity: '' }],
         cost: '',
@@ -451,17 +490,25 @@ function AdjustDialog({
         quantity: '',
         note: '',
     });
+    // El costo se pide por la misma presentación que la primera línea, hasta que el usuario elija otra
+    const [costLinked, setCostLinked] = useState(true);
+    const [noLot, setNoLot] = useState(false);
+    const [otherReason, setOtherReason] = useState(false);
 
     useEffect(() => {
         if (!adjust) return;
         reset();
         clearErrors();
+        setCostLinked(true);
+        setNoLot(false);
+        setOtherReason(false);
         setData((d) => ({ ...d, mode: adjust.mode, batch_id: adjust.batch ? String(adjust.batch.id) : '', branch_id: String(branchId) }));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [adjust]);
 
     const err = errors as Record<string, string | undefined>;
     const unitsLabel = plural(product.base_unit);
+    const unitName = product.base_unit.toLowerCase();
     const factorOf = (id: string) => product.presentations.find((p) => String(p.id) === id)?.factor ?? 0;
     const presentationOptions = product.presentations.map((p) => ({ id: p.id as number, name: p.name }));
     const units = data.items.reduce((sum, item) => sum + Number(item.quantity || 0) * factorOf(item.product_presentation_id), 0);
@@ -470,46 +517,108 @@ function AdjustDialog({
     const costPresentation = product.presentations.find((p) => String(p.id) === data.cost_presentation_id);
     const unused = product.presentations.filter((p) => !data.items.some((item) => item.product_presentation_id === String(p.id)));
 
+    // Precio de venta más bajo por unidad (la presentación que deja menos): contra eso se mide la ganancia
+    const salePrices = product.presentations
+        .filter((p) => p.is_sellable && p.sale_price !== null && p.factor > 0)
+        .map((p) => Number(p.sale_price) / p.factor);
+    const unitSalePrice = salePrices.length ? Math.min(...salePrices) : null;
+    const profit = unitCost !== null && unitSalePrice !== null ? unitSalePrice - unitCost : null;
+    const marginPercent = profit !== null && unitSalePrice ? (profit / unitSalePrice) * 100 : null;
+    const margin: 'loss' | 'low' | 'ok' | null = marginPercent === null ? null : marginPercent <= 0 ? 'loss' : marginPercent < 10 ? 'low' : 'ok';
+
+    // Último costo conocido, en la presentación del costo: "Bs 14,50 el blíster"
+    const suggestedCost = lastUnitCost !== null && costFactor > 0 ? Math.round(lastUnitCost * costFactor * 100) / 100 : null;
+
     const setItem = (index: number, patch: Partial<(typeof data.items)[number]>) =>
-        setData(
-            'items',
-            data.items.map((item, i) => (i === index ? { ...item, ...patch } : item)),
-        );
+        setData((d) => {
+            const items = d.items.map((item, i) => (i === index ? { ...item, ...patch } : item));
+            const followCost = index === 0 && costLinked && patch.product_presentation_id;
+            return { ...d, items, cost_presentation_id: followCost ? patch.product_presentation_id! : d.cost_presentation_id };
+        });
+
+    const chooseReason = (reason: string | null) => {
+        setOtherReason(reason === null);
+        setData('note', reason ?? '');
+    };
 
     const mode = adjust?.mode ?? 'new';
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         // Entrada, salida y baja de un lote: solo lo que piden (sin los campos vacíos del ingreso sin compra)
-        transform((d) => (d.mode === 'new' ? d : { mode: d.mode, batch_id: d.batch_id, quantity: d.quantity, note: d.note }));
+        transform((d) =>
+            d.mode === 'new'
+                ? { ...d, batch_number: noLot ? '' : d.batch_number, expires_at: d.no_expiry ? '' : d.expires_at }
+                : { mode: d.mode, batch_id: d.batch_id, quantity: d.quantity, note: d.note },
+        );
         post(route('admin.inventory.adjust'), { preserveScroll: true, onSuccess: () => onClose() });
     };
 
     // Errores de campos que esta ventana no muestra junto a un campo: se listan abajo, para que nunca falle en silencio
     const shown =
         mode === 'new'
-            ? (key: string) => key.startsWith('items') || ['cost', 'cost_presentation_id', 'batch_number', 'expires_at', 'note'].includes(key)
+            ? (key: string) =>
+                  key.startsWith('items') || ['cost', 'cost_presentation_id', 'batch_number', 'expires_at', 'no_expiry', 'note'].includes(key)
             : (key: string) => ['quantity', 'note'].includes(key);
     const otherErrors = Object.entries(err).filter(([key, message]) => message && !shown(key));
 
     return (
         <Dialog open={adjust !== null} onOpenChange={(value) => !value && onClose()}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-                <form onSubmit={submit} className="grid gap-4">
+            <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
+                <form onSubmit={submit} className="grid gap-5">
                     <DialogHeader>
                         <DialogTitle>{modeTitles[mode]}</DialogTitle>
                         <DialogDescription>
                             {adjust?.batch
                                 ? `Lote ${adjust.batch.batch_number} · hay ${adjust.batch.quantity} ${product.base_unit}.`
-                                : 'Crea un lote nuevo con su vencimiento y costo.'}{' '}
+                                : 'Para mercadería que no vino de una compra: inventario inicial, donación, devolución o corrección de conteo.'}{' '}
                             Queda registrado en el kardex con tu usuario.
                         </DialogDescription>
                     </DialogHeader>
                     {mode === 'new' ? (
                         <>
-                            {/* Qué hay en el estante, por presentación: 1 caja + 5 blísteres */}
+                            {/* Por qué entra: motivos frecuentes como botones (quedan en el kardex) */}
                             <div className="grid gap-2">
-                                <Label>Qué ingresa</Label>
+                                <Label>
+                                    ¿Por qué entra? <span className="text-muted-foreground font-normal">(opcional)</span>
+                                </Label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {ENTRY_REASONS.map((reason) => (
+                                        <ReasonChip
+                                            key={reason}
+                                            active={!otherReason && data.note === reason}
+                                            onClick={() => chooseReason(data.note === reason && !otherReason ? '' : reason)}
+                                        >
+                                            {reason}
+                                        </ReasonChip>
+                                    ))}
+                                    <ReasonChip active={otherReason} onClick={() => (otherReason ? chooseReason('') : chooseReason(null))}>
+                                        Otro…
+                                    </ReasonChip>
+                                </div>
+                                {otherReason && (
+                                    <Input
+                                        value={data.note}
+                                        onChange={(e) => setData('note', e.target.value)}
+                                        placeholder="Escribe el motivo"
+                                        autoFocus
+                                    />
+                                )}
+                                <InputError message={errors.note} />
+                            </div>
+
+                            {/* ① Qué hay en el estante, por presentación: 1 caja + 5 blísteres */}
+                            <Step
+                                n={1}
+                                title="¿Cuánto entra?"
+                                aside={
+                                    units > 0 && (
+                                        <span className="num text-primary font-semibold">
+                                            = {units.toLocaleString('es')} {unitsLabel}
+                                        </span>
+                                    )
+                                }
+                            >
                                 {data.items.map((item, i) => (
                                     <div key={i} className="grid gap-1">
                                         <div className="flex items-start gap-2">
@@ -568,101 +677,178 @@ function AdjustDialog({
                                         <Plus /> Agregar otra presentación
                                     </Button>
                                 )}
-                            </div>
+                            </Step>
 
-                            {/* Costo de compra (no el precio de venta) de una presentación: el sistema saca el de cada unidad */}
-                            <div className="grid gap-2">
-                                <Label>Costo de compra</Label>
+                            {/* ② Costo de compra (no el precio de venta) de una presentación: el sistema saca el de cada unidad */}
+                            <Step
+                                n={2}
+                                title="¿Cuánto costó?"
+                                aside={<span className="text-muted-foreground text-xs">el costo, no el precio de venta</span>}
+                            >
                                 <div className="flex items-center gap-2">
-                                    <Input
-                                        type="number"
-                                        step="0.01"
-                                        min={0}
-                                        value={data.cost}
-                                        onChange={(e) => setData('cost', e.target.value)}
-                                        placeholder="0,00"
-                                        className="w-28 shrink-0"
-                                        aria-label="Costo de compra"
-                                    />
+                                    <div className="relative w-32 shrink-0">
+                                        <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
+                                            Bs
+                                        </span>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            min={0}
+                                            value={data.cost}
+                                            onChange={(e) => setData('cost', e.target.value)}
+                                            placeholder="0,00"
+                                            className="num pl-9 text-right"
+                                            aria-label="Costo de compra"
+                                        />
+                                    </div>
                                     <span className="text-muted-foreground shrink-0 text-sm">por</span>
                                     <SimpleSelect
                                         options={presentationOptions}
                                         value={data.cost_presentation_id}
-                                        onChange={(value) => setData('cost_presentation_id', value)}
+                                        onChange={(value) => {
+                                            setCostLinked(false);
+                                            setData('cost_presentation_id', value);
+                                        }}
                                         className="h-9 min-w-0 flex-1"
                                     />
                                 </div>
-                                <p className="text-muted-foreground text-xs">
-                                    Lo que te costó {costPresentation ? `cada ${costPresentation.package.toLowerCase()}` : ''} al comprarlo, no el
-                                    precio de venta. Sirve para calcular la ganancia.
-                                </p>
                                 <InputError message={err.cost ?? err.cost_presentation_id} />
-                            </div>
 
+                                {/* Sugerencia: el último costo conocido del producto */}
+                                {suggestedCost !== null && Number(data.cost) !== suggestedCost && (
+                                    <div className="bg-primary/5 ring-primary/15 flex items-center gap-2 rounded-lg px-3 py-2 text-xs ring-1">
+                                        <Lightbulb className="text-primary size-4 shrink-0" />
+                                        <span className="flex-1">
+                                            Último costo registrado: <span className="num font-semibold">{money(suggestedCost)}</span> por{' '}
+                                            {costPresentation?.package.toLowerCase()}
+                                        </span>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7"
+                                            onClick={() => setData('cost', suggestedCost.toFixed(2))}
+                                        >
+                                            Usar
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {/* Aviso de ganancia: con pérdida o con margen bajo */}
+                                {margin === 'loss' && unitCost !== null && unitSalePrice !== null && (
+                                    <MarginAlert tone="red">
+                                        <span className="font-semibold">Se vendería con pérdida.</span> Cuesta {money(unitCost)} c/{unitName} y el
+                                        precio de venta más bajo es {money(unitSalePrice)} c/{unitName}. Revisa el costo o el precio de venta.
+                                    </MarginAlert>
+                                )}
+                                {margin === 'low' && marginPercent !== null && (
+                                    <MarginAlert tone="amber">
+                                        <span className="font-semibold">Margen bajo:</span> solo {Math.round(marginPercent)}% de ganancia sobre el
+                                        precio de venta.
+                                    </MarginAlert>
+                                )}
+                            </Step>
+
+                            {/* ③ Lote y vencimiento, con casillas claras para "no tiene" */}
+                            <Step n={3} title="Lote y vencimiento">
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <div className="grid gap-2">
+                                        <Input
+                                            value={noLot ? '' : data.batch_number}
+                                            onChange={(e) => setData('batch_number', e.target.value)}
+                                            placeholder={noLot ? 'Se genera un código (SL-…)' : 'N° de lote, ej: ABC123'}
+                                            disabled={noLot}
+                                            aria-label="Número de lote"
+                                        />
+                                        <CheckOption checked={noLot} onChange={setNoLot}>
+                                            No tiene número de lote
+                                        </CheckOption>
+                                        <InputError message={errors.batch_number} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Input
+                                            type="date"
+                                            min={today()}
+                                            value={data.no_expiry ? '' : data.expires_at}
+                                            onChange={(e) => setData('expires_at', e.target.value)}
+                                            disabled={data.no_expiry}
+                                            aria-label="Fecha de vencimiento"
+                                        />
+                                        <CheckOption checked={data.no_expiry} onChange={(value) => setData('no_expiry', value)}>
+                                            No vence
+                                        </CheckOption>
+                                        <InputError message={errors.expires_at} />
+                                    </div>
+                                </div>
+                            </Step>
+
+                            {/* Así queda: el stock antes → después, el costo total y la ganancia */}
                             {units > 0 && (
-                                <p className="bg-muted/50 rounded-md px-3 py-2 text-sm">
-                                    Entran{' '}
-                                    <span className="font-semibold">
-                                        {units.toLocaleString('es')} {unitsLabel}
-                                    </span>
+                                <div className="animate-in fade-in slide-in-from-bottom-1 grid gap-2 rounded-xl border bg-gradient-to-br from-emerald-500/5 to-transparent p-4 text-sm duration-300">
+                                    <p className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">Así queda</p>
+                                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                        <span className="text-muted-foreground">Stock en {branchName}</span>
+                                        <span className="num">
+                                            {stock.toLocaleString('es')} <ArrowRight className="text-muted-foreground inline size-3.5" />{' '}
+                                            <span className="text-base font-bold">{(stock + units).toLocaleString('es')}</span> {unitsLabel}{' '}
+                                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                                (+{units.toLocaleString('es')})
+                                            </span>
+                                        </span>
+                                    </div>
                                     {unitCost !== null && (
-                                        <>
-                                            {' '}
-                                            · {money(unitCost)} c/{product.base_unit.toLowerCase()} · total{' '}
-                                            <span className="font-semibold">{money(unitCost * units)}</span>
-                                        </>
+                                        <div className="flex items-baseline justify-between gap-2">
+                                            <span className="text-muted-foreground">Costo total</span>
+                                            <span className="num font-semibold">
+                                                {money(unitCost * units)}{' '}
+                                                <span className="text-muted-foreground text-xs font-normal">
+                                                    ({money(unitCost)} c/{unitName})
+                                                </span>
+                                            </span>
+                                        </div>
                                     )}
-                                </p>
+                                    {profit !== null && marginPercent !== null && (
+                                        <div className="flex items-baseline justify-between gap-2">
+                                            <span className="text-muted-foreground">Ganancia por {unitName}</span>
+                                            <span
+                                                className={cn(
+                                                    'num font-semibold',
+                                                    margin === 'loss' && 'text-red-600',
+                                                    margin === 'low' && 'text-amber-600',
+                                                    margin === 'ok' && 'text-emerald-600 dark:text-emerald-400',
+                                                )}
+                                            >
+                                                {money(profit)} ({Math.round(marginPercent)}%)
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                             )}
-
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <div className="grid gap-2">
-                                    <Label>
-                                        Lote <span className="text-muted-foreground font-normal">(opcional)</span>
-                                    </Label>
-                                    <Input
-                                        value={data.batch_number}
-                                        onChange={(e) => setData('batch_number', e.target.value)}
-                                        placeholder="Si lo dejas vacío: SL-…"
-                                    />
-                                    <InputError message={errors.batch_number} />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Vencimiento</Label>
-                                    <Input
-                                        type="date"
-                                        min={today()}
-                                        value={data.expires_at}
-                                        onChange={(e) => setData('expires_at', e.target.value)}
-                                    />
-                                    <InputError message={errors.expires_at} />
-                                </div>
-                            </div>
                         </>
                     ) : (
-                        <div className="grid gap-2">
-                            <Label>Cantidad ({unitsLabel})</Label>
-                            <QuantityInput
-                                min={1}
-                                value={data.quantity}
-                                onChange={(value) => setData('quantity', value)}
-                                fractionHint={`Solo números enteros, en ${unitsLabel}.`}
-                                autoFocus
-                            />
-                            <InputError message={errors.quantity} />
-                        </div>
+                        <>
+                            <div className="grid gap-2">
+                                <Label>Cantidad ({unitsLabel})</Label>
+                                <QuantityInput
+                                    min={1}
+                                    value={data.quantity}
+                                    onChange={(value) => setData('quantity', value)}
+                                    fractionHint={`Solo números enteros, en ${unitsLabel}.`}
+                                    autoFocus
+                                />
+                                <InputError message={errors.quantity} />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label>Motivo</Label>
+                                <Input
+                                    value={data.note}
+                                    onChange={(e) => setData('note', e.target.value)}
+                                    placeholder={mode === 'writeoff' ? 'Vencido / dañado / roto' : 'Corrección de conteo'}
+                                />
+                                <InputError message={errors.note} />
+                            </div>
+                        </>
                     )}
-                    <div className="grid gap-2">
-                        <Label>Motivo {mode === 'new' && <span className="text-muted-foreground font-normal">(opcional)</span>}</Label>
-                        <Input
-                            value={data.note}
-                            onChange={(e) => setData('note', e.target.value)}
-                            placeholder={
-                                mode === 'writeoff' ? 'Vencido / dañado / roto' : mode === 'new' ? 'Inventario inicial' : 'Corrección de conteo'
-                            }
-                        />
-                        <InputError message={errors.note} />
-                    </div>
                     {otherErrors.length > 0 && (
                         <div className="rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-sm text-red-700 dark:text-red-400">
                             {otherErrors.map(([key, message]) => (
@@ -681,12 +867,73 @@ function AdjustDialog({
                             variant={mode === 'writeoff' ? 'destructive' : 'default'}
                         >
                             {processing && <LoaderCircle className="size-4 animate-spin" />}
-                            Registrar
+                            {mode === 'new' ? (units > 0 ? `Agregar ${units.toLocaleString('es')} ${unitsLabel}` : 'Agregar stock') : 'Registrar'}
                         </Button>
                     </DialogFooter>
                 </form>
             </DialogContent>
         </Dialog>
+    );
+}
+
+/** Paso numerado de la ventana: ① ¿Cuánto entra? */
+function Step({ n, title, aside, children }: { n: number; title: string; aside?: React.ReactNode; children: React.ReactNode }) {
+    return (
+        <section className="grid gap-2">
+            <div className="flex items-center gap-2">
+                <span className="bg-primary text-primary-foreground flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold">
+                    {n}
+                </span>
+                <Label>{title}</Label>
+                {aside && <span className="ml-auto text-sm">{aside}</span>}
+            </div>
+            {children}
+        </section>
+    );
+}
+
+/** Botón-etiqueta para elegir el motivo. */
+function ReasonChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            className={cn(
+                'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                active ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary/40 hover:bg-primary/5 text-muted-foreground',
+            )}
+        >
+            {children}
+        </button>
+    );
+}
+
+/** Casilla con su texto: "No vence", "No tiene número de lote". */
+function CheckOption({ checked, onChange, children }: { checked: boolean; onChange: (value: boolean) => void; children: React.ReactNode }) {
+    return (
+        <label className="text-muted-foreground flex w-fit cursor-pointer items-center gap-2 text-xs select-none">
+            <Checkbox checked={checked} onCheckedChange={(value) => onChange(value === true)} />
+            {children}
+        </label>
+    );
+}
+
+/** Aviso de ganancia junto al costo (rojo = pérdida, ámbar = margen bajo). */
+function MarginAlert({ tone, children }: { tone: 'red' | 'amber'; children: React.ReactNode }) {
+    return (
+        <div
+            role="alert"
+            className={cn(
+                'animate-in fade-in flex items-start gap-2 rounded-lg px-3 py-2 text-xs ring-1 duration-200',
+                tone === 'red'
+                    ? 'bg-red-50 text-red-800 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900'
+                    : 'bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
+            )}
+        >
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>{children}</span>
+        </div>
     );
 }
 

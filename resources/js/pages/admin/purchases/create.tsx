@@ -195,7 +195,7 @@ export default function PurchaseCreate({ branches, suppliers }: Props) {
                                 <div
                                     key={i}
                                     className={cn(
-                                        'grid items-start gap-3 rounded-lg border p-3 transition-colors duration-500 lg:grid-cols-[minmax(0,1fr)_7rem_8.5rem_10rem_10.5rem_auto]',
+                                        'grid items-start gap-3 rounded-lg border p-3 transition-colors duration-500 lg:grid-cols-[minmax(0,1fr)_8.5rem_8.5rem_10rem_10.5rem_auto]',
                                         highlighted === i && 'border-amber-400 bg-amber-50 dark:bg-amber-950/40',
                                     )}
                                 >

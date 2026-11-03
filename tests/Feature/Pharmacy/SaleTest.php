@@ -142,6 +142,29 @@ class SaleTest extends TestCase
         $this->assertEquals(100, app(CashService::class)->expectedCash($sale->cashSession));
     }
 
+    public function test_cancelling_a_sale_taken_from_two_batches_returns_each_batch_its_own_units()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0);
+        $first = $this->batch($product, $branch, 15, '+3 months');
+        $second = $this->batch($product, $branch, 40, '+8 months');
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+
+        // 20 unidades: 15 del lote que vence antes y 5 del siguiente
+        $this->sell($cashier, [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 20]], [['method' => 'efectivo', 'amount' => 20]]);
+        $sale = Sale::firstOrFail();
+        $this->assertSame([0, 35], [$first->fresh()->quantity, $second->fresh()->quantity]);
+        $this->assertSame([$first->id => 15, $second->id => 5], $sale->items()->pluck('units', 'batch_id')->all());
+
+        $this->actingAs($this->userWithRole('Administrador'))->post("/admin/sales/{$sale->id}/cancel", ['reason' => 'Cliente devolvió'])
+            ->assertSessionHas('success');
+
+        $this->assertSame([15, 40], [$first->fresh()->quantity, $second->fresh()->quantity]);
+        $this->assertDatabaseHas('stock_movements', ['batch_id' => $first->id, 'type' => 'anulacion_venta', 'quantity' => 15]);
+        $this->assertDatabaseHas('stock_movements', ['batch_id' => $second->id, 'type' => 'anulacion_venta', 'quantity' => 5]);
+    }
+
     public function test_a_sale_cannot_be_cancelled_after_its_cash_session_was_closed()
     {
         $branch = $this->branch();

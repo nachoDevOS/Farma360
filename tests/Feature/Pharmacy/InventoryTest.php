@@ -185,6 +185,38 @@ class InventoryTest extends TestCase
             ->assertSessionHasErrors(['note' => 'El campo motivo es obligatorio.']);
     }
 
+    public function test_initial_stock_needs_an_expiry_date_unless_marked_as_not_expiring()
+    {
+        $product = $this->product();
+        $unit = $this->presentation($product)->id;
+        $post = fn (array $extra) => $this->actingAs($this->userWithRole('Administrador'))->post('/admin/inventory/adjust', [
+            'mode' => 'new', 'product_id' => $product->id, 'branch_id' => $this->branch()->id,
+            'items' => [['product_presentation_id' => $unit, 'quantity' => 5]], 'cost' => 1, 'cost_presentation_id' => $unit,
+            'expires_at' => '',
+        ] + $extra);
+
+        $post([])->assertSessionHasErrors(['expires_at' => 'Indica el vencimiento o marca «No vence».']);
+        $this->assertSame(0, $product->batches()->count());
+
+        // "No vence": el lote queda sin vencimiento aunque llegue una fecha
+        $post(['no_expiry' => true, 'expires_at' => now()->addYear()->toDateString()])->assertSessionHas('success');
+        $this->assertNull($product->batches()->firstOrFail()->expires_at);
+    }
+
+    public function test_inventory_page_suggests_the_last_known_unit_cost()
+    {
+        $branch = $this->branch();
+        $product = $this->product();
+        $admin = $this->userWithRole('Administrador');
+
+        $this->actingAs($admin)->get("/admin/inventory/{$product->id}?branch={$branch->id}")
+            ->assertInertia(fn ($page) => $page->where('lastUnitCost', null));
+
+        $this->batch($product, $branch, 10, unitCost: 0.35);
+        $this->actingAs($admin)->get("/admin/inventory/{$product->id}?branch={$branch->id}")
+            ->assertInertia(fn ($page) => $page->where('lastUnitCost', 0.35));
+    }
+
     public function test_inventory_page_sends_the_daily_stock_history_for_the_charts()
     {
         $branch = $this->branch();

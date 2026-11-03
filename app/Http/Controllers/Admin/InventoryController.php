@@ -152,6 +152,8 @@ class InventoryController extends Controller
             'branches' => $branches,
             'branchId' => $branchId,
             'stock' => $this->inventory->stock($product->id, $branchId),
+            // Último costo por unidad base registrado (compra o ingreso, cualquier sucursal): sugerencia en "Ingreso sin compra"
+            'lastUnitCost' => ($cost = Batch::where('product_id', $product->id)->latest('id')->value('unit_cost')) !== null ? (float) $cost : null,
             // Plata invertida en el stock de la sucursal (costo de cada lote × sus unidades)
             'stockValue' => round((float) Batch::where('product_id', $product->id)->where('branch_id', $branchId)->sum(DB::raw('quantity * unit_cost')), 2),
             'otherBranches' => $otherBranches,
@@ -225,7 +227,9 @@ class InventoryController extends Controller
             'product_id' => ['required_if:mode,new', 'nullable', Rule::exists('products', 'id')->whereNull('deleted_at')],
             'branch_id' => ['required_if:mode,new', 'nullable', Rule::in($allowed)],
             'batch_number' => ['nullable', 'string', 'max:50'],
-            'expires_at' => ['required_if:mode,new', 'nullable', 'date'],
+            // Vencimiento obligatorio en el ingreso sin compra, salvo que marquen "No vence" (no_expiry)
+            'expires_at' => [Rule::requiredIf(fn () => $request->input('mode') === 'new' && ! $request->boolean('no_expiry')), 'nullable', 'date'],
+            'no_expiry' => ['exclude_unless:mode,new', 'boolean'],
             // Solo en mode=new: líneas por presentación y costo de compra de una presentación
             // exclude_unless: en entradas, salidas y bajas la ventana manda estos campos vacíos; se ignoran
             'items' => ['exclude_unless:mode,new', 'required', 'array', 'min:1'],
@@ -237,6 +241,7 @@ class InventoryController extends Controller
             'required_if' => 'El campo :attribute es obligatorio.',
             'required_unless' => 'El campo :attribute es obligatorio.',
             'items.*.product_presentation_id.distinct' => 'Esa presentación ya está en otra línea.',
+            'expires_at.required' => 'Indica el vencimiento o marca «No vence».',
         ], [
             'quantity' => 'cantidad', 'note' => 'motivo', 'batch_number' => 'lote', 'expires_at' => 'vencimiento',
             'items' => 'presentaciones', 'items.*.product_presentation_id' => 'presentación', 'items.*.quantity' => 'cantidad',
@@ -254,7 +259,7 @@ class InventoryController extends Controller
                     'product_id' => $data['product_id'],
                     'branch_id' => $data['branch_id'],
                     'batch_number' => $data['batch_number'] ?? 'SL',
-                    'expires_at' => $data['expires_at'],
+                    'expires_at' => ($data['no_expiry'] ?? false) ? null : $data['expires_at'],
                     'unit_cost' => round((float) $data['cost'] / $factors[$data['cost_presentation_id']], 4),
                 ]);
                 // Sin número de lote: "SL-000123" (sin lote + su ID), así cada lote se sigue distinguiendo
