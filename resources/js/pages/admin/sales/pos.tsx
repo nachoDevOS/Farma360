@@ -12,7 +12,6 @@
  */
 import { DocStatus, PromoBadge } from '@/components/admin/common/doc-status';
 import { StoredImage } from '@/components/admin/common/image-upload';
-import { describeLevels, PackageChain } from '@/components/admin/common/package-chain';
 import { blockFractionKeys } from '@/components/admin/common/quantity-input';
 import { SearchPicker } from '@/components/admin/common/search-picker';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
@@ -35,6 +34,7 @@ import {
     FlaskConical,
     LoaderCircle,
     Minus,
+    Package,
     PackageOpen,
     Pill,
     Plus,
@@ -391,20 +391,21 @@ export default function Pos({ session, paymentMethods }: Props) {
                                     </Button>
                                 </div>
                                 {/* Encabezado de columnas (mismas medidas que CartProduct) */}
-                                <div className="text-muted-foreground hidden grid-cols-[1fr_8.5rem_7rem_2rem] gap-3 border-b px-4 py-1.5 text-[11px] font-medium tracking-wide uppercase sm:grid">
+                                <div className="text-muted-foreground hidden grid-cols-[1fr_8.5rem_7.5rem_2rem] gap-4 border-b px-4 py-1.5 text-[11px] font-medium tracking-wide uppercase sm:grid">
                                     <span>Producto</span>
                                     <span className="text-center">Cantidad</span>
                                     <span className="text-right">Importe</span>
                                     <span />
                                 </div>
                                 <ul className="divide-y">
-                                    {cartGroups.map((lines) => {
+                                    {cartGroups.map((lines, position) => {
                                         const first = lines[0];
                                         const options = first.siblings && first.siblings.length > 1 ? first.siblings : null;
                                         const index = data.cart.indexOf(first);
                                         return (
                                             <CartProduct
                                                 key={first.product_id}
+                                                position={position + 1}
                                                 lines={lines}
                                                 options={options}
                                                 flashKey={flash && lines.some((l) => l.presentation_id === flash.id) ? flash.key : null}
@@ -963,11 +964,13 @@ function QuantityDialog({
 }
 
 /**
- * Un producto del carrito en UNA fila, como un ticket: foto y nombre; − cantidad +; importe; quitar.
- * Si se vende en varios empaques, debajo el detalle de lo que se entrega ("1 blíster × Bs 12,00 … Bs 12,00")
- * y el − / + cuenta tabletas (se vuelve a armar solo); "Cambiar empaques" abre la ventana. Con un solo empaque, cuenta frascos.
+ * Un producto del carrito en UNA fila, como un ticket: número, foto, nombre (genérico · laboratorio) y, debajo, lo que se
+ * entrega como etiquetas ("1 blíster × Bs 15,00"); a la derecha − cantidad +, el importe y quitar (aparece al pasar el mouse).
+ * Si se vende en varios empaques, el − / + cuenta tabletas (se vuelve a armar solo) y "Cambiar" abre la ventana.
+ * Con un solo empaque, cuenta frascos. Con promoción se muestra "Ahorra Bs 0,60" en vez de tachar el precio.
  */
 function CartProduct({
+    position,
     lines,
     options,
     flashKey,
@@ -979,6 +982,8 @@ function CartProduct({
     onEdit,
     onRemove,
 }: {
+    /** Número de la fila (1, 2, 3…) */
+    position: number;
     lines: CartLine[];
     /** Presentaciones a la venta del producto si son varias (null = un solo empaque) */
     options: PosLookup[] | null;
@@ -1009,8 +1014,8 @@ function CartProduct({
     return (
         <li
             className={cn(
-                'group animate-in fade-in slide-in-from-top-1 relative grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-1 px-4 py-3 duration-200 sm:grid-cols-[1fr_8.5rem_7rem_2rem]',
-                overStock && 'bg-red-50/60 dark:bg-red-950/20',
+                'group animate-in fade-in slide-in-from-top-1 hover:bg-muted/30 relative grid grid-cols-[1fr_auto_auto] items-start gap-x-4 gap-y-2 px-4 py-3.5 transition-colors duration-200 sm:grid-cols-[1fr_8.5rem_7.5rem_2rem]',
+                overStock && 'bg-red-50/60 hover:bg-red-50/60 dark:bg-red-950/20',
             )}
         >
             {flashKey !== null && (
@@ -1020,51 +1025,64 @@ function CartProduct({
                     className="bg-primary/15 animate-out fade-out fill-mode-forwards pointer-events-none absolute inset-0 duration-1000 motion-reduce:hidden"
                 />
             )}
-            {/* Producto (en celular ocupa todo el ancho; abajo − cantidad + · importe · quitar) */}
-            <div className="col-span-3 flex min-w-0 items-center gap-3 sm:col-span-1">
+
+            {/* Producto: número, foto, nombre, genérico · laboratorio y lo que se entrega (en celular ocupa todo el ancho) */}
+            <div className="col-span-3 flex min-w-0 gap-3 sm:col-span-1">
+                <span className="bg-primary/10 text-primary num mt-3 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold">
+                    {position}
+                </span>
                 <StoredImage
                     path={line.image}
                     alt={line.product_name}
                     fallback={<Pill className="size-4" />}
-                    className="size-11 shrink-0 rounded-lg"
+                    className="size-12 shrink-0 rounded-xl"
+                    zoomable
                 />
-                <div className="min-w-0">
-                    <p className="flex min-w-0 items-center gap-1.5 leading-tight">
-                        <Tag className="text-primary size-3.5 shrink-0" />
-                        <span className="text-foreground/70 text-xs">Comercial:</span>
-                        <span className="truncate font-semibold">{line.commercial_name ?? line.product_name}</span>
+                <div className="grid min-w-0 gap-1">
+                    <p className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 leading-tight">
+                        <span className="truncate text-[15px] font-semibold">{line.commercial_name ?? line.product_name}</span>
                         {line.concentration && <span className="text-muted-foreground text-sm">{line.concentration}</span>}
-                    </p>
-                    {/* Genérico y laboratorio (solo los que tiene), como en el buscador */}
-                    {(line.generic_name || line.laboratory) && (
-                        <p className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
-                            {line.generic_name && (
-                                <span className="inline-flex min-w-0 items-center gap-1">
-                                    <FlaskConical className="text-primary size-3.5 shrink-0" />
-                                    <span className="text-foreground/70">Genérico:</span>
-                                    <span className="font-medium">{line.generic_name}</span>
+                        {line.is_controlled ? (
+                            <span className="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-red-600">Controlado</span>
+                        ) : (
+                            line.requires_prescription && (
+                                <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                                    Con receta
                                 </span>
-                            )}
-                            {line.laboratory && (
-                                <span className="inline-flex min-w-0 items-center gap-1">
-                                    <Factory className="text-primary size-3.5 shrink-0" />
-                                    <span className="text-foreground/70">Laboratorio:</span>
-                                    <span className="font-medium">{line.laboratory}</span>
-                                </span>
-                            )}
-                        </p>
-                    )}
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                        {!options && (
-                            <>
-                                <span title={describeLevels(line.breakdown ?? []) || 'Unidad suelta'}>
-                                    <PackageChain size="sm" pkg={line.package ?? line.presentation_name} levels={[]} withLevels={false} />
-                                </span>
-                                <span className="num text-muted-foreground">{money(priceOf(line, 1))} c/u</span>
-                                {line.promo_discount && <PromoBadge percent={line.promo_discount} />}
-                            </>
+                            )
                         )}
-                        {line.requires_prescription && <span className="font-medium text-amber-600">Con receta</span>}
+                    </p>
+                    {(line.generic_name || line.laboratory) && (
+                        <p className="text-muted-foreground truncate text-xs">{[line.generic_name, line.laboratory].filter(Boolean).join(' · ')}</p>
+                    )}
+
+                    {/* Lo que se entrega, como etiquetas: "1 blíster × Bs 15,00" · "1 unidad × Bs 1,50" */}
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        {sorted.map((l) => (
+                            <span
+                                key={l.presentation_id}
+                                className="bg-background inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs shadow-xs"
+                                title={l.factor > 1 ? `${countOf(l.quantity * l.factor, baseUnitWord(unitOptions, 1))} en total` : undefined}
+                            >
+                                <Package className="text-primary size-3.5" />
+                                <span className="num font-semibold">{countOf(l.quantity, l.package ?? l.presentation_name)}</span>
+                                <span className="num text-muted-foreground">× {money(priceOf(l, 1))}</span>
+                                {l.promo_discount && (
+                                    <span className="num rounded bg-emerald-500/10 px-1 font-semibold text-emerald-700 dark:text-emerald-400">
+                                        −{Number(l.promo_discount)}%
+                                    </span>
+                                )}
+                            </span>
+                        ))}
+                        {options && (
+                            <button
+                                type="button"
+                                onClick={onEdit}
+                                className="text-primary hover:bg-primary/10 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+                            >
+                                <PackageOpen className="size-3.5" /> Cambiar
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1111,56 +1129,26 @@ function CartProduct({
                 {caption && <span className="text-muted-foreground num text-[10px]">{caption}</span>}
             </div>
 
-            <div className="text-right">
+            {/* Importe: lo que se cobra; si hay promoción, cuánto ahorra el cliente (en vez de tachar el precio) */}
+            <div className="pt-1.5 text-right">
                 <span className="num block text-base font-bold">{money(total)}</span>
-                {full > total && <span className="num text-muted-foreground block text-[11px] line-through">{money(full)}</span>}
+                {full > total && (
+                    <span className="num block text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Ahorra {money(full - total)}</span>
+                )}
             </div>
             <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="hover:text-destructive size-8 transition-opacity sm:opacity-40 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+                className="hover:text-destructive mt-0.5 size-8 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
                 onClick={onRemove}
                 aria-label="Quitar"
             >
                 <Trash2 className="size-4" />
             </Button>
 
-            {/* Detalle de lo que se entrega: una fila por empaque, con su importe en la columna de importe */}
-            {options && (
-                <div className="bg-muted/50 col-span-full grid gap-1 rounded-lg py-2 sm:ml-14">
-                    {/* Encabezado del detalle: qué se entrega y, al lado, el botón para cambiarlo */}
-                    <div className="flex items-center justify-between gap-2 px-3 pb-1">
-                        <span className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">Se entrega</span>
-                        <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 px-2.5 text-xs" onClick={onEdit}>
-                            <PackageOpen className="size-3.5" /> Cambiar empaques
-                        </Button>
-                    </div>
-                    <ul className="grid gap-1">
-                        {sorted.map((l) => (
-                            <li
-                                key={l.presentation_id}
-                                className="grid grid-cols-[1fr_auto] items-center gap-x-3 px-3 text-sm sm:grid-cols-[1fr_8.5rem_7rem_2rem] sm:pr-0 sm:pl-3"
-                            >
-                                <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                                    <PackageChain size="sm" pkg={l.package ?? l.presentation_name} levels={[]} withLevels={false} />
-                                    <span className="num font-semibold">{countOf(l.quantity, l.package)}</span>
-                                    <span className="num text-muted-foreground text-xs">
-                                        × {money(priceOf(l, 1))}
-                                        {l.factor > 1 &&
-                                            ` · ${(l.quantity * l.factor).toLocaleString('es')} ${baseUnitWord(options, l.quantity * l.factor)}`}
-                                    </span>
-                                    {l.promo_discount && <PromoBadge percent={l.promo_discount} />}
-                                </span>
-                                <span className="num text-right font-medium sm:col-start-3">{money(priceOf(l, l.quantity))}</span>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-
             {overStock && (
-                <p className="col-span-full flex items-center gap-1.5 text-xs font-semibold text-red-600 sm:pl-14">
+                <p className="col-span-full flex items-center gap-1.5 text-xs font-semibold text-red-600 sm:pl-[5.25rem]">
                     <TriangleAlert className="size-3.5 shrink-0" />
                     Stock insuficiente: solo hay {line.stock_units.toLocaleString('es')} {baseUnitWord(unitOptions, line.stock_units)}
                 </p>
