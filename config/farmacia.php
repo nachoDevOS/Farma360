@@ -25,4 +25,9 @@ return [
     // el cierre queda "pendiente de revisión" hasta que alguien con caja.aprobar lo apruebe.
     'cash_difference_limit' => 10,
 
+    // Botón flotante "Mi caja" (abajo a la derecha, solo con un turno abierto): ¿muestra cuánto efectivo
+    // DEBERÍA haber en la caja? true = sí. false = solo ventas y movimientos, sin el total esperado,
+    // para que el cierre siga siendo ciego (el cajero cuenta sin saber cuánto debería dar).
+    'show_expected_cash' => true,
+
 ];

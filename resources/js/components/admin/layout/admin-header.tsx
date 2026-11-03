@@ -1,6 +1,7 @@
 /**
- * BARRA SUPERIOR del panel: plegar menú, migas de pan, buscador (Ctrl+K), tema y menú del usuario.
+ * BARRA SUPERIOR del panel: plegar menú, migas de pan, buscador (Ctrl+K), tema, isla "Mi caja" y menú del usuario.
  */
+import { CashWidget } from '@/components/admin/cash/cash-widget';
 import { UserAvatar } from '@/components/admin/common/user-badges';
 import { Breadcrumbs } from '@/components/admin/layout/breadcrumbs';
 import { CommandMenu } from '@/components/admin/layout/command-menu';
@@ -66,6 +67,8 @@ export function AdminHeader({ breadcrumbs = [] }: { breadcrumbs?: BreadcrumbItem
                 <CommandMenu />
                 <ThemeToggle />
                 <div className="bg-border mx-1 h-5 w-px" />
+                {/* Isla "Mi caja": dinero de mi turno, justo antes del usuario */}
+                <CashWidget />
                 <HeaderUser />
             </div>
         </header>

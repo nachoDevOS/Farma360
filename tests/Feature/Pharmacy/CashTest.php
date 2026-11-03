@@ -189,4 +189,40 @@ class CashTest extends TestCase
         // Otro cajero no ve el turno ajeno
         $this->actingAs($this->userWithRole('Cajero', $branch))->get("/admin/cash/sessions/{$session->id}")->assertForbidden();
     }
+
+    public function test_every_page_shares_the_open_cash_for_the_floating_button()
+    {
+        $branch = $this->branch();
+        $cashier = $this->userWithRole('Cajero', $branch);
+
+        // Sin turno abierto: no hay botón
+        $this->actingAs($cashier)->get('/dashboard')->assertInertia(fn ($page) => $page->where('cash', null));
+
+        $session = $this->openCash($cashier, $branch, 2);
+        $this->cash->addMovement($session, 'retiro', 50, 'A la bóveda');
+
+        $this->actingAs($cashier)->get('/dashboard')->assertInertia(fn ($page) => $page
+            ->where('cash.id', $session->id)
+            ->where('cash.register', $session->cashRegister->name)
+            ->where('cash.show_expected', true)
+            ->where('cash.summary.opening', 200)
+            ->where('cash.summary.withdrawals', 50)
+            ->where('cash.summary.expected', 150));
+
+        // Quien no opera caja nunca lo recibe
+        $this->actingAs($this->userWithRole('Almacenero', $branch))->get('/dashboard')->assertInertia(fn ($page) => $page->where('cash', null));
+    }
+
+    public function test_the_floating_button_hides_the_expected_cash_when_the_pharmacy_keeps_the_close_blind()
+    {
+        config(['farmacia.show_expected_cash' => false]);
+        $branch = $this->branch();
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+
+        $this->actingAs($cashier)->get('/dashboard')->assertInertia(fn ($page) => $page
+            ->where('cash.show_expected', false)
+            ->where('cash.summary.expected', null)
+            ->where('cash.summary.opening', 100));
+    }
 }

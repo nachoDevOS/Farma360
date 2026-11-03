@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use App\Services\CashService;
 use App\Support\PermissionCatalog;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
@@ -62,7 +63,45 @@ class HandleInertiaRequests extends Middleware
                 // Aviso informativo (no es un error): ej. "Abre tu caja antes de vender"
                 'info' => fn () => $request->session()->get('info'),
             ],
+            // Turno de caja abierto del usuario, para el botón flotante "Mi caja" (cash-widget.tsx). null = no tiene.
+            'cash' => fn () => $this->openCash($request->user()),
         ]);
+    }
+
+    /**
+     * Turno de caja abierto del usuario con su resumen de dinero (null si no tiene o no puede operar caja).
+     * Si config('farmacia.show_expected_cash') es false, el efectivo esperado no se envía (cierre ciego).
+     *
+     * @return array{id: int, register: string, branch: string, opened_at: string, show_expected: bool,
+     *     summary: array<string, mixed>, payment_methods: array<string, string>}|null
+     */
+    private function openCash(?User $user): ?array
+    {
+        if (! $user || ! $user->can('caja.operar')) {
+            return null;
+        }
+
+        $cash = app(CashService::class);
+        $session = $cash->currentSession($user)?->load('cashRegister:id,name', 'branch:id,name');
+        if (! $session) {
+            return null;
+        }
+
+        $showExpected = (bool) config('farmacia.show_expected_cash');
+        $summary = $cash->summary($session);
+        if (! $showExpected) {
+            $summary['expected'] = null;
+        }
+
+        return [
+            'id' => $session->id,
+            'register' => $session->cashRegister->name,
+            'branch' => $session->branch->name,
+            'opened_at' => $session->opened_at->toIso8601String(),
+            'show_expected' => $showExpected,
+            'summary' => $summary,
+            'payment_methods' => config('farmacia.payment_methods'),
+        ];
     }
 
     /**

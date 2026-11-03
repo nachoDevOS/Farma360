@@ -534,6 +534,197 @@
     box-shadow: 0 1px 0 rgb(255 255 255 / 0.2) inset;
 }
 
+/* ===== ISLA "MI CAJA" (barra superior, antes del usuario) =====  (components/admin/cash/cash-widget.tsx) */
+
+/* Color de la isla y de la tarjeta principal: del azul marino del menú lateral al azul primario del tema.
+   Sale de las variables del tema, así sigue a los colores del sistema (y al modo oscuro). */
+.cash-brand {
+    background-image: linear-gradient(135deg, var(--sidebar-background) 0%, var(--primary) 100%);
+    color: #fff;
+    box-shadow:
+        0 8px 20px -8px color-mix(in oklab, var(--primary) 60%, transparent),
+        inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+.cash-island {
+    transition:
+        box-shadow 0.3s ease,
+        transform 0.2s ease,
+        filter 0.2s ease;
+}
+.cash-island.cash-brand:hover {
+    filter: brightness(1.08);
+    box-shadow:
+        0 10px 26px -8px color-mix(in oklab, var(--primary) 75%, transparent),
+        inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+.cash-island:active {
+    transform: scale(0.96);
+}
+
+/* Brillo que cruza la isla cada tanto */
+.cash-fab-sheen::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 35%, rgb(255 255 255 / 0.3) 50%, transparent 65%);
+    transform: translateX(-120%);
+    animation: cash-sheen 7s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes cash-sheen {
+    0%,
+    75% {
+        transform: translateX(-120%);
+    }
+    100% {
+        transform: translateX(120%);
+    }
+}
+
+/* La billetera se mueve al pasar el mouse */
+.cash-island:hover .cash-fab-icon {
+    animation: cash-wiggle 0.6s ease;
+}
+@keyframes cash-wiggle {
+    25% {
+        transform: rotate(-12deg) scale(1.1);
+    }
+    55% {
+        transform: rotate(9deg) scale(1.1);
+    }
+    80% {
+        transform: rotate(-4deg);
+    }
+}
+
+/* "+ Bs 25,00" que baja debajo de la isla y se desvanece cuando cambia el dinero */
+.cash-delta {
+    animation: cash-delta 2.6s ease-out forwards;
+}
+@keyframes cash-delta {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -8px) scale(0.85);
+    }
+    12% {
+        opacity: 1;
+        transform: translate(-50%, 0) scale(1.05);
+    }
+    20% {
+        transform: translate(-50%, 0) scale(1);
+    }
+    75% {
+        opacity: 1;
+        transform: translate(-50%, 10px);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, 20px);
+    }
+}
+
+/* El botón titila: un halo del color del tema se enciende y se apaga (caja abierta) */
+.cash-blink {
+    animation: cash-blink 1.8s ease-in-out infinite;
+}
+@keyframes cash-blink {
+    0%,
+    100% {
+        box-shadow:
+            0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent),
+            0 6px 16px -8px color-mix(in oklab, var(--primary) 60%, transparent);
+        filter: brightness(1);
+    }
+    50% {
+        box-shadow:
+            0 0 0 5px color-mix(in oklab, var(--primary) 22%, transparent),
+            0 0 18px 2px color-mix(in oklab, var(--primary) 55%, transparent);
+        filter: brightness(1.18);
+    }
+}
+/* Caja cerrada: la billetera titila suave para recordar abrirla */
+.cash-blink-soft .cash-fab-icon {
+    animation: cash-blink-icon 1.8s ease-in-out infinite;
+}
+@keyframes cash-blink-icon {
+    50% {
+        opacity: 0.35;
+    }
+}
+
+/* Destello alrededor de la isla: verde si entra dinero, ámbar si sale */
+.cash-island-flash {
+    animation: cash-flash-in 1.1s ease-out 2;
+}
+.cash-island-flash-out {
+    animation: cash-flash-out 1.1s ease-out 2;
+}
+@keyframes cash-flash-in {
+    0% {
+        box-shadow: 0 0 0 0 rgb(16 185 129 / 0.6);
+    }
+    100% {
+        box-shadow: 0 0 0 12px rgb(16 185 129 / 0);
+    }
+}
+@keyframes cash-flash-out {
+    0% {
+        box-shadow: 0 0 0 0 rgb(245 158 11 / 0.6);
+    }
+    100% {
+        box-shadow: 0 0 0 12px rgb(245 158 11 / 0);
+    }
+}
+
+/* Barras de composición del panel: crecen de izquierda a derecha */
+.cash-bar {
+    transform-origin: left;
+    animation: cash-grow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s both;
+}
+@keyframes cash-grow {
+    from {
+        transform: scaleX(0);
+    }
+}
+
+/* Anillos que laten alrededor de la caja cerrada */
+.cash-ring {
+    animation: cash-ring 2.8s ease-out infinite;
+}
+@keyframes cash-ring {
+    0% {
+        opacity: 0.55;
+        transform: scale(0.7);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1.45);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cash-island,
+    .cash-island:active {
+        transition: none;
+        transform: none;
+    }
+    .cash-fab-sheen::after,
+    .cash-island:hover .cash-fab-icon,
+    .cash-island-flash,
+    .cash-island-flash-out,
+    .cash-blink,
+    .cash-blink-soft .cash-fab-icon,
+    .cash-bar,
+    .cash-ring {
+        animation: none;
+    }
+    .cash-delta {
+        animation: none;
+        transform: translateX(-50%);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .nav-item,
     .nav-item::before,

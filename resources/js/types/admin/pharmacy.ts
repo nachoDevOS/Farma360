@@ -338,6 +338,20 @@ export interface CashSummary {
     by_method: Record<string, number>;
 }
 
+/**
+ * Turno abierto del usuario para el botón flotante "Mi caja" (HandleInertiaRequests::openCash).
+ * summary.expected = null cuando la farmacia oculta el efectivo esperado (config farmacia.show_expected_cash).
+ */
+export interface OpenCash {
+    id: number;
+    register: string;
+    branch: string;
+    opened_at: string;
+    show_expected: boolean;
+    summary: Omit<CashSummary, 'expected'> & { expected: number | null };
+    payment_methods: Record<string, string>;
+}
+
 export interface SalePayment {
     id: number;
     method: string;

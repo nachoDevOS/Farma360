@@ -2,6 +2,7 @@
  * TIPOS GENERALES: describen la "forma" de los datos que llegan de Laravel.
  * TypeScript los usa para avisarte si escribes mal un campo (ej: user.nmae).
  */
+import { type OpenCash } from '@/types/admin/pharmacy';
 import { LucideIcon } from 'lucide-react';
 
 /**
@@ -45,6 +46,8 @@ export interface SharedData {
     flash: Flash;
     /** Dirección pública del bucket S3 (AWS_URL): las imágenes son aws_url/ruta. Ver lib/storage.ts */
     aws_url?: string | null;
+    /** Mi turno de caja abierto (botón flotante "Mi caja"). null = no tengo caja abierta */
+    cash?: OpenCash | null;
     [key: string]: unknown;
 }
 
