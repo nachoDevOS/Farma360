@@ -923,6 +923,8 @@ function QuantityDialog({
         .filter((o) => (quantities[o.presentation_id] ?? 0) > 0)
         .map((o) => ({ option: o, quantity: quantities[o.presentation_id] }));
     const total = round(packing.reduce((sum, { option, quantity }) => sum + priceOf(option, quantity), 0));
+    const saved = round(packing.reduce((sum, { option, quantity }) => sum + option.sale_price * quantity, 0) - total);
+    const hasPromotion = sorted.some((option) => option.promo_discount);
     const overStock = units > product.stock_units;
     const canConfirm = (units > 0 || editing) && !overStock;
 
@@ -956,7 +958,7 @@ function QuantityDialog({
     return (
         <Dialog open onOpenChange={(open) => !open && onClose()}>
             <DialogContent
-                className="max-w-lg gap-0 p-0"
+                className="bg-card w-[calc(100%-2rem)] max-w-xl gap-0 overflow-hidden rounded-xl p-0 sm:rounded-xl"
                 onOpenAutoFocus={(e) => {
                     e.preventDefault();
                     unitsInput.current?.focus();
@@ -971,53 +973,60 @@ function QuantityDialog({
                     }
                 }}
             >
-                <div className="flex items-center gap-3 border-b px-5 py-4 pr-12">
+                <div className="bg-primary h-1" />
+                <div className="flex items-center gap-3 px-5 pt-5 pr-12 pb-4">
                     <StoredImage
                         path={product.image}
                         alt={product.product_name}
                         fallback={<Pill className="size-5" />}
-                        className="size-11 shrink-0 rounded-lg"
+                        className="size-12 shrink-0 rounded-lg"
                     />
                     <div className="min-w-0">
-                        <DialogTitle className="truncate text-base">
+                        <DialogTitle className="truncate text-[15px] leading-snug font-bold">
                             {product.commercial_name ?? product.product_name}{' '}
                             {product.concentration && <span className="text-muted-foreground font-normal">{product.concentration}</span>}
                         </DialogTitle>
-                        <DialogDescription className="num text-xs">
-                            Stock: {product.stock_units.toLocaleString('es')} {unitWord(product.stock_units)}
+                        <DialogDescription className="num mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                            <span className="bg-muted rounded-md px-1.5 py-0.5 font-medium">
+                                Stock: {product.stock_units.toLocaleString('es')} {unitWord(product.stock_units)}
+                            </span>
+                            {hasPromotion && (
+                                <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 font-medium text-emerald-700 dark:text-emerald-400">
+                                    Promoción por vencimiento
+                                </span>
+                            )}
                         </DialogDescription>
                     </div>
                 </div>
 
-                <div className="grid gap-4 px-5 py-4">
+                <div className="grid gap-4 px-5 pb-5">
                     {/* Cuántas tabletas: se arma solo */}
-                    <label className="grid gap-1.5">
-                        <span className="text-sm font-medium">1. ¿Cuántas {unitWord(2)} pide el cliente?</span>
-                        <span className="relative">
-                            <Input
-                                ref={unitsInput}
-                                type="number"
-                                min={0}
-                                step={1}
-                                inputMode="numeric"
-                                onKeyDown={blockFractionKeys}
-                                value={typed}
-                                onChange={(e) => typeUnits(e.target.value)}
-                                placeholder="0"
-                                className="num h-14 pr-28 text-2xl font-semibold"
-                            />
-                            <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm">
-                                {unitWord(units)}
-                            </span>
+                    <label className="bg-muted/40 flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
+                        <span className="min-w-0">
+                            <span className="block text-sm font-semibold">¿Cuántas {unitWord(2)} pide?</span>
+                            <span className="text-muted-foreground block text-xs">Se arma solo con el empaque más grande.</span>
                         </span>
+                        <Input
+                            ref={unitsInput}
+                            type="number"
+                            min={0}
+                            step={1}
+                            inputMode="numeric"
+                            onKeyDown={blockFractionKeys}
+                            value={typed}
+                            onChange={(e) => typeUnits(e.target.value)}
+                            placeholder="0"
+                            className="num bg-card h-12 w-32 shrink-0 [appearance:textfield] text-center text-2xl font-bold [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
                     </label>
 
                     {/* Cómo sale: cada empaque con − / + */}
                     <div className="grid gap-1.5">
-                        <span className="text-sm font-medium">
-                            2. Se entrega así <span className="text-muted-foreground font-normal">(si pide otra cosa, cámbialo con − / +)</span>
-                        </span>
-                        <ul className="divide-y rounded-lg border">
+                        <div className="flex items-baseline justify-between gap-3">
+                            <span className="text-sm font-semibold">Se entrega así</span>
+                            <span className="text-muted-foreground text-xs">Cámbialo con − / +</span>
+                        </div>
+                        <ul className="divide-y overflow-hidden rounded-lg border">
                             {sorted.map((option) => {
                                 const quantity = quantities[option.presentation_id] ?? 0;
                                 return (
@@ -1026,28 +1035,28 @@ function QuantityDialog({
                                         className={cn('flex items-center gap-3 px-3 py-2.5 transition-colors', quantity > 0 && 'bg-primary/5')}
                                     >
                                         <div className="min-w-0 flex-1">
-                                            <p className={cn('text-foreground text-sm capitalize', quantity > 0 ? 'font-semibold' : 'font-medium')}>
-                                                {option.package}
+                                            <p className="flex items-center gap-1.5 text-sm font-medium">
+                                                <span className="capitalize">{option.package}</span>
+                                                {option.promo_discount && <PromoBadge percent={option.promo_discount} />}
                                             </p>
                                             <p className="text-muted-foreground num text-xs">
                                                 {option.factor > 1
-                                                    ? `trae ${option.factor.toLocaleString('es')} ${unitWord(option.factor)} · `
-                                                    : 'suelta · '}
-                                                {money(priceOf(option, 1))} c/u
-                                                {option.promo_discount && (
-                                                    <span className="ml-1 font-medium text-emerald-600">−{option.promo_discount}%</span>
-                                                )}
+                                                    ? `trae ${option.factor.toLocaleString('es')} ${unitWord(option.factor)}`
+                                                    : 'suelta'}
+                                                {' · '}
+                                                {option.promo_discount ? (
+                                                    <>
+                                                        <span className="line-through">{money(option.sale_price)}</span>{' '}
+                                                        <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                                                            {money(priceOf(option, 1))}
+                                                        </span>
+                                                    </>
+                                                ) : (
+                                                    money(option.sale_price)
+                                                )}{' '}
+                                                c/u
                                             </p>
                                         </div>
-                                        {/* Lo que suma esta fila: 1 × Bs 35,00 = Bs 35,00 */}
-                                        <span
-                                            className={cn(
-                                                'num w-20 shrink-0 text-right text-sm',
-                                                quantity > 0 ? 'font-semibold' : 'text-muted-foreground/50',
-                                            )}
-                                        >
-                                            {quantity > 0 ? money(priceOf(option, quantity)) : '—'}
-                                        </span>
                                         <div className="stepper" data-active={quantity > 0 ? 'true' : undefined}>
                                             <button
                                                 type="button"
@@ -1073,6 +1082,15 @@ function QuantityDialog({
                                                 <Plus className="size-3.5" />
                                             </button>
                                         </div>
+                                        {/* Lo que suma esta fila */}
+                                        <span
+                                            className={cn(
+                                                'num w-20 shrink-0 text-right text-sm',
+                                                quantity > 0 ? 'font-semibold' : 'text-muted-foreground/50',
+                                            )}
+                                        >
+                                            {quantity > 0 ? money(priceOf(option, quantity)) : '—'}
+                                        </span>
                                     </li>
                                 );
                             })}
@@ -1091,7 +1109,7 @@ function QuantityDialog({
                     )}
                 </div>
 
-                <div className="bg-muted/40 grid gap-3 border-t px-5 py-4">
+                <div className="bg-muted/40 grid gap-3 border-t px-5 py-3.5">
                     <div className="flex items-end justify-between gap-3">
                         <div className="min-w-0">
                             <p className="text-muted-foreground text-xs">{editing && units === 0 ? 'Sin cantidad' : 'Entregar al cliente'}</p>
@@ -1106,13 +1124,22 @@ function QuantityDialog({
                         <div className="shrink-0 text-right">
                             <p className="text-muted-foreground text-xs">Total</p>
                             <p className="num text-2xl leading-none font-bold">{money(total)}</p>
+                            {saved > 0 && (
+                                <p className="num mt-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">Ahorra {money(saved)}</p>
+                            )}
                         </div>
                     </div>
                     <div className="flex justify-end gap-2">
-                        <Button type="button" variant="ghost" onClick={onClose}>
+                        <Button type="button" variant="outline" onClick={onClose}>
                             Cancelar
                         </Button>
-                        <Button type="button" variant={editing && units === 0 ? 'destructive' : 'default'} disabled={!canConfirm} onClick={confirm}>
+                        <Button
+                            type="button"
+                            variant={editing && units === 0 ? 'destructive' : 'default'}
+                            disabled={!canConfirm}
+                            onClick={confirm}
+                            className="disabled:opacity-100 disabled:[--btn-bg:var(--muted)] disabled:[--btn-fg:var(--muted-foreground)]"
+                        >
                             {editing && units === 0 ? 'Quitar del carrito' : editing ? 'Actualizar carrito' : 'Agregar al carrito'}
                         </Button>
                     </div>
