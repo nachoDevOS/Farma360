@@ -286,31 +286,65 @@ class InventoryController extends Controller
         return back()->with('success', 'Ajuste registrado en el kardex.');
     }
 
-    /** GET /admin/inventory/batches?branch_id=&q= — lotes con stock de una sucursal (JSON, para transferencias). */
+    /**
+     * GET /admin/inventory/batches?branch_id=&q=&to_branch_id= — buscador de transferencias (JSON).
+     * Una fila por lote con stock en la sucursal que envía, del que vence antes al que vence después, con los datos del
+     * producto. destination_stock: lo que ya tiene la sucursal que recibe (null si todavía no la eligieron).
+     */
     public function batches(Request $request): JsonResponse
     {
         $branchId = $request->integer('branch_id');
         abort_unless(in_array($branchId, $request->user()->allowedBranchIds()), 403);
-        $search = trim((string) $request->query('q'));
+        $toBranchId = $request->integer('to_branch_id') ?: null;
+
+        $products = Product::search($request->query('q'))
+            ->whereHas('batches', fn (Builder $q) => $q->where('branch_id', $branchId)->where('stock', '>', 0))
+            ->with(['presentations:id,product_id,package,name,factor', 'laboratory:id,name', 'category:id,name'])
+            ->orderBy('name')
+            ->limit(15)
+            ->get()
+            ->keyBy('id');
+
+        $destinationStock = $toBranchId === null ? collect() : Batch::whereIn('product_id', $products->keys())
+            ->where('branch_id', $toBranchId)
+            ->groupBy('product_id')
+            ->selectRaw('product_id, SUM(stock) as stock')
+            ->pluck('stock', 'product_id');
 
         return response()->json(
-            Batch::with('product:id,name,concentration,pharmaceutical_form,base_unit')
+            Batch::whereIn('product_id', $products->keys())
                 ->where('branch_id', $branchId)
                 ->where('stock', '>', 0)
-                ->when($search !== '', fn (Builder $q) => $q->whereHas('product', fn (Builder $p) => $p
-                    ->where('name', 'like', "%{$search}%")->orWhere('barcode', $search)))
                 ->orderByExpiry()
-                ->limit(20)
+                ->orderBy('id')
                 ->get()
-                ->map(fn (Batch $b) => [
-                    'id' => $b->id,
-                    'product_name' => $b->product->fullName(),
-                    'base_unit' => $b->product->base_unit,
-                    'batch_number' => $b->batch_number,
-                    'expires_at' => $b->expires_at?->toDateString(),
-                    'stock' => $b->stock,
-                    'expired' => $b->isExpired(),
-                ]),
+                ->map(function (Batch $batch) use ($products, $destinationStock, $toBranchId) {
+                    $product = $products->get($batch->product_id);
+
+                    return [
+                        'id' => $batch->id,
+                        'product_id' => $product->id,
+                        'product_name' => $product->fullName(),
+                        'commercial_name' => $product->name,
+                        'generic_name' => $product->generic_name,
+                        'concentration' => $product->concentration,
+                        'pharmaceutical_form' => $product->pharmaceutical_form,
+                        'laboratory' => $product->laboratory?->name,
+                        'category' => $product->category?->name,
+                        'barcode' => $product->barcode,
+                        'requires_prescription' => $product->requires_prescription,
+                        'is_controlled' => $product->is_controlled,
+                        'image' => $product->image,
+                        'base_unit' => $product->base_unit,
+                        'presentations' => $product->presentations->map->only(['package', 'name', 'factor'])->values(),
+                        'batch_number' => $batch->batch_number,
+                        'expires_at' => $batch->expires_at?->toDateString(),
+                        'stock' => $batch->stock,
+                        'unit_cost' => (float) $batch->unit_cost,
+                        'expired' => $batch->isExpired(),
+                        'destination_stock' => $toBranchId === null ? null : (int) ($destinationStock[$product->id] ?? 0),
+                    ];
+                }),
         );
     }
 }

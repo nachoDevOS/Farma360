@@ -44,6 +44,68 @@ class TransferTest extends TestCase
         $this->assertSame('recibida', $transfer->fresh()->status);
     }
 
+    public function test_the_search_brings_each_batch_with_its_product_in_expiry_order()
+    {
+        $from = $this->branch();
+        $to = $this->branch();
+        $product = $this->product(1.0, ['name' => 'Paracetamolix', 'generic_name' => 'Acetaminofeno']);
+        $later = $this->batch($product, $from, 30, '+10 months', 0.7, 'LATER');
+        $sooner = $this->batch($product, $from, 20, '+2 months', 0.5, 'SOONER');
+        $this->batch($product, $from, 0, '+1 month', 0.5, 'EMPTY');
+        $this->batch($product, $to, 12, '+6 months', 0.5, 'THERE');
+        $this->batch($this->product(1.0, ['name' => 'Otrofen']), $from, 5);
+
+        $this->actingAs($this->userWithRole('Administrador'))
+            ->getJson('/admin/inventory/batches?'.http_build_query(['q' => 'Acetaminofeno', 'branch_id' => $from->id, 'to_branch_id' => $to->id]))
+            ->assertOk()
+            ->assertJsonCount(2)
+            ->assertJsonPath('0.id', $sooner->id)
+            ->assertJsonPath('1.id', $later->id)
+            ->assertJsonPath('0.product_id', $product->id)
+            ->assertJsonPath('0.commercial_name', 'Paracetamolix')
+            ->assertJsonPath('0.generic_name', 'Acetaminofeno')
+            ->assertJsonPath('1.unit_cost', 0.7)
+            ->assertJsonPath('0.destination_stock', 12)
+            ->assertJsonPath('0.presentations.1.factor', 100);
+    }
+
+    public function test_the_search_does_not_say_the_destination_stock_until_a_destination_is_chosen()
+    {
+        $from = $this->branch();
+        $this->batch($this->product(1.0, ['name' => 'Paracetamolix']), $from, 30);
+
+        $this->actingAs($this->userWithRole('Administrador'))
+            ->getJson('/admin/inventory/batches?'.http_build_query(['q' => 'Paracet', 'branch_id' => $from->id]))
+            ->assertJsonPath('0.destination_stock', null);
+    }
+
+    public function test_the_search_is_only_for_my_branches()
+    {
+        $mine = $this->branch();
+        $other = $this->branch();
+
+        $this->actingAs($this->userWithRole('Regente', $mine))
+            ->getJson('/admin/inventory/batches?'.http_build_query(['q' => 'x', 'branch_id' => $other->id]))
+            ->assertForbidden();
+    }
+
+    public function test_a_product_can_be_sent_from_several_batches()
+    {
+        $from = $this->branch();
+        $to = $this->branch();
+        $product = $this->product();
+        $first = $this->batch($product, $from, 20, '+2 months', 0.5, 'A');
+        $second = $this->batch($product, $from, 30, '+10 months', 0.5, 'B');
+
+        $this->actingAs($this->userWithRole('Administrador'))->post('/admin/transfers', [
+            'from_branch_id' => $from->id, 'to_branch_id' => $to->id,
+            'items' => [['batch_id' => $first->id, 'quantity' => 20], ['batch_id' => $second->id, 'quantity' => 5]],
+        ])->assertRedirect();
+
+        $this->assertSame([0, 25], [$first->fresh()->stock, $second->fresh()->stock]);
+        $this->assertCount(2, Transfer::firstOrFail()->items);
+    }
+
     public function test_a_received_transfer_merges_into_the_existing_batch()
     {
         $from = $this->branch();

@@ -160,16 +160,34 @@ export type PosLookup = {
 };
 
 /** Lote con stock (buscador de transferencias). Ver InventoryController@batches. */
-export interface BatchLookup {
+/** Fila del buscador de transferencias (una por lote). Ver InventoryController@batches. */
+// "type" (no "interface") porque la transferencia lo guarda en useForm de Inertia
+export type BatchLookup = {
     id: number;
+    product_id: number;
     product_name: string;
+    commercial_name: string;
+    generic_name: string | null;
+    concentration: string | null;
+    pharmaceutical_form: string | null;
+    laboratory: string | null;
+    category: string | null;
+    barcode: string | null;
+    requires_prescription: boolean;
+    is_controlled: boolean;
+    image: string | null;
     base_unit: string;
+    presentations: Pick<Presentation, 'package' | 'name' | 'factor'>[];
     batch_number: string;
     expires_at: string | null;
     /** Unidades base que quedan en el lote */
     stock: number;
+    /** Costo por unidad base */
+    unit_cost: number;
     expired: boolean;
-}
+    /** Unidades del producto en la sucursal que recibe. Null = todavía no la eligieron */
+    destination_stock: number | null;
+};
 
 /** Presentación con descuento propio dentro de una promoción. */
 export interface PromoPresentation {
