@@ -86,6 +86,7 @@ Route::middleware('auth')->group(function () {
             Route::put("{$uri}/{id}", [$controller, 'update'])->name("{$uri}.update")->middleware("can:{$module}.{$edit}")->whereNumber('id');
             Route::delete("{$uri}/{id}", [$controller, 'destroy'])->name("{$uri}.destroy")->middleware("can:{$module}.{$delete}")->whereNumber('id');
         }
+        Route::get('cash-registers/{cashRegister}', [CashRegisterController::class, 'show'])->name('cash-registers.show')->middleware('can:caja.editar')->whereNumber('cashRegister');
         Route::get('customers/search', [CustomerController::class, 'search'])->name('customers.search')->middleware('can:ventas.crear');
 
         // Productos

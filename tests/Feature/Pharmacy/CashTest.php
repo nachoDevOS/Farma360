@@ -172,6 +172,165 @@ class CashTest extends TestCase
         $this->cash->approve($session->fresh(), $admin);
     }
 
+    public function test_a_register_shows_its_open_session_numbers_and_history()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0);
+        $this->batch($product, $branch, 10);
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $session = $this->openCash($cashier, $branch);
+        $this->actingAs($cashier)->post('/admin/sales', [
+            'items' => [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 4]],
+            'payments' => [['method' => 'efectivo', 'amount' => 4]],
+        ]);
+
+        $this->actingAs($this->userWithRole('Administrador'))->get("/admin/cash-registers/{$session->cash_register_id}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('admin/cash/register')
+                ->where('register.id', $session->cash_register_id)
+                ->where('current.id', $session->id)
+                ->where('summary.sales_count', 1)
+                ->where('summary.expected', 104)
+                ->where('stats.sessions', 1)
+                ->where('stats.month_sales', fn ($total) => (float) $total === 4.0)
+                ->where('sessions.total', 1)
+                ->where('sessions.data.0.sales_count', 1));
+    }
+
+    public function test_the_register_history_filters_by_status()
+    {
+        $branch = $this->branch();
+        $session = $this->openCash($this->userWithRole('Cajero', $branch), $branch);
+
+        $this->actingAs($this->userWithRole('Administrador'))->get("/admin/cash-registers/{$session->cash_register_id}?status=cerrada")
+            ->assertInertia(fn ($page) => $page->where('sessions.total', 0)->where('current.id', $session->id));
+    }
+
+    public function test_a_register_without_an_open_session_says_so()
+    {
+        $register = CashRegister::factory()->create(['branch_id' => $this->branch()->id]);
+
+        $this->actingAs($this->userWithRole('Administrador'))->get("/admin/cash-registers/{$register->id}")
+            ->assertInertia(fn ($page) => $page->where('current', null)->where('summary', null)->where('stats.sessions', 0));
+    }
+
+    public function test_a_register_needs_the_permission_and_to_be_of_my_branches()
+    {
+        $mine = $this->branch();
+        $register = CashRegister::factory()->create(['branch_id' => $this->branch()->id]);
+
+        $this->actingAs($this->userWithRole('Cajero', $mine))->get("/admin/cash-registers/{$register->id}")->assertForbidden();
+
+        $supervisor = $this->userWithRole('Regente', $mine);
+        $supervisor->givePermissionTo('caja.editar');
+        $this->actingAs($supervisor)->get("/admin/cash-registers/{$register->id}")->assertForbidden();
+    }
+
+    public function test_the_blind_close_hides_the_expected_cash_from_the_cashier_of_that_session()
+    {
+        config(['farmacia.show_expected_cash' => false]);
+        $branch = $this->branch();
+        $admin = $this->userWithRole('Administrador');
+        $session = $this->openCash($admin, $branch);
+
+        $this->actingAs($admin)->get("/admin/cash-registers/{$session->cash_register_id}")
+            ->assertInertia(fn ($page) => $page->where('summary.expected', null));
+    }
+
+    public function test_the_registers_list_offers_to_see_each_register()
+    {
+        $this->actingAs($this->userWithRole('Administrador'))->get('/admin/cash-registers')
+            ->assertInertia(fn ($page) => $page->where('resource.showRoute', 'admin.cash-registers.show'));
+    }
+
+    public function test_the_registers_list_says_if_each_register_is_available_or_who_has_it()
+    {
+        $branch = $this->branch();
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+        CashRegister::factory()->create(['branch_id' => $branch->id, 'name' => 'Yeta']);
+        CashRegister::factory()->create(['branch_id' => $branch->id, 'name' => 'Zeta', 'is_active' => false]);
+
+        $this->actingAs($this->userWithRole('Administrador'))->get('/admin/cash-registers')
+            ->assertInertia(fn ($page) => $page
+                ->where('rows.data.0.availability', 'aperturada')
+                ->where('rows.data.0.open_session.user.name', $cashier->name)
+                ->where('rows.data.1.availability', 'disponible')
+                ->where('rows.data.1.open_session', null)
+                ->where('rows.data.2.availability', 'desactivada')
+                ->where('stats.1.value', 1)
+                ->where('stats.2.value', 1));
+    }
+
+    public function test_a_register_is_available_again_after_closing_its_session()
+    {
+        $branch = $this->branch();
+        $session = $this->openCash($this->userWithRole('Cajero', $branch), $branch);
+        app(CashService::class)->close($session, [$this->denomination(100)->id => 1]);
+
+        $this->actingAs($this->userWithRole('Administrador'))->get('/admin/cash-registers')
+            ->assertInertia(fn ($page) => $page->where('rows.data.0.availability', 'disponible')->where('rows.data.0.open_session', null)->where('stats.1.value', 0));
+    }
+
+    public function test_the_registers_list_filters_by_branch_and_its_numbers_follow()
+    {
+        $central = $this->branch();
+        $north = $this->branch();
+        $this->openCash($this->userWithRole('Cajero', $central), $central);
+        $there = CashRegister::factory()->create(['branch_id' => $north->id]);
+
+        $this->actingAs($this->userWithRole('Administrador'))->get("/admin/cash-registers?branch={$north->id}")
+            ->assertInertia(fn ($page) => $page
+                ->has('rows.data', 1)
+                ->where('rows.data.0.id', $there->id)
+                ->where('filters.branch', (string) $north->id)
+                ->where('stats.0.value', 1)
+                ->where('stats.1.value', 0)
+                ->where('stats.2.value', 1));
+
+        $this->actingAs($this->userWithRole('Administrador'))->get('/admin/cash-registers')
+            ->assertInertia(fn ($page) => $page->has('rows.data', 2)->where('selectFilters.0.name', 'branch')->has('selectFilters.0.options', 2));
+    }
+
+    public function test_the_registers_list_filters_by_status()
+    {
+        $branch = $this->branch();
+        $session = $this->openCash($this->userWithRole('Cajero', $branch), $branch);
+        $available = CashRegister::factory()->create(['branch_id' => $branch->id]);
+        $disabled = CashRegister::factory()->create(['branch_id' => $branch->id, 'is_active' => false]);
+        $admin = $this->userWithRole('Administrador');
+
+        foreach (['aperturada' => $session->cash_register_id, 'disponible' => $available->id, 'desactivada' => $disabled->id] as $status => $id) {
+            $this->actingAs($admin)->get("/admin/cash-registers?status={$status}")
+                ->assertInertia(fn ($page) => $page->has('rows.data', 1)->where('rows.data.0.id', $id));
+        }
+    }
+
+    public function test_the_branch_filter_is_hidden_with_a_single_branch_and_cannot_reach_others()
+    {
+        $mine = $this->branch();
+        $other = $this->branch();
+        CashRegister::factory()->create(['branch_id' => $other->id]);
+        $supervisor = $this->userWithRole('Regente', $mine);
+        $supervisor->givePermissionTo('caja.editar');
+
+        $this->actingAs($supervisor)->get("/admin/cash-registers?branch={$other->id}")
+            ->assertInertia(fn ($page) => $page->has('rows.data', 0)->has('selectFilters', 1)->where('selectFilters.0.name', 'status'));
+    }
+
+    public function test_the_registers_list_only_shows_my_branches()
+    {
+        $mine = $this->branch();
+        $own = CashRegister::factory()->create(['branch_id' => $mine->id]);
+        CashRegister::factory()->create(['branch_id' => $this->branch()->id]);
+        $supervisor = $this->userWithRole('Regente', $mine);
+        $supervisor->givePermissionTo('caja.editar');
+
+        $this->actingAs($supervisor)->get('/admin/cash-registers')
+            ->assertInertia(fn ($page) => $page->has('rows.data', 1)->where('rows.data.0.id', $own->id)->where('stats.0.value', 1));
+    }
+
     public function test_cash_screens_render()
     {
         $branch = $this->branch();

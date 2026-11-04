@@ -47,9 +47,12 @@ abstract class ResourceController extends Controller
     abstract protected function fields(): array;
 
     /**
-     * Columnas de la tabla. type: text | boolean | status | money | image (miniatura de la ruta guardada en S3)
+     * Columnas de la tabla. type: text | title (nombre en negrita) | person (iniciales y nombre) | boolean | status | money
+     * | docStatus (etiqueta de estado de un documento) | image (miniatura de la ruta guardada en S3).
+     * hint: otra columna que va chica debajo. empty: texto si no hay valor.
+     * live: [columna, valor] que dice que la persona está trabajando ahora (punto verde).
      *
-     * @return list<array{key: string, label: string, type?: string}>
+     * @return list<array{key: string, label: string, type?: string, hint?: string, empty?: string, live?: array{0: string, 1: string}}>
      */
     abstract protected function columns(): array;
 
@@ -60,6 +63,43 @@ abstract class ResourceController extends Controller
     protected function searchable(): array
     {
         return ['name'];
+    }
+
+    /**
+     * Indicadores arriba de la tabla. icon: nombre de la lista statIcons de resources/index.tsx; money: value es un monto.
+     * filter: al hacer clic aplica esos filtros de la lista.
+     *
+     * @return list<array{label: string, value: int|float, icon: string, tone?: string, hint?: string, money?: bool, filter?: array<string, string>}>
+     */
+    protected function stats(): array
+    {
+        return [];
+    }
+
+    /**
+     * Selectores de filtro de la barra de la tabla (name viaja en la URL). allLabel: la opción "Todos".
+     *
+     * @return list<array{name: string, allLabel: string, options: list<array{id: int|string, name: string}>}>
+     */
+    protected function selectFilters(): array
+    {
+        return [];
+    }
+
+    /**
+     * Aplica los selectores de filtro a la lista.
+     *
+     * @param  array<string, string>  $filters
+     */
+    protected function applySelectFilters(Builder $query, array $filters): Builder
+    {
+        return $query;
+    }
+
+    /** Datos calculados de una fila, antes de mandarla a la tabla (ej: un estado que no es una columna). */
+    protected function present(Model $row): Model
+    {
+        return $row;
     }
 
     /** Consulta base (agregar with() o withCount() si hace falta). */
@@ -88,18 +128,22 @@ abstract class ResourceController extends Controller
 
     public function index(Request $request): Response
     {
-        $filters = $request->only(['search', 'per_page']);
+        $selectFilters = $this->selectFilters();
+        $filters = $request->only(['search', 'per_page', ...array_column($selectFilters, 'name')]);
 
-        $rows = $this->applyOrder($this->query())
+        $rows = $this->applySelectFilters($this->applyOrder($this->query()), $filters)
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
                 $query->where(fn (Builder $q) => collect($this->searchable())->each(fn (string $column) => $q->orWhere($column, 'like', "%{$search}%")));
             })
             ->paginate($this->perPage($request))
-            ->withQueryString();
+            ->withQueryString()
+            ->through(fn (Model $row) => $this->present($row));
 
         return Inertia::render('admin/resources/index', [
             'resource' => $this->meta() + ['fields' => $this->fields(), 'columns' => $this->columns()],
             'rows' => $rows,
+            'stats' => $this->stats(),
+            'selectFilters' => $selectFilters,
             'filters' => $filters,
         ]);
     }

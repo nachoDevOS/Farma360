@@ -7,9 +7,12 @@
  */
 import { ReasonDialog } from '@/components/admin/common/confirm-dialog';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
+import { DocStatus } from '@/components/admin/common/doc-status';
 import { ImageUpload, StoredImage } from '@/components/admin/common/image-upload';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
+import { SimpleSelect } from '@/components/admin/common/simple-select';
+import { StatCard, StatGrid } from '@/components/admin/common/stat-card';
 import { TableToolbar } from '@/components/admin/common/table-toolbar';
 import { StatusBadge } from '@/components/admin/common/user-badges';
 import InputError from '@/components/shared/input-error';
@@ -25,22 +28,25 @@ import { useFilters } from '@/hooks/use-filters';
 import AdminLayout from '@/layouts/admin/admin-layout';
 import { money } from '@/lib/format';
 import { type Paginated } from '@/types';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import {
     Building2,
     Check,
     Coins,
     Contact,
+    Eye,
     FlaskRound,
     LoaderCircle,
-    type LucideIcon,
     Monitor,
+    MonitorCheck,
     Pencil,
     Plus,
     Stethoscope,
     Tags,
     Trash2,
     Truck,
+    UserCheck,
+    type LucideIcon,
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
 
@@ -59,6 +65,13 @@ const resourceIcons: Record<string, LucideIcon> = {
 };
 type Row = { id: number } & Record<string, unknown>;
 
+/** Íconos de los indicadores de arriba de la tabla (ver stats() en ResourceController). */
+const statIcons: Record<string, LucideIcon> = {
+    registers: Monitor,
+    open: UserCheck,
+    free: MonitorCheck,
+};
+
 interface Field {
     name: string;
     label: string;
@@ -71,7 +84,31 @@ interface Field {
 interface Column {
     key: string;
     label: string;
-    type?: 'text' | 'boolean' | 'status' | 'money' | 'image';
+    type?: 'text' | 'title' | 'person' | 'boolean' | 'status' | 'money' | 'docStatus' | 'image';
+    /** Otra columna que va chica debajo */
+    hint?: string;
+    /** Texto si no hay valor */
+    empty?: string;
+    /** [columna, valor]: si esa columna tiene ese valor, la persona está trabajando ahora (punto verde) */
+    live?: [string, string];
+}
+
+interface Stat {
+    label: string;
+    value: number;
+    icon: string;
+    tone?: 'blue' | 'green' | 'amber' | 'red' | 'violet' | 'slate';
+    hint?: string;
+    money?: boolean;
+    /** Al hacer clic aplica esos filtros de la lista */
+    filter?: Record<string, string>;
+}
+
+/** Selector de filtro de la barra de la tabla. */
+interface SelectFilter {
+    name: string;
+    allLabel: string;
+    options: { id: number | string; name: string }[];
 }
 
 interface Resource {
@@ -80,6 +117,8 @@ interface Resource {
     description: string;
     /** Nombre base de las rutas, ej: "admin.suppliers" */
     route: string;
+    /** Si está, cada fila tiene el botón "Ver" que abre esa ruta */
+    showRoute?: string;
     /** Módulo de permisos, ej: "proveedores" */
     permission: string;
     fields: Field[];
@@ -89,14 +128,16 @@ interface Resource {
 interface Props {
     resource: Resource;
     rows: Paginated<Row>;
-    filters: { search?: string; per_page?: string };
+    stats: Stat[];
+    selectFilters: SelectFilter[];
+    filters: { search?: string; per_page?: string } & Record<string, string | undefined>;
 }
 
 /** Lee "branch.name" de una fila. */
 const read = (row: Row, key: string): unknown =>
     key.split('.').reduce<unknown>((value, part) => (value as Record<string, unknown> | null)?.[part], row);
 
-export default function ResourceIndex({ resource, rows, filters }: Props) {
+export default function ResourceIndex({ resource, rows, stats, selectFilters, filters }: Props) {
     const can = useCan();
     const applyFilters = useFilters(`${resource.route}.index`, filters);
     const [formOpen, setFormOpen] = useState(false);
@@ -130,13 +171,41 @@ export default function ResourceIndex({ resource, rows, filters }: Props) {
                     }
                 />
 
+                {stats.length > 0 && (
+                    <StatGrid cols={3}>
+                        {stats.map((stat) => (
+                            <StatCard
+                                key={stat.label}
+                                icon={statIcons[stat.icon] ?? Tags}
+                                label={stat.label}
+                                value={stat.money ? money(stat.value) : stat.value}
+                                tone={stat.tone}
+                                hint={stat.hint}
+                                onClick={stat.filter ? () => applyFilters(stat.filter as Record<string, string>) : undefined}
+                                compact
+                            />
+                        ))}
+                    </StatGrid>
+                )}
+
                 <div className="surface overflow-hidden rounded-xl">
                     <TableToolbar
                         perPage={Number(filters.per_page ?? 10)}
                         onPerPageChange={(n) => applyFilters({ per_page: String(n) })}
                         search={filters.search ?? ''}
                         onSearch={(search) => applyFilters({ search })}
-                    />
+                    >
+                        {selectFilters.map((filter) => (
+                            <SimpleSelect
+                                key={filter.name}
+                                className="w-48"
+                                options={filter.options}
+                                value={filters[filter.name]}
+                                allLabel={filter.allLabel}
+                                onChange={(value) => applyFilters({ [filter.name]: value })}
+                            />
+                        ))}
+                    </TableToolbar>
                     <DataTable
                         head={
                             <>
@@ -157,12 +226,25 @@ export default function ResourceIndex({ resource, rows, filters }: Props) {
                                         align={column.type === 'money' ? 'right' : 'left'}
                                         className={column.type === 'image' ? 'w-px' : undefined}
                                     >
-                                        <Cell column={column} value={read(row, column.key)} icon={resourceIcons[resource.route] ?? Tags} />
+                                        <Cell
+                                            column={column}
+                                            value={read(row, column.key)}
+                                            hint={column.hint ? read(row, column.hint) : null}
+                                            live={column.live ? read(row, column.live[0]) === column.live[1] : false}
+                                            icon={resourceIcons[resource.route] ?? Tags}
+                                        />
                                     </Td>
                                 ))}
                                 {showActions && (
                                     <Td align="right">
                                         <RowActions>
+                                            {resource.showRoute && (
+                                                <ActionButton
+                                                    icon={Eye}
+                                                    label={`Ver ${resource.singular.toLowerCase()}`}
+                                                    onClick={() => router.visit(route(resource.showRoute as string, row.id))}
+                                                />
+                                            )}
                                             {perm('editar') && <ActionButton icon={Pencil} label="Editar" onClick={() => openForm(row)} />}
                                             {perm('eliminar') && (
                                                 <ActionButton icon={Trash2} label="Eliminar" tone="danger" onClick={() => setDeleting(row)} />
@@ -190,7 +272,42 @@ export default function ResourceIndex({ resource, rows, filters }: Props) {
     );
 }
 
-function Cell({ column, value, icon: Icon }: { column: Column; value: unknown; icon: LucideIcon }) {
+function Cell({ column, value, hint, live, icon: Icon }: { column: Column; value: unknown; hint: unknown; live: boolean; icon: LucideIcon }) {
+    const small = hint ? String(hint) : null;
+    if (column.type === 'docStatus') {
+        return value ? <DocStatus status={String(value)} /> : <span className="text-muted-foreground">{column.empty ?? '—'}</span>;
+    }
+    if (column.type === 'title') {
+        return (
+            <>
+                <p className="font-semibold">{String(value)}</p>
+                {small && <p className="text-muted-foreground text-xs">{small}</p>}
+            </>
+        );
+    }
+    if (column.type === 'person') {
+        if (!value) {
+            return <span className="text-muted-foreground">{column.empty ?? '—'}</span>;
+        }
+        const initials = String(value)
+            .split(' ')
+            .slice(0, 2)
+            .map((word) => word[0])
+            .join('')
+            .toUpperCase();
+        return (
+            <div className="flex items-center gap-2.5">
+                <span className="bg-primary/10 text-primary relative flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold">
+                    {initials}
+                    {live && <span className="ring-card absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full bg-emerald-500 ring-2" />}
+                </span>
+                <div className="min-w-0">
+                    <p className="truncate font-medium">{String(value)}</p>
+                    {small && <p className="text-muted-foreground num text-xs">{small}</p>}
+                </div>
+            </div>
+        );
+    }
     if (column.type === 'image')
         return <StoredImage path={value as string | null} alt="" fallback={<Icon className="size-4" />} className="size-10" />;
     if (column.type === 'status') return <StatusBadge active={Boolean(value)} />;

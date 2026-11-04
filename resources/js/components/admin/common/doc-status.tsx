@@ -8,6 +8,9 @@ import { type PromoPresentation } from '@/types/admin/pharmacy';
 
 const styles: Record<string, { label: string; dot: string }> = {
     registrada: { label: 'Registrada', dot: 'bg-emerald-500' },
+    disponible: { label: 'Disponible', dot: 'bg-emerald-500' },
+    aperturada: { label: 'Aperturada', dot: 'bg-blue-500' },
+    desactivada: { label: 'Desactivada', dot: 'bg-slate-400' },
     completada: { label: 'Completada', dot: 'bg-emerald-500' },
     recibida: { label: 'Recibida', dot: 'bg-emerald-500' },
     cerrada: { label: 'Cerrada', dot: 'bg-zinc-400' },
