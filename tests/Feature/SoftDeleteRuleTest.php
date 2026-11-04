@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Product;
 use App\Models\Role;
+use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use LogicException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -28,7 +31,7 @@ class SoftDeleteRuleTest extends TestCase
         'indication_product',
     ];
 
-    private const AUDIT_COLUMNS = ['registerUser_id', 'registerRole', 'deleteUser_id', 'deleteRole', 'deleted_at'];
+    private const AUDIT_COLUMNS = ['registerUser_id', 'registerRole', 'deleteUser_id', 'deleteRole', 'deleteReason', 'deleted_at'];
 
     public function test_every_table_has_the_audit_columns()
     {
@@ -76,17 +79,48 @@ class SoftDeleteRuleTest extends TestCase
         $this->assertNotNull(User::withTrashed()->find($user->id));
     }
 
-    public function test_restoring_clears_who_deleted_it()
+    public function test_restoring_clears_who_deleted_it_and_why()
     {
         $admin = User::factory()->withRole('Administrador')->create();
         $user = User::factory()->create();
         $this->actingAs($admin);
 
-        $user->delete();
+        $user->deleteWithReason('Dejó la farmacia');
         $user->restore();
 
         $this->assertNotSoftDeleted($user);
-        $this->assertDatabaseHas('users', ['id' => $user->id, 'deleteUser_id' => null, 'deleteRole' => null]);
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'deleteUser_id' => null, 'deleteRole' => null, 'deleteReason' => null]);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function deleteEndpoints(): array
+    {
+        return ['usuario' => ['users'], 'rol' => ['roles'], 'catálogo' => ['suppliers'], 'producto' => ['products']];
+    }
+
+    /**
+     * Los catálogos comparten ResourceController: basta con probar uno.
+     */
+    #[DataProvider('deleteEndpoints')]
+    public function test_every_delete_needs_a_reason_and_saves_it(string $endpoint)
+    {
+        $admin = User::factory()->withRole('Administrador')->create();
+        $record = match ($endpoint) {
+            'users' => User::factory()->create(),
+            'roles' => Role::create(['name' => 'Temporal', 'guard_name' => 'web']),
+            'suppliers' => Supplier::factory()->create(),
+            'products' => Product::factory()->create(),
+        };
+
+        $this->actingAs($admin)->delete("/admin/{$endpoint}/{$record->id}", ['reason' => ''])->assertSessionHasErrors('reason');
+        $this->assertNotSoftDeleted($record);
+
+        $this->actingAs($admin)->delete("/admin/{$endpoint}/{$record->id}", ['reason' => 'Se registró por error'])->assertSessionHasNoErrors();
+
+        $this->assertSoftDeleted($record);
+        $this->assertDatabaseHas($record->getTable(), ['id' => $record->id, 'deleteReason' => 'Se registró por error', 'deleteUser_id' => $admin->id]);
     }
 
     public function test_force_delete_is_forbidden()

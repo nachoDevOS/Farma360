@@ -343,6 +343,7 @@ Además, **toda tabla** tiene estas columnas, que se llenan solas:
 | `registerRole` | rol que tenía ese usuario al registrarlo |
 | `deleteUser_id` | id del usuario que lo eliminó |
 | `deleteRole` | rol que tenía ese usuario al eliminarlo |
+| `deleteReason` | por qué se eliminó |
 | `deleted_at` | fecha de eliminación (null = vigente) |
 
 Para una tabla nueva (ej: productos) solo hay que hacer dos cosas — `php artisan make:model Producto -m` ya las trae puestas (ver `stubs/`):
@@ -353,7 +354,7 @@ Schema::create('productos', function (Blueprint $table) {
     $table->id();
     // ...columnas...
     $table->timestamps();
-    $table->auditable(); // registerUser_id, registerRole, deleteUser_id, deleteRole, deleted_at
+    $table->auditable(); // registerUser_id, registerRole, deleteUser_id, deleteRole, deleteReason, deleted_at
 });
 
 // 2. En el modelo

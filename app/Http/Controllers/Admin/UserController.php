@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\DeleteRequest;
 use App\Http\Requests\Admin\StoreUserRequest;
 use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Models\Branch;
@@ -117,15 +118,15 @@ class UserController extends Controller
     /**
      * DELETE /admin/users/{user} — Elimina un usuario.
      */
-    public function destroy(User $user): RedirectResponse
+    public function destroy(DeleteRequest $request, User $user): RedirectResponse
     {
         $permission = Gate::inspect('delete', $user);
         if ($permission->denied()) {
             return back()->with('error', $permission->message());
         }
 
-        // Eliminación LÓGICA (regla del sistema): no se borra, se marca deleted_at y quién lo eliminó
-        $user->delete();
+        // Eliminación LÓGICA (regla del sistema): no se borra, se marca deleted_at, quién lo eliminó y por qué
+        $user->deleteWithReason($request->validated('reason'));
 
         return back()->with('success', "Usuario {$user->name} eliminado.");
     }

@@ -36,3 +36,15 @@ createInertiaApp({
 
 // Aplica el modo claro / oscuro guardado
 initializeTheme();
+
+// La rueda del mouse no cambia los campos numéricos: con el cursor encima de uno enfocado, el navegador sube o baja el valor
+document.addEventListener(
+    'wheel',
+    (event) => {
+        const { target } = event;
+        if (target instanceof HTMLInputElement && target.type === 'number' && target === document.activeElement) {
+            event.preventDefault();
+        }
+    },
+    { passive: false },
+);

@@ -165,6 +165,15 @@ function paymentsOf(payment: { mode: PayMode; cash: string; qr: string; referenc
     ];
 }
 
+/** Cómo arranca cada cobro: en efectivo y sin montos. */
+const NEW_PAYMENT = { mode: 'efectivo' as PayMode, cash: '', qr: '', reference: '' };
+
+/** Pago mixto: lo que le toca al otro medio de pago. Vacío si no se escribió monto o si ya no queda nada por cobrar. */
+function mixedRemainder(total: number, amount: string): string {
+    const remainder = round(total - Number(amount || 0));
+    return amount !== '' && remainder > 0 ? remainder.toFixed(2) : '';
+}
+
 /** Billetes de Bolivia para sugerir con cuánto paga el cliente. */
 const BILLS = [10, 20, 50, 100, 200];
 
@@ -201,7 +210,7 @@ export default function Pos({ session, paymentMethods, discountLimit }: Props) {
         prescription_number: '',
         prescription_doctor: '',
         // cash = efectivo que entrega el cliente · qr = monto por QR (en mixto) · reference = N° de operación del QR
-        payment: { mode: 'efectivo' as PayMode, cash: '', qr: '', reference: '' },
+        payment: NEW_PAYMENT,
         discount: null as GeneralDiscount | null,
     });
     const err = errors as Record<string, string | undefined>;
@@ -348,6 +357,21 @@ export default function Pos({ session, paymentMethods, discountLimit }: Props) {
 
     const setPayment = (field: keyof typeof data.payment, value: string) => setData('payment', { ...data.payment, [field]: value });
 
+    /** Pago mixto: lo que se escribe en un medio de pago calcula el otro para llegar justo al total. */
+    const setMixedAmount = (field: 'qr' | 'cash', value: string) =>
+        setData('payment', { ...data.payment, [field]: value, [field === 'qr' ? 'cash' : 'qr']: mixedRemainder(total, value) });
+
+    // Pago mixto: si cambia el total (carrito o descuento), el QR se queda y el efectivo se ajusta
+    useEffect(() => {
+        if (mode === 'mixto' && data.payment.qr !== '') {
+            setData('payment', { ...data.payment, cash: mixedRemainder(total, data.payment.qr) });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [total]);
+
+    // Al entrar o recargar se recupera el carrito, pero el cobro vuelve a Efectivo: no se arrastra el medio de pago anterior
+    useEffect(() => setData('payment', NEW_PAYMENT), [setData]);
+
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         post(route('admin.sales.store'), {
@@ -365,9 +389,11 @@ export default function Pos({ session, paymentMethods, discountLimit }: Props) {
               ? `El descuento pasa del ${discountLimit}% del subtotal: ajústalo`
               : qrAmount > total
                 ? 'El monto por QR no puede pasar del total'
-                : change < 0
-                  ? `Falta cobrar ${money(Math.abs(change))}`
-                  : null;
+                : mode === 'mixto' && (qrAmount <= 0 || cashGiven <= 0)
+                  ? 'En pago mixto, el QR y el efectivo deben ser mayores a 0'
+                  : change < 0
+                    ? `Falta cobrar ${money(Math.abs(change))}`
+                    : null;
 
     return (
         <AdminLayout breadcrumbs={[{ title: 'Punto de venta', href: route('admin.pos') }]}>
@@ -675,7 +701,7 @@ export default function Pos({ session, paymentMethods, discountLimit }: Props) {
                             <PayModePicker
                                 value={mode}
                                 labels={paymentMethods}
-                                onChange={(value) => setData('payment', { ...data.payment, mode: value })}
+                                onChange={(value) => setData('payment', { ...data.payment, mode: value, cash: '', qr: '' })}
                             />
 
                             {/* QR: solo QR o la parte por QR del mixto */}
@@ -689,7 +715,7 @@ export default function Pos({ session, paymentMethods, discountLimit }: Props) {
                                 <MoneyField
                                     label="Por QR"
                                     value={data.payment.qr}
-                                    onChange={(value) => setPayment('qr', value)}
+                                    onChange={(value) => setMixedAmount('qr', value)}
                                     inputRef={payAmount}
                                     invalid={qrAmount > total}
                                 />
@@ -716,7 +742,7 @@ export default function Pos({ session, paymentMethods, discountLimit }: Props) {
                                     <MoneyField
                                         label="Efectivo recibido"
                                         value={data.payment.cash}
-                                        onChange={(value) => setPayment('cash', value)}
+                                        onChange={(value) => (mode === 'mixto' ? setMixedAmount('cash', value) : setPayment('cash', value))}
                                         inputRef={mode === 'efectivo' ? payAmount : undefined}
                                     />
                                     {cashDue > 0 && (

@@ -8,7 +8,7 @@
  * Botones: Ver (ficha completa: products/show.tsx) · Editar · Eliminar.
  */
 import { BranchMenu } from '@/components/admin/common/branch-menu';
-import { ConfirmDialog } from '@/components/admin/common/confirm-dialog';
+import { ReasonDialog } from '@/components/admin/common/confirm-dialog';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
 import { StoredImage } from '@/components/admin/common/image-upload';
 import { describeLevels, levelsOf } from '@/components/admin/common/package-chain';
@@ -278,16 +278,12 @@ export default function ProductsIndex({ products, filters, branchOptions, canSee
                 </div>
             </div>
 
-            <ConfirmDialog
+            <ReasonDialog
+                action="eliminar"
                 open={deleting !== null}
                 onClose={() => setDeleting(null)}
                 title={`¿Eliminar ${deleting?.name}?`}
-                description="Solo se puede si no tiene stock. Si todavía lo vendes, mejor desactívalo."
-                confirmLabel="Eliminar"
-                destructive
-                onConfirm={(done) =>
-                    deleting && router.delete(route('admin.products.destroy', deleting.id), { preserveScroll: true, onFinish: done })
-                }
+                url={deleting ? route('admin.products.destroy', deleting.id) : ''}
             />
         </AdminLayout>
     );

@@ -1,12 +1,20 @@
 /*
  * PÁGINA: Ventas  (ruta /admin/sales)
  * Datos: app/Http/Controllers/Admin/SaleController.php -> index()
+ *
+ * La flecha junto al número despliega los productos y el cobro. A la derecha: ver el detalle, imprimir el comprobante y anular
+ * (SaleController@cancel, pide motivo). La venta anulada sale de la lista; solo se ve con el filtro de estado "Anulada".
  */
-import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
+import { ReasonDialog } from '@/components/admin/common/confirm-dialog';
+import { DataTable, Detail, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
 import { DocStatus, statusOptions } from '@/components/admin/common/doc-status';
 import { PageHeader } from '@/components/admin/common/page-header';
+import { PaymentBreakdown } from '@/components/admin/common/payment-breakdown';
+import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { TableToolbar } from '@/components/admin/common/table-toolbar';
+import { SaleItemsTable } from '@/components/admin/sales/sale-items-table';
+import { TicketPrint } from '@/components/admin/sales/sale-ticket';
 import { Pagination } from '@/components/shared/pagination';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,8 +25,9 @@ import { formatDate, money } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type Paginated } from '@/types';
 import { type ListFilters, type Option, type Sale } from '@/types/admin/pharmacy';
-import { Head, Link } from '@inertiajs/react';
-import { Receipt, ShoppingCart } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { ChevronRight, Eye, Printer, Receipt, ShoppingCart, Trash2 } from 'lucide-react';
+import { Fragment, useEffect, useState } from 'react';
 
 interface Props {
     sales: Paginated<Sale>;
@@ -28,6 +37,27 @@ interface Props {
 }
 
 export default function SalesIndex({ sales, filters, branches, paymentMethods }: Props) {
+    const [expanded, setExpanded] = useState<Set<number>>(new Set());
+    // Venta que se está mandando a la impresora (null = ninguna)
+    const [printing, setPrinting] = useState<Sale | null>(null);
+    // Venta que se está por anular (null = ninguna)
+    const [cancelling, setCancelling] = useState<Sale | null>(null);
+    const toggle = (id: number) =>
+        setExpanded((current) => {
+            const next = new Set(current);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    const columns = 9;
+
+    useEffect(() => {
+        if (printing) {
+            window.addEventListener('afterprint', () => setPrinting(null), { once: true });
+            window.print();
+        }
+    }, [printing]);
+
     const can = useCan();
     const applyFilters = useFilters('admin.sales.index', filters);
 
@@ -69,9 +99,9 @@ export default function SalesIndex({ sales, filters, branches, paymentMethods }:
                         )}
                         <SimpleSelect
                             className="w-40"
-                            options={statusOptions(['completada', 'anulada'])}
+                            options={statusOptions(['anulada'])}
                             value={filters.status}
-                            allLabel="Todos los estados"
+                            allLabel="Completadas"
                             onChange={(status) => applyFilters({ status })}
                         />
                         <Input
@@ -100,41 +130,140 @@ export default function SalesIndex({ sales, filters, branches, paymentMethods }:
                                 <Th>Pago</Th>
                                 <Th align="right">Total</Th>
                                 <Th>Estado</Th>
+                                <Th align="right">Acciones</Th>
                             </>
                         }
                     >
-                        {sales.data.map((sale) => (
-                            <tr key={sale.id} className={cn(sale.status === 'anulada' && 'opacity-60')}>
-                                <Td>
-                                    <Link href={route('admin.sales.show', sale.id)} className="num font-medium hover:underline">
-                                        {sale.number}
-                                    </Link>
-                                </Td>
-                                <Td className="num text-muted-foreground whitespace-nowrap">
-                                    {formatDate(sale.created_at, { dateStyle: 'short', timeStyle: 'short' })}
-                                </Td>
-                                <Td>
-                                    {sale.customer_name}
-                                    {sale.customer_document && <p className="text-muted-foreground text-xs">{sale.customer_document}</p>}
-                                </Td>
-                                <Td className="text-muted-foreground">{sale.branch.name}</Td>
-                                <Td className="text-muted-foreground">{sale.registered_by?.name}</Td>
-                                <Td className="text-muted-foreground">
-                                    {sale.payments.map((p) => paymentMethods[p.method] ?? p.method).join(' + ')}
-                                </Td>
-                                <Td align="right" className="font-medium">
-                                    {money(sale.total)}
-                                </Td>
-                                <Td>
-                                    <DocStatus status={sale.status} />
-                                </Td>
-                            </tr>
-                        ))}
-                        {sales.data.length === 0 && <EmptyRow colSpan={8} text="No hay ventas con estos filtros." />}
+                        {sales.data.map((sale) => {
+                            const isOpen = expanded.has(sale.id);
+                            return (
+                                <Fragment key={sale.id}>
+                                    <tr className={cn(sale.status === 'anulada' && 'opacity-60', isOpen && 'bg-muted/40')}>
+                                        <Td>
+                                            <button
+                                                type="button"
+                                                onClick={() => toggle(sale.id)}
+                                                aria-expanded={isOpen}
+                                                aria-label={isOpen ? 'Ocultar detalle' : 'Ver detalle'}
+                                                className="hover:bg-muted inline-flex items-center gap-1 rounded-md py-1 pr-2 pl-1 text-left"
+                                            >
+                                                <ChevronRight
+                                                    className={cn(
+                                                        'text-muted-foreground size-4 shrink-0 transition-transform',
+                                                        isOpen && 'text-primary rotate-90',
+                                                    )}
+                                                />
+                                                <span className="num font-medium">{sale.number}</span>
+                                            </button>
+                                        </Td>
+                                        <Td className="num text-muted-foreground whitespace-nowrap">
+                                            {formatDate(sale.created_at, { dateStyle: 'short', timeStyle: 'short' })}
+                                        </Td>
+                                        <Td>
+                                            {sale.customer_name}
+                                            {sale.customer_document && <p className="text-muted-foreground text-xs">{sale.customer_document}</p>}
+                                        </Td>
+                                        <Td className="text-muted-foreground">{sale.branch.name}</Td>
+                                        <Td className="text-muted-foreground">{sale.registered_by?.name}</Td>
+                                        <Td className="text-muted-foreground">
+                                            <PaymentBreakdown payments={sale.payments} labels={paymentMethods} />
+                                        </Td>
+                                        <Td align="right" className="font-medium">
+                                            {money(sale.total)}
+                                        </Td>
+                                        <Td>
+                                            <DocStatus status={sale.status} />
+                                        </Td>
+                                        <Td align="right">
+                                            <RowActions>
+                                                <ActionButton
+                                                    icon={Eye}
+                                                    label="Ver detalle de la venta"
+                                                    onClick={() => router.visit(route('admin.sales.show', sale.id))}
+                                                />
+                                                <ActionButton icon={Printer} label="Imprimir comprobante" onClick={() => setPrinting(sale)} />
+                                                {can('ventas.anular') && (
+                                                    <ActionButton
+                                                        icon={Trash2}
+                                                        label="Anular venta"
+                                                        tone="danger"
+                                                        onClick={() => setCancelling(sale)}
+                                                        disabled={whyNotCancellable(sale) !== null}
+                                                        disabledReason={whyNotCancellable(sale) ?? undefined}
+                                                    />
+                                                )}
+                                            </RowActions>
+                                        </Td>
+                                    </tr>
+                                    {isOpen && (
+                                        <tr className="bg-muted/40 hover:bg-muted/40!">
+                                            <td colSpan={columns} className="px-4 pt-1 pb-4">
+                                                <SaleDetail sale={sale} paymentMethods={paymentMethods} />
+                                            </td>
+                                        </tr>
+                                    )}
+                                </Fragment>
+                            );
+                        })}
+                        {sales.data.length === 0 && <EmptyRow colSpan={columns} text="No hay ventas con estos filtros." />}
                     </DataTable>
                     <Pagination paginator={sales} itemName="ventas" />
+                    {printing && <TicketPrint sale={printing} paymentMethods={paymentMethods} />}
                 </div>
             </div>
+
+            {cancelling && (
+                <ReasonDialog
+                    open
+                    onClose={() => setCancelling(null)}
+                    title={`Anular venta ${cancelling.number}`}
+                    url={route('admin.sales.cancel', cancelling.id)}
+                />
+            )}
         </AdminLayout>
+    );
+}
+
+/** Por qué no se puede anular esta venta (null = sí se puede). Mismas reglas que SaleService::cancel. */
+function whyNotCancellable(sale: Sale): string | null {
+    if (sale.status !== 'completada') {
+        return 'Esta venta ya está anulada';
+    }
+    return sale.cash_session?.status === 'abierta' ? null : 'El turno de caja de esta venta ya se cerró';
+}
+
+/** Detalle desplegable: los productos vendidos, de qué lote salieron y cómo se cobró. */
+function SaleDetail({ sale, paymentMethods }: { sale: Sale; paymentMethods: Record<string, string> }) {
+    const qrReference = sale.payments.find((payment) => payment.reference)?.reference;
+    return (
+        <div className="bg-card overflow-x-auto rounded-lg border">
+            <SaleItemsTable sale={sale} />
+            <dl className="bg-muted/30 grid gap-x-8 gap-y-3 border-t px-4 py-3 sm:grid-cols-2 xl:grid-cols-4">
+                <Detail label="Subtotal">{money(sale.subtotal)}</Detail>
+                {Number(sale.discount) > 0 && (
+                    <Detail label="Descuento general">
+                        {money(sale.discount)}
+                        {sale.discount_reason && ` · ${sale.discount_reason}`}
+                    </Detail>
+                )}
+                <Detail label="Cobrado">
+                    <PaymentBreakdown payments={sale.payments} labels={paymentMethods} />
+                </Detail>
+                <Detail label="Efectivo recibido">{money(sale.cash_received)}</Detail>
+                <Detail label="Cambio">{money(sale.change)}</Detail>
+                {qrReference && <Detail label="N° de operación del QR">{qrReference}</Detail>}
+                {sale.prescription_number && (
+                    <Detail label="Receta">
+                        {sale.prescription_number} · {sale.prescription_doctor}
+                    </Detail>
+                )}
+                {sale.status === 'anulada' && (
+                    <Detail label="Anulada">
+                        {sale.cancelled_by?.name}
+                        {sale.cancelled_at && `, ${formatDate(sale.cancelled_at, { dateStyle: 'short', timeStyle: 'short' })}`} · {sale.cancel_reason}
+                    </Detail>
+                )}
+            </dl>
+        </div>
     );
 }

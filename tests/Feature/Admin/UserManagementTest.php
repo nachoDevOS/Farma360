@@ -62,7 +62,7 @@ class UserManagementTest extends TestCase
         $this->actingAs($admin)->patch("/admin/users/{$user->id}/toggle");
         $this->assertFalse($user->fresh()->is_active);
 
-        $this->actingAs($admin)->delete("/admin/users/{$user->id}");
+        $this->actingAs($admin)->delete("/admin/users/{$user->id}", ['reason' => 'Se registró por error']);
         // Eliminación lógica: sigue en la base de datos, marcado con deleted_at y quién lo eliminó
         $this->assertSoftDeleted($user);
         $this->assertSame($admin->id, $user->fresh()->deleteUser_id);
@@ -72,7 +72,7 @@ class UserManagementTest extends TestCase
     {
         $admin = User::factory()->withRole('Administrador')->create();
 
-        $this->actingAs($admin)->delete("/admin/users/{$admin->id}")->assertSessionHas('error');
+        $this->actingAs($admin)->delete("/admin/users/{$admin->id}", ['reason' => 'Se registró por error'])->assertSessionHas('error');
         $this->actingAs($admin)->patch("/admin/users/{$admin->id}/toggle")->assertSessionHas('error');
 
         $this->assertModelExists($admin);

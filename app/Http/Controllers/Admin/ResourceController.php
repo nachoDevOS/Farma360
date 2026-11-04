@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Exceptions\BusinessException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\DeleteRequest;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -118,7 +119,7 @@ abstract class ResourceController extends Controller
         return back()->with('success', "{$this->meta()['singular']} {$this->label($model)} actualizado.");
     }
 
-    public function destroy(int $id): RedirectResponse
+    public function destroy(DeleteRequest $request, int $id): RedirectResponse
     {
         $model = $this->model()::findOrFail($id);
 
@@ -127,7 +128,7 @@ abstract class ResourceController extends Controller
         }
 
         // Eliminación LÓGICA (regla del sistema)
-        $model->delete();
+        $model->deleteWithReason($request->validated('reason'));
 
         return back()->with('success', "{$this->meta()['singular']} {$this->label($model)} eliminado.");
     }

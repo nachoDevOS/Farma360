@@ -31,14 +31,18 @@ class SaleController extends Controller
         $filters = $request->only(['search', 'branch', 'status', 'from', 'to', 'per_page']);
         $allowed = $request->user()->allowedBranchIds();
 
-        $sales = Sale::with('branch:id,name', 'registeredBy:id,name', 'payments:id,sale_id,method,amount')
+        $sales = Sale::with($this->detailRelations())
             ->whereIn('branch_id', $allowed)
             ->when($filters['search'] ?? null, fn (Builder $q, $s) => $q->where(fn (Builder $w) => $w
                 ->where('number', 'like', "%{$s}%")
                 ->orWhere('customer_name', 'like', "%{$s}%")
                 ->orWhere('customer_document', 'like', "{$s}%")))
             ->when($filters['branch'] ?? null, fn (Builder $q, $b) => $q->where('branch_id', $b))
-            ->when($filters['status'] ?? null, fn (Builder $q, $s) => $q->where('status', $s))
+            ->when(
+                $filters['status'] ?? null,
+                fn (Builder $q, $s) => $q->where('status', $s),
+                fn (Builder $q) => $q->where('status', '!=', 'anulada'),
+            )
             ->when($filters['from'] ?? null, fn (Builder $q, $d) => $q->whereDate('created_at', '>=', $d))
             ->when($filters['to'] ?? null, fn (Builder $q, $d) => $q->whereDate('created_at', '<=', $d))
             ->latest('id')
@@ -172,13 +176,28 @@ class SaleController extends Controller
 
         return Inertia::render('admin/sales/show', [
             'sale' => $sale->load([
-                'branch:id,name,address,phone', 'registeredBy:id,name', 'cancelledBy:id,name', 'payments', 'cashSession:id,status',
-                'items.product:id,name,concentration,pharmaceutical_form', 'items.product.presentations' => fn ($q) => $q->withTrashed(),
-                'items.batch:id,batch_number,expires_at',
-                'items.presentation' => fn ($q) => $q->withTrashed(),
+                ...$this->detailRelations(),
+                'customer' => fn ($q) => $q->withTrashed()->select('id', 'document_type', 'phone', 'email'),
             ]),
             'paymentMethods' => config('farmacia.payment_methods'),
         ]);
+    }
+
+    /**
+     * Lo que muestra una venta: su página, el ticket y el detalle desplegable de la lista.
+     *
+     * @return array<int|string, string|\Closure>
+     */
+    private function detailRelations(): array
+    {
+        return [
+            'branch:id,name,address,phone', 'registeredBy:id,name', 'cancelledBy:id,name', 'payments',
+            'cashSession:id,status,cash_register_id', 'cashSession.cashRegister' => fn ($q) => $q->withTrashed()->select('id', 'name'),
+            'items.product:id,name,generic_name,concentration,pharmaceutical_form,image,laboratory_id', 'items.product.laboratory:id,name',
+            'items.product.presentations' => fn ($q) => $q->withTrashed(),
+            'items.batch:id,batch_number,expires_at',
+            'items.presentation' => fn ($q) => $q->withTrashed(),
+        ];
     }
 
     public function cancel(Request $request, Sale $sale): RedirectResponse

@@ -31,7 +31,7 @@ class CatalogTest extends TestCase
         // Casilla sin marcar = false
         $this->assertFalse($supplier->fresh()->is_active);
 
-        $this->actingAs($admin)->delete("/admin/suppliers/{$supplier->id}")->assertSessionHas('success');
+        $this->actingAs($admin)->delete("/admin/suppliers/{$supplier->id}", ['reason' => 'Se registró por error'])->assertSessionHas('success');
         $this->assertSoftDeleted($supplier);
     }
 
@@ -47,7 +47,7 @@ class CatalogTest extends TestCase
         $branch = $this->branch();
         $this->batch($this->product(), $branch, 1);
 
-        $this->actingAs($this->userWithRole('Administrador'))->delete("/admin/branches/{$branch->id}")->assertSessionHas('error');
+        $this->actingAs($this->userWithRole('Administrador'))->delete("/admin/branches/{$branch->id}", ['reason' => 'Se registró por error'])->assertSessionHas('error');
 
         $this->assertNotSoftDeleted($branch);
     }
@@ -436,7 +436,7 @@ class CatalogTest extends TestCase
         $product = $this->product();
         $this->batch($product, $this->branch(), 3);
 
-        $this->actingAs($this->userWithRole('Administrador'))->delete("/admin/products/{$product->id}")->assertSessionHas('error');
+        $this->actingAs($this->userWithRole('Administrador'))->delete("/admin/products/{$product->id}", ['reason' => 'Se registró por error'])->assertSessionHas('error');
         $this->assertNotSoftDeleted($product);
     }
 

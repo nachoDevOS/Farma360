@@ -47,6 +47,7 @@ class AppServiceProvider extends ServiceProvider
             $this->string('registerRole')->nullable();
             $this->foreignId('deleteUser_id')->nullable()->constrained('users');
             $this->string('deleteRole')->nullable();
+            $this->string('deleteReason')->nullable();
             $this->softDeletes();
         });
 
@@ -54,7 +55,7 @@ class AppServiceProvider extends ServiceProvider
             /** @var Blueprint $this */
             $this->dropConstrainedForeignId('registerUser_id');
             $this->dropConstrainedForeignId('deleteUser_id');
-            $this->dropColumn(['registerRole', 'deleteRole']);
+            $this->dropColumn(['registerRole', 'deleteRole', 'deleteReason']);
             $this->dropSoftDeletes();
         });
     }

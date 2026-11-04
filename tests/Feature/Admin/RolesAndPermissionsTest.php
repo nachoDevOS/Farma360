@@ -33,7 +33,7 @@ class RolesAndPermissionsTest extends TestCase
 
         $this->actingAs($supervisor)->get('/admin/users')->assertOk();
         $this->actingAs($supervisor)->post('/admin/users', [])->assertForbidden();
-        $this->actingAs($supervisor)->delete("/admin/users/{$other->id}")->assertForbidden();
+        $this->actingAs($supervisor)->delete("/admin/users/{$other->id}", ['reason' => 'Se registró por error'])->assertForbidden();
     }
 
     public function test_super_admin_has_every_permission_without_marking_them()
@@ -133,7 +133,7 @@ class RolesAndPermissionsTest extends TestCase
         $role = Role::findByName('Super Admin');
 
         $this->actingAs($super)->get("/admin/roles/{$role->id}/edit")->assertRedirect('/admin/roles');
-        $this->actingAs($super)->delete("/admin/roles/{$role->id}");
+        $this->actingAs($super)->delete("/admin/roles/{$role->id}", ['reason' => 'Se registró por error']);
         $this->assertNotNull(Role::where('name', 'Super Admin')->first());
 
         // Tampoco se puede crear otro rol con ese nombre
@@ -146,11 +146,11 @@ class RolesAndPermissionsTest extends TestCase
         User::factory()->withRole('Operador')->create();
         $role = Role::findByName('Operador');
 
-        $this->actingAs($admin)->delete("/admin/roles/{$role->id}")->assertSessionHas('error');
+        $this->actingAs($admin)->delete("/admin/roles/{$role->id}", ['reason' => 'Se registró por error'])->assertSessionHas('error');
         $this->assertNotNull($role->fresh());
 
         $empty = Role::create(['name' => 'Temporal', 'guard_name' => 'web']);
-        $this->actingAs($admin)->delete("/admin/roles/{$empty->id}")->assertSessionHas('success');
+        $this->actingAs($admin)->delete("/admin/roles/{$empty->id}", ['reason' => 'Se registró por error'])->assertSessionHas('success');
         // Eliminación lógica: el rol sigue en la base de datos, marcado con deleted_at
         $this->assertSoftDeleted($empty);
     }
@@ -161,7 +161,7 @@ class RolesAndPermissionsTest extends TestCase
         $super = User::factory()->withRole('Super Admin')->create();
 
         // Un Administrador no puede eliminar ni dar el rol Super Admin
-        $this->actingAs($admin)->delete("/admin/users/{$super->id}")->assertSessionHas('error');
+        $this->actingAs($admin)->delete("/admin/users/{$super->id}", ['reason' => 'Se registró por error'])->assertSessionHas('error');
         $this->assertNotNull($super->fresh());
 
         $this->actingAs($admin)
@@ -176,7 +176,7 @@ class RolesAndPermissionsTest extends TestCase
     {
         $super = User::factory()->withRole('Super Admin')->create();
 
-        $this->actingAs($super)->delete("/admin/users/{$super->id}")->assertSessionHas('error');
+        $this->actingAs($super)->delete("/admin/users/{$super->id}", ['reason' => 'Se registró por error'])->assertSessionHas('error');
         $this->assertNotNull($super->fresh());
     }
 

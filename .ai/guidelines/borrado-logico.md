@@ -8,6 +8,7 @@ Nothing is ever physically deleted from the Farma360 database. Every delete is a
   - `registerRole` — role name of that user at creation time
   - `deleteUser_id` — id of the user who deleted the record (nullable FK to `users`)
   - `deleteRole` — role name of that user at deletion time
+  - `deleteReason` — why it was deleted, written by the user in the delete dialog
   - `deleted_at` — soft delete timestamp
 - Keep these exact column names (camelCase with `_id`); do not rename them to snake_case.
 - In a `down()` that removes them from an existing table, use `$table->dropAuditable();`.
@@ -15,6 +16,7 @@ Nothing is ever physically deleted from the Farma360 database. Every delete is a
 
 ## Required on every model
 - Every Eloquent model in `app/Models` MUST `use App\Models\Concerns\Auditable;` (it includes `SoftDeletes`). It fills `registerUser_id`/`registerRole` on create, `deleteUser_id`/`deleteRole` on delete, and clears them on restore.
+- Every delete a user can trigger MUST use `ReasonDialog action="eliminar"` in the UI (reason + confirmation check), `App\Http\Requests\Admin\DeleteRequest` in the controller, and `$model->deleteWithReason($request->validated('reason'))`.
 - `php artisan make:model` and `make:migration --create` already include both via `stubs/`.
 - Roles and permissions use `App\Models\Role` / `App\Models\Permission` (Spatie models extended with `Auditable`). Never import `Spatie\Permission\Models\*` directly.
 

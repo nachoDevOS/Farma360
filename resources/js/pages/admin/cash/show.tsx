@@ -7,6 +7,7 @@ import { CashThumb } from '@/components/admin/cash/bill-counter';
 import { DataTable, Detail, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
 import { DocStatus } from '@/components/admin/common/doc-status';
 import { PageHeader } from '@/components/admin/common/page-header';
+import { PaymentBreakdown } from '@/components/admin/common/payment-breakdown';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import InputError from '@/components/shared/input-error';
 import { Button } from '@/components/ui/button';
@@ -166,7 +167,7 @@ export default function CashShow({ session, summary, sales, paymentMethods, move
                                 <Td className="num text-muted-foreground">{formatDate(sale.created_at, { timeStyle: 'short' })}</Td>
                                 <Td>{sale.customer_name}</Td>
                                 <Td className="text-muted-foreground">
-                                    {sale.payments.map((p) => paymentMethods[p.method] ?? p.method).join(' + ')}
+                                    <PaymentBreakdown payments={sale.payments} labels={paymentMethods} />
                                 </Td>
                                 <Td align="right">{money(sale.total)}</Td>
                                 <Td>

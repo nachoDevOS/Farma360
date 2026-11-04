@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\DeleteRequest;
 use App\Http\Requests\Admin\RoleRequest;
 use App\Models\Role;
 use App\Support\PermissionCatalog;
@@ -120,7 +121,7 @@ class RoleController extends Controller
     /**
      * DELETE /admin/roles/{role} — Elimina un rol. No se puede si tiene usuarios o si es el Super Admin.
      */
-    public function destroy(Role $role): RedirectResponse
+    public function destroy(DeleteRequest $request, Role $role): RedirectResponse
     {
         if ($this->isSuperAdmin($role)) {
             return back()->with('error', 'El rol Super Admin no se puede eliminar.');
@@ -131,7 +132,7 @@ class RoleController extends Controller
             return back()->with('error', "No se puede eliminar: {$users} ".($users === 1 ? 'usuario tiene' : 'usuarios tienen').' este rol. Cámbiales el rol primero.');
         }
 
-        $role->delete();
+        $role->deleteWithReason($request->validated('reason'));
 
         return back()->with('success', "Rol {$role->name} eliminado.");
     }

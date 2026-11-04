@@ -17,12 +17,14 @@ use LogicException;
  *   registerRole     → rol que tenía ese usuario al crearlo
  *   deleteUser_id    → id del usuario que lo eliminó
  *   deleteRole       → rol que tenía ese usuario al eliminarlo
+ *   deleteReason     → por qué se eliminó (lo escribe el usuario en la ventana de eliminar)
  *   deleted_at       → fecha de eliminación (null = registro vigente)
  *
  * Uso normal, sin hacer nada extra:
  *   Producto::create([...])      → llena registerUser_id y registerRole con el usuario logueado
  *   $producto->delete()          → NO borra: llena deleted_at, deleteUser_id y deleteRole
- *   $producto->restore()         → lo recupera y limpia deleteUser_id y deleteRole
+ *   $producto->deleteWithReason('Se registró por error') → igual, y guarda el motivo en deleteReason
+ *   $producto->restore()         → lo recupera y limpia deleteUser_id, deleteRole y deleteReason
  *   Producto::all()              → solo trae los vigentes (los eliminados se ocultan solos)
  *   Producto::withTrashed()      → trae también los eliminados · onlyTrashed() → solo los eliminados
  *   $producto->forceDelete()     → PROHIBIDO: lanza una excepción
@@ -49,12 +51,21 @@ trait Auditable
         static::restoring(function (self $model) {
             $model->deleteUser_id = null;
             $model->deleteRole = null;
+            $model->deleteReason = null;
         });
 
         // Borrado físico prohibido en todo el sistema
         static::forceDeleting(function (self $model) {
             throw new LogicException('Farma360 no permite borrar registros de la base de datos ('.$model::class.'). Usa delete(): la eliminación es lógica.');
         });
+    }
+
+    /** Eliminación lógica pedida por un usuario: guarda además por qué se eliminó. */
+    public function deleteWithReason(string $reason): ?bool
+    {
+        $this->deleteReason = $reason;
+
+        return $this->delete();
     }
 
     /**
@@ -72,11 +83,13 @@ trait Auditable
             $this->getDeletedAtColumn() => $this->fromDateTime($time),
             'deleteUser_id' => $user?->getKey(),
             'deleteRole' => $user?->role,
+            'deleteReason' => $this->attributes['deleteReason'] ?? null,
         ];
 
         $this->{$this->getDeletedAtColumn()} = $time;
         $this->deleteUser_id = $columns['deleteUser_id'];
         $this->deleteRole = $columns['deleteRole'];
+        $this->deleteReason = $columns['deleteReason'];
 
         if ($this->usesTimestamps() && ! is_null($this->getUpdatedAtColumn())) {
             $this->{$this->getUpdatedAtColumn()} = $time;

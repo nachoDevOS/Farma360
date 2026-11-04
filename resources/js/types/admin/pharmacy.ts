@@ -377,7 +377,16 @@ export interface SaleItem {
     /** Subtotal de la línea con su promoción: subtotal − discount_amount */
     total: string;
     unit_cost: string;
-    product: { id: number; name: string; concentration: string | null; pharmaceutical_form: string | null; presentations?: Presentation[] };
+    product: {
+        id: number;
+        name: string;
+        generic_name?: string | null;
+        concentration: string | null;
+        pharmaceutical_form: string | null;
+        image?: string | null;
+        laboratory?: Option | null;
+        presentations?: Presentation[];
+    };
     presentation: { id: number; name: string; package?: string } | null;
     batch: { id: number; batch_number: string; expires_at: string | null };
 }
@@ -403,10 +412,14 @@ export interface Sale {
     created_at: string;
     branch: Option & { address?: string | null; phone?: string | null };
     registered_by?: UserRef | null;
+    /** Rol de quien vendió al momento de la venta */
+    registerRole?: string | null;
     cancelled_by?: UserRef | null;
     payments: SalePayment[];
     items?: SaleItem[];
-    cash_session?: { id: number; status: string };
+    /** Datos del cliente registrado (null si la venta fue a nombre libre) */
+    customer?: { id: number; document_type: string; phone: string | null; email: string | null } | null;
+    cash_session?: { id: number; status: string; cash_register?: Option | null };
 }
 
 /** Filtros comunes de las listas (viajan en la URL). */

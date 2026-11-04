@@ -9,6 +9,7 @@ use App\Services\CashService;
 use App\Services\InventoryService;
 use App\Services\PromotionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 /**
@@ -45,6 +46,51 @@ class SaleTest extends TestCase
         $this->assertSame(8, $late->fresh()->stock);
         // Lo guardado en caja es el efectivo menos el cambio
         $this->assertDatabaseHas('sale_payments', ['sale_id' => $sale->id, 'method' => 'efectivo', 'amount' => 5]);
+    }
+
+    public function test_the_sales_list_brings_what_the_detail_and_the_printed_receipt_need()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0);
+        $batch = $this->batch($product, $branch, 10);
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+
+        $this->sell($cashier, [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 4]], [
+            ['method' => 'qr', 'amount' => 3, 'reference' => 'OP-77'],
+            ['method' => 'efectivo', 'amount' => 1],
+        ]);
+
+        $this->actingAs($cashier)->get('/admin/sales')
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('admin/sales/index')
+                ->where('sales.data.0.items.0.batch.batch_number', $batch->batch_number)
+                ->where('sales.data.0.items.0.product.name', $product->name)
+                ->has('sales.data.0.items.0.presentation.name')
+                ->has('sales.data.0.branch.address')
+                ->has('sales.data.0.cash_session.cash_register.name')
+                ->where('sales.data.0.cash_session.status', 'abierta')
+                ->where('sales.data.0.payments.0.reference', 'OP-77'));
+    }
+
+    public function test_the_sale_page_says_who_sold_it_and_in_which_cash_register()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0);
+        $this->batch($product, $branch, 10);
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $session = $this->openCash($cashier, $branch);
+
+        $this->sell($cashier, [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 1]], [['method' => 'efectivo', 'amount' => 5]]);
+
+        $this->actingAs($cashier)->get('/admin/sales/'.Sale::firstOrFail()->id)
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('admin/sales/show')
+                ->where('sale.registered_by.name', $cashier->name)
+                ->where('sale.registerRole', 'Cajero')
+                ->where('sale.cash_session.cash_register.name', $session->cashRegister->name)
+                ->has('sale.items.0.product.image')
+                ->has('sale.items.0.product.generic_name'));
     }
 
     public function test_the_promotion_of_the_batch_lowers_the_price()
@@ -227,6 +273,31 @@ class SaleTest extends TestCase
         $this->assertDatabaseHas('stock_movements', ['batch_id' => $batch->id, 'type' => 'anulacion_venta', 'quantity' => 4]);
         // La venta anulada ya no cuenta en el efectivo esperado
         $this->assertEquals(100, app(CashService::class)->expectedCash($sale->cashSession));
+    }
+
+    public function test_a_cancelled_sale_leaves_the_list_and_only_shows_with_its_status_filter()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0);
+        $this->batch($product, $branch, 10);
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+        $items = [['product_presentation_id' => $this->presentation($product)->id, 'quantity' => 1]];
+        $this->sell($cashier, $items, [['method' => 'efectivo', 'amount' => 1]]);
+        $this->sell($cashier, $items, [['method' => 'efectivo', 'amount' => 1]]);
+        [$cancelled, $kept] = Sale::orderBy('id')->get();
+        $admin = $this->userWithRole('Administrador');
+        $this->actingAs($admin)->post("/admin/sales/{$cancelled->id}/cancel", ['reason' => 'Se registró por error']);
+
+        $this->actingAs($admin)->get('/admin/sales')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('sales.data', 1)
+                ->where('sales.data.0.id', $kept->id));
+
+        $this->actingAs($admin)->get('/admin/sales?status=anulada')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('sales.data', 1)
+                ->where('sales.data.0.id', $cancelled->id));
     }
 
     public function test_cancelling_a_sale_taken_from_two_batches_returns_each_batch_its_own_units()

@@ -113,7 +113,6 @@ export default function TransferShow({ transfer, canReceive, canCancel }: { tran
                 open={cancelling}
                 onClose={() => setCancelling(false)}
                 title={`Anular ${transfer.number}`}
-                description="La mercadería vuelve a los lotes de la sucursal de origen."
                 url={route('admin.transfers.cancel', transfer.id)}
             />
         </AdminLayout>

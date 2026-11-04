@@ -162,7 +162,6 @@ export default function PurchaseShow({ purchase, lots, movementTypes }: Props) {
                 open={cancelling}
                 onClose={() => setCancelling(false)}
                 title={`Anular compra ${purchase.number}`}
-                description="Se descuenta del stock todo lo que entró con esta compra. Solo es posible si esos lotes todavía no se vendieron ni transfirieron."
                 url={route('admin.purchases.cancel', purchase.id)}
             />
         </AdminLayout>

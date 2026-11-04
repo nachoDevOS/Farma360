@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Exceptions\BusinessException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\DeleteRequest;
 use App\Http\Requests\Admin\ProductRequest;
 use App\Models\Batch;
 use App\Models\Branch;
@@ -292,13 +293,13 @@ class ProductController extends Controller
         return to_route('admin.products.index')->with('success', "Producto {$product->name} actualizado.");
     }
 
-    public function destroy(Product $product): RedirectResponse
+    public function destroy(DeleteRequest $request, Product $product): RedirectResponse
     {
         if (Batch::where('product_id', $product->id)->where('stock', '>', 0)->exists()) {
             throw new BusinessException("No se puede eliminar {$product->name}: todavía tiene stock. Puedes desactivarlo.");
         }
 
-        $product->delete();
+        $product->deleteWithReason($request->validated('reason'));
 
         return back()->with('success', "Producto {$product->name} eliminado.");
     }

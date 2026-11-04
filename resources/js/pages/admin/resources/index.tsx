@@ -5,7 +5,7 @@
  * Campo "image" (ej: logo del laboratorio): se elige con ImageUpload y lo sube StorageController a S3; la columna
  * "image" muestra la miniatura. Con un archivo al editar se manda POST + _method=put (PHP no lee archivos en un PUT).
  */
-import { ConfirmDialog } from '@/components/admin/common/confirm-dialog';
+import { ReasonDialog } from '@/components/admin/common/confirm-dialog';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
 import { ImageUpload, StoredImage } from '@/components/admin/common/image-upload';
 import { PageHeader } from '@/components/admin/common/page-header';
@@ -25,7 +25,7 @@ import { useFilters } from '@/hooks/use-filters';
 import AdminLayout from '@/layouts/admin/admin-layout';
 import { money } from '@/lib/format';
 import { type Paginated } from '@/types';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import {
     Building2,
     Check,
@@ -179,16 +179,12 @@ export default function ResourceIndex({ resource, rows, filters }: Props) {
             </div>
 
             <ResourceFormDialog resource={resource} open={formOpen} row={editing} onClose={() => setFormOpen(false)} />
-            <ConfirmDialog
+            <ReasonDialog
+                action="eliminar"
                 open={deleting !== null}
                 onClose={() => setDeleting(null)}
                 title={`¿Eliminar ${resource.singular.toLowerCase()}?`}
-                description="Deja de aparecer en el sistema, pero queda guardado (eliminación lógica)."
-                confirmLabel="Eliminar"
-                destructive
-                onConfirm={(done) =>
-                    deleting && router.delete(route(`${resource.route}.destroy`, deleting.id), { preserveScroll: true, onFinish: done })
-                }
+                url={deleting ? route(`${resource.route}.destroy`, deleting.id) : ''}
             />
         </AdminLayout>
     );
