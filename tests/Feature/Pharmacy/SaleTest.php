@@ -113,6 +113,78 @@ class SaleTest extends TestCase
         $this->assertEquals([6, 0], [$sale->subtotal, $sale->discount]);
     }
 
+    public function test_a_promotion_on_the_box_does_not_lower_the_other_presentations_of_the_batch()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0);
+        $batch = $this->batch($product, $branch, 300, '+20 days');
+        $unit = $this->presentation($product);
+        $box = $this->presentation($product, 100);
+        app(PromotionService::class)->apply($batch, 10, $this->userWithRole('Administrador'), 'manual', [$box->id => 10]);
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+
+        $this->sell($cashier, [
+            ['product_presentation_id' => $unit->id, 'quantity' => 4],
+            ['product_presentation_id' => $box->id, 'quantity' => 1],
+        ], [['method' => 'qr', 'amount' => 85]]);
+
+        $sale = Sale::with('items')->firstOrFail();
+        $items = $sale->items->keyBy('product_presentation_id');
+        $this->assertEquals([0, 4], [$items[$unit->id]->discount_percent, $items[$unit->id]->total]);
+        // Caja a 90.00 con 10% = 81.00
+        $this->assertEquals([10, 81], [$items[$box->id]->discount_percent, $items[$box->id]->total]);
+        $this->assertEquals(85, $sale->total);
+    }
+
+    public function test_blister_and_box_are_charged_with_their_own_percent_and_the_unit_without_discount()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0);
+        $unit = $this->presentation($product);
+        $blister = $product->presentations()->create([
+            ...ProductPresentation::arrange($unit, 10, 'Blíster', $product->base_unit),
+            'parent_id' => $unit->id,
+            'sale_price' => 10,
+        ]);
+        $box = $this->presentation($product, 100);
+        $batch = $this->batch($product, $branch, 300, '+20 days');
+        app(PromotionService::class)->apply($batch, 0, $this->userWithRole('Administrador'), 'manual', [$blister->id => 10, $box->id => 20]);
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+
+        $this->sell($cashier, [
+            ['product_presentation_id' => $unit->id, 'quantity' => 2],
+            ['product_presentation_id' => $blister->id, 'quantity' => 1],
+            ['product_presentation_id' => $box->id, 'quantity' => 1],
+        ], [['method' => 'qr', 'amount' => 83]]);
+
+        $sale = Sale::with('items')->firstOrFail();
+        $items = $sale->items->keyBy('product_presentation_id');
+        $this->assertEquals([0, 2], [$items[$unit->id]->discount_percent, $items[$unit->id]->total]);
+        $this->assertEquals([10, 9], [$items[$blister->id]->discount_percent, $items[$blister->id]->total]);
+        // Caja a 90.00 con 20% = 72.00
+        $this->assertEquals([20, 72], [$items[$box->id]->discount_percent, $items[$box->id]->total]);
+        $this->assertEquals(83, $sale->total);
+        $this->assertSame(188, $batch->fresh()->stock);
+    }
+
+    public function test_pos_search_shows_the_promotion_only_on_its_presentation()
+    {
+        $branch = $this->branch();
+        $product = $this->product(1.0, ['name' => 'Paracetamolix']);
+        $batch = $this->batch($product, $branch, 300, '+20 days');
+        $box = $this->presentation($product, 100);
+        app(PromotionService::class)->apply($batch, 0, $this->userWithRole('Administrador'), 'manual', [$box->id => 30]);
+        $cashier = $this->userWithRole('Cajero', $branch);
+        $this->openCash($cashier, $branch);
+
+        $results = $this->actingAs($cashier)->getJson('/admin/pos/search?q=Paracet')->assertOk()->collect()->keyBy('presentation_id');
+
+        $this->assertEquals(30, $results[$box->id]['promo_discount']);
+        $this->assertNull($results[$this->presentation($product)->id]['promo_discount']);
+    }
+
     public function test_only_the_units_of_the_batch_on_promotion_get_the_discount_in_percent_and_in_bs()
     {
         $branch = $this->branch();

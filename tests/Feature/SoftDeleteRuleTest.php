@@ -29,6 +29,8 @@ class SoftDeleteRuleTest extends TestCase
         'model_has_roles', 'model_has_permissions', 'role_has_permissions',
         // Pivote producto ↔ uso / síntoma
         'indication_product',
+        // Pivote descuento ↔ presentaciones del lote
+        'batch_promotion_presentation',
     ];
 
     private const AUDIT_COLUMNS = ['registerUser_id', 'registerRole', 'deleteUser_id', 'deleteRole', 'deleteReason', 'deleted_at'];

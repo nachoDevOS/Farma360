@@ -5,6 +5,7 @@ namespace Tests\Feature\Pharmacy;
 use App\Exceptions\BusinessException;
 use App\Models\BatchPromotion;
 use App\Models\ExpiryPromotionRule;
+use App\Models\ProductPresentation;
 use App\Services\PromotionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -81,6 +82,98 @@ class PromotionTest extends TestCase
         $this->assertTrue($batch->fresh()->activePromotion->below_cost);
     }
 
+    public function test_a_promotion_covers_the_whole_batch_by_default_or_only_the_chosen_presentation()
+    {
+        $admin = $this->userWithRole('Administrador');
+        $product = $this->product(1.0);
+        $batch = $this->batch($product, $this->branch(), 500, '+20 days');
+        $unit = $this->presentation($product);
+        $box = $this->presentation($product, 100);
+
+        $this->actingAs($admin)->post('/admin/promotions/apply', ['batch_id' => $batch->id, 'discount_percent' => 10])->assertSessionHas('success');
+        $wholeBatch = $batch->fresh()->activePromotion;
+        $this->assertCount(0, $wholeBatch->presentations);
+        $this->assertSame(10.0, $wholeBatch->discountFor($unit));
+        $this->assertSame(10.0, $wholeBatch->discountFor($box));
+
+        $this->actingAs($admin)->post('/admin/promotions/apply', [
+            'batch_id' => $batch->id,
+            'presentation_discounts' => [$box->id => 15],
+        ])->assertSessionHas('success');
+        $onlyBox = $batch->fresh()->activePromotion;
+        $this->assertSame(0.0, $onlyBox->discountFor($unit));
+        $this->assertSame(15.0, $onlyBox->discountFor($box));
+    }
+
+    public function test_each_chosen_presentation_gets_its_own_percent_and_the_rest_stay_out()
+    {
+        $admin = $this->userWithRole('Administrador');
+        $product = $this->product(1.0);
+        $unit = $this->presentation($product);
+        $blister = $product->presentations()->create([
+            ...ProductPresentation::arrange($unit, 10, 'Blíster', $product->base_unit),
+            'parent_id' => $unit->id,
+            'sale_price' => 9.5,
+        ]);
+        $box = $this->presentation($product, 100);
+        $batch = $this->batch($product, $this->branch(), 500, '+20 days');
+
+        $this->actingAs($admin)->post('/admin/promotions/apply', [
+            'batch_id' => $batch->id,
+            'presentation_discounts' => [$blister->id => 10, $box->id => 20],
+        ])->assertSessionHas('success');
+
+        $promotion = $batch->fresh()->activePromotion;
+        $this->assertSame(10.0, $promotion->discountFor($blister));
+        $this->assertSame(20.0, $promotion->discountFor($box));
+        $this->assertSame(0.0, $promotion->discountFor($unit));
+        // El más alto queda como descuento de la promoción
+        $this->assertEquals(20, $promotion->discount_percent);
+    }
+
+    public function test_a_promotion_cannot_target_a_presentation_of_another_product()
+    {
+        $batch = $this->batch($this->product(), $this->branch(), 10, '+20 days');
+
+        $this->actingAs($this->userWithRole('Administrador'))->post('/admin/promotions/apply', [
+            'batch_id' => $batch->id,
+            'presentation_discounts' => [$this->presentation($this->product())->id => 10],
+        ])->assertSessionHas('error');
+
+        $this->assertNull($batch->fresh()->activePromotion);
+    }
+
+    public function test_below_cost_looks_only_at_the_chosen_presentation()
+    {
+        // Unidad 1.00 y caja x100 a 90.00, costo 0.85: con 10% la unidad queda en 0.90 y la caja en 0.81 c/u
+        $branch = $this->branch();
+        $product = $this->product(1.0);
+        $batch = $this->batch($product, $branch, 500, '+20 days', 0.85);
+        $regente = $this->userWithRole('Regente', $branch);
+        $apply = fn (array $discount) => $this->actingAs($regente)->post('/admin/promotions/apply', ['batch_id' => $batch->id] + $discount);
+
+        $apply(['presentation_discounts' => [$this->presentation($product, 100)->id => 10]])->assertSessionHas('error');
+        $apply(['discount_percent' => 10])->assertSessionHas('error');
+        $this->assertNull($batch->fresh()->activePromotion);
+
+        $apply(['presentation_discounts' => [$this->presentation($product)->id => 10]])->assertSessionHas('success');
+        $this->assertFalse($batch->fresh()->activePromotion->below_cost);
+    }
+
+    public function test_a_chosen_presentation_needs_a_valid_percent()
+    {
+        $admin = $this->userWithRole('Administrador');
+        $product = $this->product();
+        $batch = $this->batch($product, $this->branch(), 10, '+20 days');
+        $box = $this->presentation($product, 100);
+
+        $this->actingAs($admin)->post('/admin/promotions/apply', ['batch_id' => $batch->id, 'presentation_discounts' => [$box->id => 0]])
+            ->assertSessionHasErrors("presentation_discounts.{$box->id}");
+        $this->actingAs($admin)->post('/admin/promotions/apply', ['batch_id' => $batch->id])->assertSessionHasErrors('discount_percent');
+
+        $this->assertNull($batch->fresh()->activePromotion);
+    }
+
     public function test_expired_batches_cannot_get_a_promotion()
     {
         $batch = $this->batch($this->product(), $this->branch(), 10, '-1 day');
@@ -126,6 +219,20 @@ class PromotionTest extends TestCase
         $this->actingAs($this->userWithRole('Administrador'))->get('/admin/promotions')
             ->assertOk()
             ->assertInertia(fn ($page) => $page->component('admin/promotions/index')->has('candidates.data', 1)->where('candidates.total', 1)->has('rules', 3));
+    }
+
+    public function test_the_active_list_says_which_presentation_has_the_discount()
+    {
+        $admin = $this->userWithRole('Administrador');
+        $product = $this->product();
+        $box = $this->presentation($product, 100);
+        $this->promotions->apply($this->batch($product, $this->branch(), 500, '+20 days'), 10, $admin, 'manual', [$box->id => 10]);
+
+        $this->actingAs($admin)->get('/admin/promotions')
+            ->assertInertia(fn ($page) => $page
+                ->where('active.data.0.presentation_discounts.0.name', $box->name)
+                ->where('active.data.0.presentation_discounts.0.pivot.discount_percent', fn ($percent) => (float) $percent === 10.0)
+                ->has('active.data.0.presentations', 2));
     }
 
     public function test_promotion_lists_are_paginated_on_the_server_with_separate_pages()

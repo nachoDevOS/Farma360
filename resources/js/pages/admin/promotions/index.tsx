@@ -3,13 +3,14 @@
  *
  * 1. Sugeridas: lotes por vencer sin promoción (o con una automática más baja). Se aplican una por una o todas juntas.
  * 2. Vigentes: lotes que hoy se venden con descuento. El punto de venta cobra ese precio solo.
+ *    El descuento vale para todo el lote o solo para las presentaciones elegidas, cada una con su % (ej: blíster 10%, caja 20%, tableta nada).
  * 3. Reglas: "si faltan X días o menos → Y% de descuento".
  * Sugeridas y Vigentes vienen PAGINADAS DEL LADO DEL SERVIDOR (cada una con su propio número de página).
  * Datos: app/Http/Controllers/Admin/PromotionController.php
  */
 import { ConfirmDialog } from '@/components/admin/common/confirm-dialog';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
-import { ExpiryBadge, PromoBadge } from '@/components/admin/common/doc-status';
+import { BatchPromoBadge, ExpiryBadge, PromoBadge } from '@/components/admin/common/doc-status';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
@@ -17,6 +18,7 @@ import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import InputError from '@/components/shared/input-error';
 import { Pagination } from '@/components/shared/pagination';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,10 +26,17 @@ import { useCan } from '@/hooks/use-can';
 import AdminLayout from '@/layouts/admin/admin-layout';
 import { money } from '@/lib/format';
 import { type Paginated } from '@/types';
-import { type Option } from '@/types/admin/pharmacy';
+import { type Option, type PromoPresentation } from '@/types/admin/pharmacy';
 import { Head, router, useForm } from '@inertiajs/react';
 import { AlertTriangle, BadgePercent, LoaderCircle, Plus, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
+
+interface SellablePresentation {
+    id: number;
+    name: string;
+    factor: number;
+    sale_price: number;
+}
 
 interface BatchRow {
     batch_id: number;
@@ -41,7 +50,11 @@ interface BatchRow {
     base_unit: string;
     unit_cost: number;
     unit_price: number | null;
+    presentations: SellablePresentation[];
 }
+
+/** Lote que se está por promocionar. presentation_discounts: las que ya tienen descuento (vacío = todo el lote) */
+type ApplyingRow = BatchRow & { percent: number; presentation_discounts?: PromoPresentation[] };
 
 interface Candidate extends BatchRow {
     suggested_discount: number;
@@ -51,6 +64,8 @@ interface Candidate extends BatchRow {
 
 interface ActivePromo extends BatchRow {
     promotion_id: number;
+    /** Solo esas tienen descuento, cada una con su %. Vacío = discount_percent para todo el lote */
+    presentation_discounts: PromoPresentation[];
     discount_percent: string;
     source: 'regla' | 'manual';
     below_cost: boolean;
@@ -76,7 +91,7 @@ const discounted = (price: number | null, percent: number) => (price === null ? 
 
 export default function PromotionsIndex({ candidates, active, rules, branches, branch }: Props) {
     const can = useCan();
-    const [applying, setApplying] = useState<(BatchRow & { percent: number }) | null>(null);
+    const [applying, setApplying] = useState<ApplyingRow | null>(null);
     const [applyAll, setApplyAll] = useState(false);
 
     return (
@@ -179,9 +194,9 @@ export default function PromotionsIndex({ candidates, active, rules, branches, b
                             <tr key={p.promotion_id}>
                                 <BatchCells row={p} />
                                 <Td align="right">
-                                    <PromoBadge percent={p.discount_percent} />
+                                    <BatchPromoBadge percent={p.discount_percent} presentations={p.presentation_discounts} />
                                     <p className="text-muted-foreground text-xs">
-                                        {money(discounted(p.unit_price, Number(p.discount_percent)))}
+                                        {promotedPrices(p)}
                                         {p.below_cost && <span className="text-red-600"> · bajo costo</span>}
                                     </p>
                                 </Td>
@@ -235,6 +250,21 @@ export default function PromotionsIndex({ candidates, active, rules, branches, b
     );
 }
 
+/** Precio con descuento de lo que está en promoción: el de cada presentación con su % o, si es todo el lote, el de una unidad. */
+function promotedPrices(promo: ActivePromo) {
+    if (promo.presentation_discounts.length === 0) {
+        return money(discounted(promo.unit_price, Number(promo.discount_percent)));
+    }
+
+    return promo.presentation_discounts
+        .map((chosen) => {
+            const presentation = promo.presentations.find((p) => p.id === chosen.id);
+            return presentation ? money(discounted(presentation.sale_price, Number(chosen.pivot.discount_percent))) : null;
+        })
+        .filter(Boolean)
+        .join(' · ');
+}
+
 function BatchCells({ row }: { row: BatchRow }) {
     return (
         <>
@@ -256,26 +286,47 @@ function BatchCells({ row }: { row: BatchRow }) {
     );
 }
 
-function ApplyDialog({
-    row,
-    onClose,
-    canApproveBelowCost,
-}: {
-    row: (BatchRow & { percent: number }) | null;
-    onClose: () => void;
-    canApproveBelowCost: boolean;
-}) {
-    const { data, setData, post, processing, errors, clearErrors } = useForm({ batch_id: 0, discount_percent: '' });
+function ApplyDialog({ row, onClose, canApproveBelowCost }: { row: ApplyingRow | null; onClose: () => void; canApproveBelowCost: boolean }) {
+    const { data, setData, post, processing, errors, clearErrors } = useForm({
+        batch_id: 0,
+        discount_percent: '',
+        // [id de presentación => %]. Vacío = discount_percent para todo el lote
+        presentation_discounts: {} as Record<number, string>,
+    });
 
     useEffect(() => {
         if (!row) return;
         clearErrors();
-        setData({ batch_id: row.batch_id, discount_percent: String(row.percent) });
+        setData({
+            batch_id: row.batch_id,
+            discount_percent: String(row.percent),
+            presentation_discounts: Object.fromEntries(
+                (row.presentation_discounts ?? []).map((p) => [p.id, String(Number(p.pivot.discount_percent))]),
+            ),
+        });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [row]);
 
-    const final = row ? discounted(row.unit_price, Number(data.discount_percent || 0)) : null;
-    const belowCost = row !== null && final !== null && final < row.unit_cost;
+    const presentations = row?.presentations ?? [];
+    const canChoose = presentations.length > 1;
+    const chosen = Object.values(data.presentation_discounts);
+    const wholeBatch = chosen.length === 0;
+    const isChosen = (p: SellablePresentation) => data.presentation_discounts[p.id] !== undefined;
+    /** % que lleva esa presentación. 0 = sin descuento */
+    const percentOf = (p: SellablePresentation) => Number((wholeBatch ? data.discount_percent : data.presentation_discounts[p.id]) || 0);
+    const isBelowCost = (p: SellablePresentation) =>
+        row !== null && percentOf(p) > 0 && (p.sale_price / p.factor) * (1 - percentOf(p) / 100) < row.unit_cost;
+    const belowCost = presentations.some(isBelowCost);
+    const missingPercent = wholeBatch ? !Number(data.discount_percent) : chosen.some((percent) => !Number(percent));
+    const firstError = Object.values(errors)[0];
+
+    const setPresentationPercent = (id: number, percent: string) =>
+        setData('presentation_discounts', { ...data.presentation_discounts, [id]: percent });
+
+    const togglePresentation = (id: number, checked: boolean) => {
+        const others = Object.fromEntries(Object.entries(data.presentation_discounts).filter(([other]) => Number(other) !== id));
+        setData('presentation_discounts', checked ? { ...others, [id]: data.discount_percent } : others);
+    };
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -294,34 +345,61 @@ function ApplyDialog({
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-2">
-                        <Label htmlFor="discount">Descuento (%)</Label>
-                        <Input
-                            id="discount"
-                            type="number"
-                            min={1}
-                            max={99}
-                            step="0.5"
-                            value={data.discount_percent}
-                            onChange={(e) => setData('discount_percent', e.target.value)}
-                            autoFocus
-                        />
-                        <InputError message={errors.discount_percent} />
-                    </div>
-                    <div className="bg-muted/40 grid grid-cols-3 gap-2 rounded-lg p-3 text-sm">
-                        <div>
-                            <p className="text-muted-foreground text-xs">Costo c/u</p>
-                            <p className="num font-medium">{money(row?.unit_cost)}</p>
+                        <Label>Aplicar a</Label>
+                        <div className="divide-y rounded-lg border">
+                            <div className="flex min-h-12 items-center gap-2.5 px-3 py-2 text-sm">
+                                <label className="flex flex-1 cursor-pointer items-center gap-2.5">
+                                    {canChoose && <Checkbox checked={wholeBatch} onCheckedChange={() => setData('presentation_discounts', {})} />}
+                                    <span className="font-medium">Todo el lote</span>
+                                </label>
+                                {wholeBatch && (
+                                    <PercentInput
+                                        label="Descuento de todo el lote"
+                                        value={data.discount_percent}
+                                        onChange={(value) => setData('discount_percent', value)}
+                                        autoFocus
+                                    />
+                                )}
+                            </div>
+                            {presentations.map((p) => (
+                                <div key={p.id} className="flex min-h-12 items-center gap-2.5 px-3 py-2 text-sm">
+                                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5">
+                                        {canChoose && (
+                                            <Checkbox
+                                                checked={isChosen(p)}
+                                                onCheckedChange={(checked) => togglePresentation(p.id, checked === true)}
+                                            />
+                                        )}
+                                        <span className="min-w-0">
+                                            {p.name}
+                                            <span className="text-muted-foreground block text-xs">
+                                                Costo {money((row?.unit_cost ?? 0) * p.factor)}
+                                            </span>
+                                        </span>
+                                    </label>
+                                    {isChosen(p) && (
+                                        <PercentInput
+                                            label={`Descuento de ${p.name}`}
+                                            value={data.presentation_discounts[p.id]}
+                                            onChange={(value) => setPresentationPercent(p.id, value)}
+                                        />
+                                    )}
+                                    <span className="num w-20 shrink-0 text-right">
+                                        {percentOf(p) > 0 ? (
+                                            <>
+                                                <span className="text-muted-foreground block text-xs line-through">{money(p.sale_price)}</span>
+                                                <span className={`font-semibold ${isBelowCost(p) ? 'text-red-600' : 'text-emerald-600'}`}>
+                                                    {money(discounted(p.sale_price, percentOf(p)))}
+                                                </span>
+                                            </>
+                                        ) : (
+                                            money(p.sale_price)
+                                        )}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
-                        <div>
-                            <p className="text-muted-foreground text-xs">Precio normal</p>
-                            <p className="num font-medium">{row?.unit_price === null ? '—' : money(row?.unit_price)}</p>
-                        </div>
-                        <div>
-                            <p className="text-muted-foreground text-xs">Precio con promo</p>
-                            <p className={`num font-semibold ${belowCost ? 'text-red-600' : 'text-emerald-600'}`}>
-                                {final === null ? '—' : money(final)}
-                            </p>
-                        </div>
+                        <InputError message={firstError} />
                     </div>
                     {belowCost && (
                         <p className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
@@ -335,7 +413,7 @@ function ApplyDialog({
                         <Button type="button" variant="outline" onClick={onClose}>
                             Cancelar
                         </Button>
-                        <Button type="submit" className="btn-brand" disabled={processing || (belowCost && !canApproveBelowCost)}>
+                        <Button type="submit" className="btn-brand" disabled={processing || missingPercent || (belowCost && !canApproveBelowCost)}>
                             {processing && <LoaderCircle className="size-4 animate-spin" />}
                             Aplicar promoción
                         </Button>
@@ -343,6 +421,36 @@ function ApplyDialog({
                 </form>
             </DialogContent>
         </Dialog>
+    );
+}
+
+/** Casilla chica para el % de descuento. */
+function PercentInput({
+    label,
+    value,
+    onChange,
+    autoFocus,
+}: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    autoFocus?: boolean;
+}) {
+    return (
+        <div className="relative w-20 shrink-0">
+            <Input
+                aria-label={label}
+                type="number"
+                min={1}
+                max={99}
+                step="0.5"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                autoFocus={autoFocus}
+                className="h-8 pr-6 text-right"
+            />
+            <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs">%</span>
+        </div>
     );
 }
 

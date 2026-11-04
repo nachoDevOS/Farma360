@@ -110,7 +110,7 @@ class SaleController extends Controller
             return $p->presentations->where('is_sellable', true)
                 ->sortByDesc(fn (ProductPresentation $pres) => $pres->barcode !== null && $pres->barcode === $search)
                 ->values()
-                ->map(fn ($pres) => [
+                ->map(fn (ProductPresentation $pres) => [
                     'product_id' => $p->id,
                     'product_name' => $p->fullName(),
                     'commercial_name' => $p->name,
@@ -135,7 +135,7 @@ class SaleController extends Controller
                     'sale_price' => (float) $pres->sale_price,
                     'stock_units' => (int) $productBatches->sum('stock'),
                     'next_expiry' => $first?->expires_at?->toDateString(),
-                    'promo_discount' => $first?->activePromotion ? (float) $first->activePromotion->discount_percent : null,
+                    'promo_discount' => $first?->activePromotion?->discountFor($pres) ?: null,
                 ]);
         })->values());
     }

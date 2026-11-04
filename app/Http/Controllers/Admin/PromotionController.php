@@ -11,6 +11,7 @@ use App\Models\ExpiryPromotionRule;
 use App\Services\PromotionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -48,6 +49,7 @@ class PromotionController extends Controller
             ]),
             'active' => $active->through(fn (BatchPromotion $p) => $this->batchRow($p->batch) + [
                 'promotion_id' => $p->id,
+                'presentation_discounts' => $p->presentations,
                 'discount_percent' => $p->discount_percent,
                 'source' => $p->source,
                 'below_cost' => $p->below_cost,
@@ -59,18 +61,23 @@ class PromotionController extends Controller
         ]);
     }
 
-    /** POST /admin/promotions/apply — descuento manual a un lote. */
+    /** POST /admin/promotions/apply — descuento manual a un lote, entero o a las presentaciones elegidas, cada una con su %. */
     public function apply(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'batch_id' => ['required', 'integer'],
-            'discount_percent' => ['required', 'numeric', 'gt:0', 'lt:100'],
-        ], [], ['discount_percent' => 'descuento']);
+            'discount_percent' => [Rule::requiredIf(! $request->filled('presentation_discounts')), 'nullable', 'numeric', 'gt:0', 'lt:100'],
+            'presentation_discounts' => ['array'],
+            'presentation_discounts.*' => ['required', 'numeric', 'gt:0', 'lt:100'],
+        ], [], ['discount_percent' => 'descuento', 'presentation_discounts.*' => 'descuento']);
 
         $batch = $this->allowedBatch($request, $data['batch_id']);
-        $this->promotions->apply($batch, (float) $data['discount_percent'], $request->user());
+        $discounts = array_map('floatval', $data['presentation_discounts'] ?? []);
+        $promotion = $this->promotions->apply($batch, (float) ($data['discount_percent'] ?? 0), $request->user(), 'manual', $discounts);
 
-        return back()->with('success', "Promoción de {$data['discount_percent']}% aplicada al lote {$batch->batch_number}.");
+        return back()->with('success', $promotion->presentations->isEmpty()
+            ? "Promoción de {$data['discount_percent']}% aplicada al lote {$batch->batch_number}."
+            : "Promoción aplicada al lote {$batch->batch_number}: ".$promotion->presentations->map(fn ($p) => $p->name.' '.(float) $p->pivot->discount_percent.'%')->join(', ').'.');
     }
 
     /** POST /admin/promotions/apply-suggested — aplica todas las sugeridas. */
@@ -135,7 +142,8 @@ class PromotionController extends Controller
     private function batchRow(Batch $batch): array
     {
         // La presentación más chica que se vende (las presentaciones vienen ordenadas por factor)
-        $smallest = $batch->product->presentations->first(fn ($p) => $p->is_sellable && $p->sale_price !== null);
+        $sellable = $batch->product->presentations->filter(fn ($p) => $p->is_sellable && $p->sale_price !== null)->values();
+        $smallest = $sellable->first();
 
         return [
             'batch_id' => $batch->id,
@@ -149,6 +157,13 @@ class PromotionController extends Controller
             'unit_cost' => (float) $batch->unit_cost,
             // Precio normal de una unidad base (de la presentación más chica)
             'unit_price' => $smallest ? round($smallest->sale_price / $smallest->factor, 4) : null,
+            // Para elegir a cuál hacerle el descuento y ver el precio que queda
+            'presentations' => $sellable->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'factor' => $p->factor,
+                'sale_price' => (float) $p->sale_price,
+            ])->all(),
         ];
     }
 }

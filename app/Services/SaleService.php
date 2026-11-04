@@ -61,7 +61,8 @@ class SaleService
 
                 foreach ($this->inventory->allocate($product->id, $session->branch_id, $units, $reserved) as $allocation) {
                     $batch = $allocation['batch'];
-                    $discount = (float) ($batch->activePromotion?->discount_percent ?? 0);
+                    // Cada presentación puede tener su propio % o ninguno (ej: caja 20%, tableta nada)
+                    $discount = $batch->activePromotion?->discountFor($presentation) ?? 0.0;
                     // Sin descuento, con el precio de la presentación vendida (el blíster puede salir más barato por tableta)
                     $subtotal = round($unitPrice * $allocation['units'], 2);
                     $discountAmount = round($subtotal * $discount / 100, 2);

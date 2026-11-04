@@ -11,7 +11,7 @@
  */
 import { BranchMenu } from '@/components/admin/common/branch-menu';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
-import { ExpiryBadge, PromoBadge } from '@/components/admin/common/doc-status';
+import { BatchPromoBadge, ExpiryBadge } from '@/components/admin/common/doc-status';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { QuantityInput } from '@/components/admin/common/quantity-input';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
@@ -342,7 +342,14 @@ export default function InventoryShow({
                                                 </Td>
                                                 <Td align="right">{money(batch.unit_cost)}</Td>
                                                 <Td>
-                                                    {batch.active_promotion ? <PromoBadge percent={batch.active_promotion.discount_percent} /> : '—'}
+                                                    {batch.active_promotion ? (
+                                                        <BatchPromoBadge
+                                                            percent={batch.active_promotion.discount_percent}
+                                                            presentations={batch.active_promotion.presentations}
+                                                        />
+                                                    ) : (
+                                                        '—'
+                                                    )}
                                                 </Td>
                                                 {can('inventario.ajustar') && (
                                                     <Td align="right">

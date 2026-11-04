@@ -4,6 +4,7 @@
  * Y otras etiquetas chicas de la farmacia: vencimiento, promoción.
  */
 import { cn } from '@/lib/utils';
+import { type PromoPresentation } from '@/types/admin/pharmacy';
 
 const styles: Record<string, { label: string; dot: string }> = {
     registrada: { label: 'Registrada', dot: 'bg-emerald-500' },
@@ -72,13 +73,34 @@ export function ExpiryBadge({
     );
 }
 
-/** Etiqueta verde de descuento: <PromoBadge percent={20} /> → "-20%". */
-export function PromoBadge({ percent, className }: { percent: number | string; className?: string }) {
+/** Etiqueta verde de descuento: <PromoBadge percent={20} /> → "-20%". Si es de una presentación: only="Caja" → "-20% solo Caja". */
+export function PromoBadge({ percent, only, className }: { percent: number | string; only?: string | null; className?: string }) {
     return (
-        <span
-            className={cn('num rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400', className)}
-        >
-            -{Number(percent)}%
+        <span>
+            <span
+                className={cn(
+                    'num rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400',
+                    className,
+                )}
+            >
+                -{Number(percent)}%
+            </span>
+            {only && <span className="text-muted-foreground ml-1 text-xs">solo {only}</span>}
+        </span>
+    );
+}
+
+/** Descuento de un lote: uno solo si es para todo el lote, o una etiqueta por presentación con su %. */
+export function BatchPromoBadge({ percent, presentations }: { percent: number | string; presentations: PromoPresentation[] }) {
+    if (presentations.length === 0) {
+        return <PromoBadge percent={percent} />;
+    }
+
+    return (
+        <span className="grid gap-1">
+            {presentations.map((presentation) => (
+                <PromoBadge key={presentation.id} percent={presentation.pivot.discount_percent} only={presentation.name} />
+            ))}
         </span>
     );
 }

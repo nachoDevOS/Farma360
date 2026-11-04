@@ -171,8 +171,17 @@ export interface BatchLookup {
     expired: boolean;
 }
 
+/** Presentación con descuento propio dentro de una promoción. */
+export interface PromoPresentation {
+    id: number;
+    name: string;
+    pivot: { discount_percent: string };
+}
+
 export interface BatchPromotion {
     id: number;
+    /** Solo esas tienen descuento, cada una con su %. Vacío = discount_percent vale para todo el lote */
+    presentations: PromoPresentation[];
     discount_percent: string;
     source: 'regla' | 'manual';
     below_cost: boolean;

@@ -12,7 +12,7 @@
  * Con una sucursal elegida arriba de la página (selected) muestra solo esa, con sus totales y sus lotes ya abiertos;
  * con "Todas", todas las sucursales. La página le pone key={sucursal} para que al cambiar se abra de nuevo.
  */
-import { ExpiryBadge, PromoBadge } from '@/components/admin/common/doc-status';
+import { BatchPromoBadge, ExpiryBadge } from '@/components/admin/common/doc-status';
 import { BatchDetail, BatchOrigin, type BatchWithDetail } from '@/components/admin/inventory/batch-detail';
 import { coverageTone, daysText, type Performance } from '@/components/admin/products/product-performance';
 import { StockBreakdown } from '@/components/admin/products/stock-breakdown';
@@ -277,7 +277,10 @@ export function BranchStockDetail({
                                                                             </td>
                                                                             <td className="px-3 py-2">
                                                                                 {lot.active_promotion ? (
-                                                                                    <PromoBadge percent={lot.active_promotion.discount_percent} />
+                                                                                    <BatchPromoBadge
+                                                                                        percent={lot.active_promotion.discount_percent}
+                                                                                        presentations={lot.active_promotion.presentations}
+                                                                                    />
                                                                                 ) : (
                                                                                     <span className="text-muted-foreground">—</span>
                                                                                 )}

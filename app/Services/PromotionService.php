@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\DB;
  * Reglas (tabla expiry_promotion_rules): "faltan 60 días o menos → 20%". Se usa la regla más ajustada:
  * con 45 días de vida y reglas 90/60/30, aplica la de 60.
  * El punto de venta cobra solo el precio con descuento del lote que sale (SaleService).
+ * Un descuento vale para todo el lote o solo para las presentaciones elegidas, cada una con su % (ej: blíster 10%, caja 20%).
+ * Las reglas automáticas son para todo el lote.
  */
 class PromotionService
 {
@@ -66,21 +68,30 @@ class PromotionService
             ->values();
     }
 
-    /** ¿Con ese descuento alguna presentación que se vende quedaría por debajo del costo del lote? */
-    public function isBelowCost(Batch $batch, float $percent): bool
+    /**
+     * ¿Con ese descuento alguna presentación que se vende quedaría por debajo del costo del lote?
+     *
+     * @param  array<int, float>  $presentationDiscounts  [id de presentación => %]: mirar solo esas, cada una con su %. Vacío = $percent para todas.
+     */
+    public function isBelowCost(Batch $batch, float $percent, array $presentationDiscounts = []): bool
     {
-        return $batch->product->presentations->contains(
-            fn ($presentation) => $presentation->is_sellable && $presentation->sale_price !== null
-                && ($presentation->sale_price / $presentation->factor) * (1 - $percent / 100) < (float) $batch->unit_cost,
-        );
+        return $batch->product->presentations->contains(function ($presentation) use ($batch, $percent, $presentationDiscounts) {
+            $discount = $presentationDiscounts === [] ? $percent : ($presentationDiscounts[$presentation->id] ?? null);
+
+            return $discount !== null && $presentation->is_sellable && $presentation->sale_price !== null
+                && ($presentation->sale_price / $presentation->factor) * (1 - $discount / 100) < (float) $batch->unit_cost;
+        });
     }
 
     /**
      * Aplica un descuento al lote (reemplaza el que tenía). Por debajo del costo solo con el permiso promociones.aprobar.
+     *
+     * @param  array<int, float>  $presentationDiscounts  [id de presentación => %]: solo esas, cada una con su %. Vacío = $percent para todo el lote.
      */
-    public function apply(Batch $batch, float $percent, User $user, string $source = 'manual'): BatchPromotion
+    public function apply(Batch $batch, float $percent, User $user, string $source = 'manual', array $presentationDiscounts = []): BatchPromotion
     {
-        if ($percent <= 0 || $percent >= 100) {
+        $percents = $presentationDiscounts ?: [$percent];
+        if (min($percents) <= 0 || max($percents) >= 100) {
             throw new BusinessException('El descuento debe ser mayor a 0% y menor a 100%.');
         }
 
@@ -88,20 +99,31 @@ class PromotionService
             throw new BusinessException("El lote {$batch->batch_number} ya venció: no se puede vender.");
         }
 
-        $belowCost = $this->isBelowCost($batch->loadMissing('product.presentations'), $percent);
-        if ($belowCost && ! $user->can('promociones.aprobar')) {
-            throw new BusinessException("Con {$percent}% el lote {$batch->batch_number} se vendería por debajo del costo. Necesitas el permiso para aprobarlo.");
+        $batch->loadMissing('product.presentations');
+        $sellable = $batch->product->presentations->filter(fn ($presentation) => $presentation->is_sellable && $presentation->sale_price !== null);
+        if (collect($presentationDiscounts)->keys()->diff($sellable->pluck('id'))->isNotEmpty()) {
+            throw new BusinessException('Esa presentación no se vende en este producto.');
         }
 
-        return DB::transaction(function () use ($batch, $percent, $source, $belowCost) {
+        $belowCost = $this->isBelowCost($batch, $percent, $presentationDiscounts);
+        if ($belowCost && ! $user->can('promociones.aprobar')) {
+            throw new BusinessException("Con ese descuento el lote {$batch->batch_number} se vendería por debajo del costo. Necesitas el permiso para aprobarlo.");
+        }
+
+        return DB::transaction(function () use ($batch, $percents, $source, $belowCost, $presentationDiscounts) {
             $this->deactivate($batch);
 
-            return BatchPromotion::create([
+            $promotion = BatchPromotion::create([
                 'batch_id' => $batch->id,
-                'discount_percent' => $percent,
+                'discount_percent' => max($percents),
                 'source' => $source,
                 'below_cost' => $belowCost,
             ]);
+            $promotion->presentations()->sync(
+                collect($presentationDiscounts)->map(fn (float $discount) => ['discount_percent' => $discount])->all(),
+            );
+
+            return $promotion->load('presentations');
         });
     }
 
