@@ -2,6 +2,7 @@
  * MARCO DE LOGIN / REGISTRO / RECUPERAR CONTRASEÑA: mitad izquierda con la marca (siempre oscura) y mitad derecha con el formulario.
  */
 import { AppLogoMark } from '@/components/shared/app-logo';
+import { DevelopedBy } from '@/components/shared/developed-by';
 import { FlashToast } from '@/components/shared/flash-toast';
 import { Link } from '@inertiajs/react';
 import { BarChart3, ShieldCheck, Users } from 'lucide-react';
@@ -63,17 +64,7 @@ export default function AuthLayout({ children, title, description }: AuthLayoutP
                         <p className="text-muted-foreground text-sm">{description}</p>
                     </div>
                     {children}
-                    <p className="text-muted-foreground text-center text-xs">
-                        Desarrollado por{' '}
-                        <a
-                            href="https://www.soluciondigital.dev/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-foreground font-medium hover:underline"
-                        >
-                            soluciondigital.dev
-                        </a>
-                    </p>
+                    <DevelopedBy />
                 </div>
             </div>
             <FlashToast />

@@ -11,6 +11,8 @@
     --font-sans:
         'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
     --font-display: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+    /* Letra del ticket impreso (ver sale-ticket.tsx) */
+    --font-ticket: 'Share Tech Mono', ui-monospace, 'Courier New', monospace;
     /* Colores de la marca (corporativo azul) */
     --color-brand-blue: #0d6efd;
     --color-brand-blue-light: #60a5fa;

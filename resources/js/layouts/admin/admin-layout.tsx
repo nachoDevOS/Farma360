@@ -4,6 +4,7 @@
  */
 import { AdminHeader } from '@/components/admin/layout/admin-header';
 import { AdminSidebar } from '@/components/admin/layout/admin-sidebar';
+import { DevelopedBy } from '@/components/shared/developed-by';
 import { FlashToast } from '@/components/shared/flash-toast';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { type BreadcrumbItem } from '@/types';
@@ -25,6 +26,9 @@ export default function AdminLayout({ children, breadcrumbs = [] }: { children: 
                 <AdminHeader breadcrumbs={breadcrumbs} />
                 {/* Aquí se dibuja la página actual (dashboard, usuarios…) */}
                 {children}
+                <footer className="mt-auto px-6 py-4">
+                    <DevelopedBy />
+                </footer>
             </SidebarInset>
             {/* Avisos de éxito / error (esquina inferior derecha) */}
             <FlashToast />

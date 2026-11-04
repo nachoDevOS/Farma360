@@ -14,7 +14,7 @@ import { ActionButton, RowActions } from '@/components/admin/common/row-actions'
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { TableToolbar } from '@/components/admin/common/table-toolbar';
 import { SaleItemsTable } from '@/components/admin/sales/sale-items-table';
-import { TicketPrint } from '@/components/admin/sales/sale-ticket';
+import { printTicket, TicketPrint } from '@/components/admin/sales/sale-ticket';
 import { Pagination } from '@/components/shared/pagination';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,7 +54,7 @@ export default function SalesIndex({ sales, filters, branches, paymentMethods }:
     useEffect(() => {
         if (printing) {
             window.addEventListener('afterprint', () => setPrinting(null), { once: true });
-            window.print();
+            printTicket();
         }
     }, [printing]);
 

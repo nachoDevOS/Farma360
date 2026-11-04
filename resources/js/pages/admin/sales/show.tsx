@@ -11,7 +11,7 @@ import { DocStatus, ExpiryBadge, PromoBadge } from '@/components/admin/common/do
 import { StoredImage } from '@/components/admin/common/image-upload';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import { countOf } from '@/components/admin/products/presentation-levels';
-import { TicketPrint } from '@/components/admin/sales/sale-ticket';
+import { printTicket, TicketPrint } from '@/components/admin/sales/sale-ticket';
 import { Button } from '@/components/ui/button';
 import { useCan } from '@/hooks/use-can';
 import AdminLayout from '@/layouts/admin/admin-layout';
@@ -87,7 +87,7 @@ export default function SaleShow({ sale, paymentMethods }: Props) {
                                 <Ban /> Anular
                             </Button>
                         )}
-                        <Button variant="outline" size="sm" onClick={() => window.print()}>
+                        <Button variant="outline" size="sm" onClick={printTicket}>
                             <Printer /> Imprimir
                         </Button>
                         {can('ventas.crear') && (
