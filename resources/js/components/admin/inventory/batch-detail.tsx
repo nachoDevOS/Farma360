@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 
 /** Un movimiento del lote. Ver InventoryController@movementRow. */
-export interface BatchMovement {
+interface BatchMovement {
     id: number;
     date: string;
     type: string;

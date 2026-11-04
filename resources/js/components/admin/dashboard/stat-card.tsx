@@ -4,7 +4,7 @@
 import { cn } from '@/lib/utils';
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 
-export interface Kpi {
+interface Kpi {
     label: string;
     value: number;
     /** Texto chico debajo del número */

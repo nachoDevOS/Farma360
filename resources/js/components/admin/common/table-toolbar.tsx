@@ -25,7 +25,7 @@ import { CornerDownLeft, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 /** Opciones de "Mostrar N registros". Deben coincidir con PER_PAGE_OPTIONS en app/Http/Controllers/Controller.php */
-export const PER_PAGE_OPTIONS = [10, 15, 25, 50, 100];
+const PER_PAGE_OPTIONS = [10, 15, 25, 50, 100];
 
 /** Milisegundos sin escribir antes de buscar solo (3 segundos). */
 const SEARCH_DELAY = 3000;

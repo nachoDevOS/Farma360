@@ -30,9 +30,4 @@ class Branch extends Model
     {
         return $this->hasMany(Batch::class);
     }
-
-    public function cashRegisters(): HasMany
-    {
-        return $this->hasMany(CashRegister::class);
-    }
 }

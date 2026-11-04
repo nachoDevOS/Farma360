@@ -58,7 +58,7 @@ export const monthName = (month: string, withYear = false) => {
     return new Date(y, m - 1, 1).toLocaleDateString('es', withYear ? { month: 'long', year: 'numeric' } : { month: 'short' }).replace('.', '');
 };
 
-export function SalesByMonthChart({ months, units }: { months: MonthSales[]; units: string }) {
+function SalesByMonthChart({ months, units }: { months: MonthSales[]; units: string }) {
     const [measure, setMeasure] = useState<'units' | 'amount'>('amount');
     const [hover, setHover] = useState<number | null>(null);
     const HEIGHT = 200;
@@ -254,7 +254,7 @@ export function Row({ label, value, strong }: { label: string; value: string; st
     );
 }
 
-export function Swatch({ className, label }: { className: string; label: string }) {
+function Swatch({ className, label }: { className: string; label: string }) {
     return (
         <span className="flex items-center gap-1.5">
             <span className={cn('size-2.5 rounded-[3px]', className)} />
@@ -287,7 +287,7 @@ const dayTime = (date: string) => {
     return new Date(y, m - 1, d).getTime();
 };
 
-export function PriceChart({
+function PriceChart({
     series,
     costs,
     unit,

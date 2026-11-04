@@ -51,7 +51,7 @@ export function unitsText(units: number, baseUnit: string): string {
 }
 
 /** Saca las unidades de los lotes en orden; los vencidos no se usan solos. */
-export function distribute(units: number, batches: BatchLookup[]): LotQuantities {
+function distribute(units: number, batches: BatchLookup[]): LotQuantities {
     const quantities: LotQuantities = {};
     let pending = units;
     batches

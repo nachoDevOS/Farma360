@@ -3,11 +3,9 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 /**
@@ -70,28 +68,10 @@ class ProductPresentation extends Model
         return $this->belongsTo(Product::class);
     }
 
-    /** Cambios de su precio de venta. */
-    public function priceHistories(): HasMany
-    {
-        return $this->hasMany(ProductPriceHistory::class);
-    }
-
     /** Presentación que contiene (la Caja contiene Blísteres). Null = unidad base. */
     public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_id')->withTrashed();
-    }
-
-    /** Solo las que aparecen en el punto de venta. */
-    public function scopeSellable(Builder $query): void
-    {
-        $query->where('is_sellable', true);
-    }
-
-    /** Solo las que aparecen al registrar compras. */
-    public function scopePurchasable(Builder $query): void
-    {
-        $query->where('is_purchasable', true);
     }
 
     /**

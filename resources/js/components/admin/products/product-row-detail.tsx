@@ -182,7 +182,7 @@ export function PresentationsTable({
 }
 
 /** Stock por sucursal (lotes con stock). inventoryLink: enlace a los lotes y kardex de cada sucursal. */
-export function BranchStockTable({ product, inventoryLink, className }: { product: Product; inventoryLink?: boolean; className?: string }) {
+function BranchStockTable({ product, inventoryLink, className }: { product: Product; inventoryLink?: boolean; className?: string }) {
     const stocks = product.branch_stock ?? [];
     const total = stocks.reduce((sum, s) => sum + s.stock, 0);
 

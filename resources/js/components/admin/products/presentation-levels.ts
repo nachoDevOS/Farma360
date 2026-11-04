@@ -110,7 +110,7 @@ export function levelName(rows: LevelRow[], index: number, baseUnit: string): st
 }
 
 /** ¿Es el mismo nombre de empaque? Sin mayúsculas, tildes ni plural: "Frasco" = "frascos". Igual que ProductPresentation::sameName. */
-export function sameName(a: string, b: string): boolean {
+function sameName(a: string, b: string): boolean {
     const x = normalize(a);
     const y = normalize(b);
     return x !== '' && (x === y || plural(x) === y || x === plural(y));
@@ -148,7 +148,7 @@ const round2 = (value: number) => Math.round(value * 100) / 100;
  * Precio de UNA unidad base que sirve de referencia: el de la presentación más chica que se vende
  * y cuyo precio escribió el usuario.
  */
-export function referenceUnitPrice(rows: LevelRow[]): number | null {
+function referenceUnitPrice(rows: LevelRow[]): number | null {
     const factors = factorsOf(rows);
     const candidates = rows
         .map((r, i) => ({ r, factor: factors[i] }))

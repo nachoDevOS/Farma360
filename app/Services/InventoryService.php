@@ -27,12 +27,6 @@ class InventoryService
         return (int) Batch::where('product_id', $productId)->where('branch_id', $branchId)->sum('stock');
     }
 
-    /** Stock que se puede vender (lotes sin vencer). */
-    public function sellableStock(int $productId, int $branchId): int
-    {
-        return (int) Batch::where('product_id', $productId)->where('branch_id', $branchId)->sellable()->sum('stock');
-    }
-
     /**
      * Crea un lote vacío (sin stock). Después se le suma con receive().
      *

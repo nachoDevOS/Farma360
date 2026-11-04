@@ -87,8 +87,6 @@ interface Column {
     type?: 'text' | 'title' | 'person' | 'boolean' | 'status' | 'money' | 'docStatus' | 'image';
     /** Otra columna que va chica debajo */
     hint?: string;
-    /** Texto si no hay valor */
-    empty?: string;
     /** [columna, valor]: si esa columna tiene ese valor, la persona está trabajando ahora (punto verde) */
     live?: [string, string];
 }
@@ -98,8 +96,6 @@ interface Stat {
     value: number;
     icon: string;
     tone?: 'blue' | 'green' | 'amber' | 'red' | 'violet' | 'slate';
-    hint?: string;
-    money?: boolean;
     /** Al hacer clic aplica esos filtros de la lista */
     filter?: Record<string, string>;
 }
@@ -178,9 +174,8 @@ export default function ResourceIndex({ resource, rows, stats, selectFilters, fi
                                 key={stat.label}
                                 icon={statIcons[stat.icon] ?? Tags}
                                 label={stat.label}
-                                value={stat.money ? money(stat.value) : stat.value}
+                                value={stat.value}
                                 tone={stat.tone}
-                                hint={stat.hint}
                                 onClick={stat.filter ? () => applyFilters(stat.filter as Record<string, string>) : undefined}
                                 compact
                             />
@@ -275,7 +270,7 @@ export default function ResourceIndex({ resource, rows, stats, selectFilters, fi
 function Cell({ column, value, hint, live, icon: Icon }: { column: Column; value: unknown; hint: unknown; live: boolean; icon: LucideIcon }) {
     const small = hint ? String(hint) : null;
     if (column.type === 'docStatus') {
-        return value ? <DocStatus status={String(value)} /> : <span className="text-muted-foreground">{column.empty ?? '—'}</span>;
+        return value ? <DocStatus status={String(value)} /> : <span className="text-muted-foreground">—</span>;
     }
     if (column.type === 'title') {
         return (
@@ -287,7 +282,7 @@ function Cell({ column, value, hint, live, icon: Icon }: { column: Column; value
     }
     if (column.type === 'person') {
         if (!value) {
-            return <span className="text-muted-foreground">{column.empty ?? '—'}</span>;
+            return <span className="text-muted-foreground">—</span>;
         }
         const initials = String(value)
             .split(' ')

@@ -22,12 +22,6 @@ use Illuminate\Auth\Access\Response;
  */
 class UserPolicy
 {
-    /** Ver el listado de usuarios. */
-    public function viewAny(User $actor): bool
-    {
-        return $actor->can('usuarios.ver');
-    }
-
     /** Crear usuarios desde el panel. */
     public function create(User $actor): bool
     {

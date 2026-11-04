@@ -34,7 +34,7 @@ import { AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarClock, Check, Coin
 import { useState } from 'react';
 
 /** Un día de ventas. Ver ProductAnalytics@byDay. */
-export interface DaySales {
+interface DaySales {
     date: string;
     units: number;
     amount: number;

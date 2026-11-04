@@ -11,7 +11,7 @@ import { type SharedData } from '@/types';
 import { usePage } from '@inertiajs/react';
 
 /** Dirección completa de una ruta guardada. Si ya es una dirección (http… o /…) la deja igual; sin bucket usa /storage. */
-export function storageUrl(path: string | null | undefined, baseUrl: string | null | undefined): string | null {
+function storageUrl(path: string | null | undefined, baseUrl: string | null | undefined): string | null {
     if (!path) return null;
     if (path.startsWith('http') || path.startsWith('/') || path.startsWith('blob:')) return path;
     const file = path.replace(/^\/+/, '');

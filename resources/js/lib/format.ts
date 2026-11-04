@@ -18,7 +18,7 @@ export function formatDate(date: string, options: Intl.DateTimeFormatOptions = {
 }
 
 /** Moneda del sistema (debe coincidir con config/farmacia.php → currency). */
-export const CURRENCY = 'Bs';
+const CURRENCY = 'Bs';
 
 /** Monto con 2 decimales y moneda: money(12.5) → "Bs 12.50". Acepta los decimales que Laravel manda como texto. */
 export function money(value: number | string | null | undefined, withCurrency = true): string {

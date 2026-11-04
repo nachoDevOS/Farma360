@@ -49,10 +49,9 @@ abstract class ResourceController extends Controller
     /**
      * Columnas de la tabla. type: text | title (nombre en negrita) | person (iniciales y nombre) | boolean | status | money
      * | docStatus (etiqueta de estado de un documento) | image (miniatura de la ruta guardada en S3).
-     * hint: otra columna que va chica debajo. empty: texto si no hay valor.
-     * live: [columna, valor] que dice que la persona está trabajando ahora (punto verde).
+     * hint: otra columna que va chica debajo. live: [columna, valor] que dice que la persona está trabajando ahora (punto verde).
      *
-     * @return list<array{key: string, label: string, type?: string, hint?: string, empty?: string, live?: array{0: string, 1: string}}>
+     * @return list<array{key: string, label: string, type?: string, hint?: string, live?: array{0: string, 1: string}}>
      */
     abstract protected function columns(): array;
 
@@ -66,10 +65,10 @@ abstract class ResourceController extends Controller
     }
 
     /**
-     * Indicadores arriba de la tabla. icon: nombre de la lista statIcons de resources/index.tsx; money: value es un monto.
+     * Indicadores arriba de la tabla. icon: nombre de la lista statIcons de resources/index.tsx.
      * filter: al hacer clic aplica esos filtros de la lista.
      *
-     * @return list<array{label: string, value: int|float, icon: string, tone?: string, hint?: string, money?: bool, filter?: array<string, string>}>
+     * @return list<array{label: string, value: int, icon: string, tone?: string, filter?: array<string, string>}>
      */
     protected function stats(): array
     {

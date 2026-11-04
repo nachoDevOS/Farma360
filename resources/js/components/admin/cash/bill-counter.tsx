@@ -20,10 +20,10 @@ import { useRef, useState } from 'react';
 export type Counts = Record<string, string>;
 
 /** Ruta de la foto: 200 → /images/cash/200.jpg · 0.5 → /images/cash/0.5.jpg */
-export const cashPhoto = (value: number | string) => `/images/cash/${Number(value)}.jpg`;
+const cashPhoto = (value: number | string) => `/images/cash/${Number(value)}.jpg`;
 
 /** "Bs 200" o "50 ctvs" */
-export const cashLabel = (value: number | string) => (Number(value) >= 1 ? `Bs ${Number(value)}` : `${Math.round(Number(value) * 100)} ctvs`);
+const cashLabel = (value: number | string) => (Number(value) >= 1 ? `Bs ${Number(value)}` : `${Math.round(Number(value) * 100)} ctvs`);
 
 export function countTotal(denominations: Denomination[], counts: Counts): number {
     return denominations.reduce((sum, d) => sum + Number(d.value) * Number(counts[d.id] || 0), 0);
