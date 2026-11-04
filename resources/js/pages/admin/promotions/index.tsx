@@ -10,9 +10,10 @@
  */
 import { ConfirmDialog } from '@/components/admin/common/confirm-dialog';
 import { DataTable, EmptyRow, Td, Th } from '@/components/admin/common/data-table';
-import { BatchPromoBadge, ExpiryBadge, PromoBadge } from '@/components/admin/common/doc-status';
+import { ExpiryBadge, PromoBadge } from '@/components/admin/common/doc-status';
 import { PageHeader } from '@/components/admin/common/page-header';
 import { ActionButton, RowActions } from '@/components/admin/common/row-actions';
+import { SegmentedControl } from '@/components/admin/common/segmented-control';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import InputError from '@/components/shared/input-error';
@@ -21,10 +22,10 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useCan } from '@/hooks/use-can';
 import AdminLayout from '@/layouts/admin/admin-layout';
 import { money } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { type Paginated } from '@/types';
 import { type Option, type PromoPresentation } from '@/types/admin/pharmacy';
 import { Head, router, useForm } from '@inertiajs/react';
@@ -88,6 +89,9 @@ interface Props {
 
 /** Precio por unidad con el descuento aplicado. */
 const discounted = (price: number | null, percent: number) => (price === null ? null : price * (1 - percent / 100));
+
+/** Columnas de la tabla de precios de la ventana de promoción (en el celular cada fila se apila). */
+const PRICE_COLUMNS = 'md:grid-cols-[minmax(0,1fr)_5.5rem_5.5rem_5.5rem_7rem]';
 
 export default function PromotionsIndex({ candidates, active, rules, branches, branch }: Props) {
     const can = useCan();
@@ -182,9 +186,7 @@ export default function PromotionsIndex({ candidates, active, rules, branches, b
                                 <Th>Producto / lote</Th>
                                 <Th>Vence</Th>
                                 <Th align="right">Stock</Th>
-                                <Th align="right">Costo c/u</Th>
-                                <Th align="right">Precio c/u</Th>
-                                <Th align="right">Descuento</Th>
+                                <Th>Promoción</Th>
                                 <Th>Aprobó</Th>
                                 {can('promociones.crear') && <Th align="right">Acciones</Th>}
                             </>
@@ -192,13 +194,9 @@ export default function PromotionsIndex({ candidates, active, rules, branches, b
                     >
                         {active.data.map((p) => (
                             <tr key={p.promotion_id}>
-                                <BatchCells row={p} />
-                                <Td align="right">
-                                    <BatchPromoBadge percent={p.discount_percent} presentations={p.presentation_discounts} />
-                                    <p className="text-muted-foreground text-xs">
-                                        {promotedPrices(p)}
-                                        {p.below_cost && <span className="text-red-600"> · bajo costo</span>}
-                                    </p>
+                                <BatchCells row={p} withPrices={false} />
+                                <Td className="md:min-w-96">
+                                    <PromoLines promo={p} />
                                 </Td>
                                 <Td className="text-muted-foreground">
                                     {p.approved_by ?? '—'}
@@ -223,7 +221,7 @@ export default function PromotionsIndex({ candidates, active, rules, branches, b
                                 )}
                             </tr>
                         ))}
-                        {active.data.length === 0 && <EmptyRow colSpan={9} text="No hay promociones vigentes." />}
+                        {active.data.length === 0 && <EmptyRow colSpan={6} text="No hay promociones vigentes." />}
                     </DataTable>
                     <Pagination paginator={active} itemName="promociones" />
                 </Panel>
@@ -250,22 +248,45 @@ export default function PromotionsIndex({ candidates, active, rules, branches, b
     );
 }
 
-/** Precio con descuento de lo que está en promoción: el de cada presentación con su % o, si es todo el lote, el de una unidad. */
-function promotedPrices(promo: ActivePromo) {
-    if (promo.presentation_discounts.length === 0) {
-        return money(discounted(promo.unit_price, Number(promo.discount_percent)));
-    }
+/**
+ * Qué tiene descuento en una promoción vigente, una línea por presentación: nombre, precio actual, precio promoción y %.
+ * Si es todo el lote va una sola línea, con los precios de una unidad.
+ */
+function PromoLines({ promo }: { promo: ActivePromo }) {
+    const lines =
+        promo.presentation_discounts.length > 0
+            ? promo.presentation_discounts.map((chosen) => ({
+                  id: chosen.id,
+                  name: chosen.name,
+                  price: promo.presentations.find((p) => p.id === chosen.id)?.sale_price ?? null,
+                  percent: Number(chosen.pivot.discount_percent),
+              }))
+            : [{ id: 0, name: 'Todo el lote', price: promo.unit_price, percent: Number(promo.discount_percent) }];
 
-    return promo.presentation_discounts
-        .map((chosen) => {
-            const presentation = promo.presentations.find((p) => p.id === chosen.id);
-            return presentation ? money(discounted(presentation.sale_price, Number(chosen.pivot.discount_percent))) : null;
-        })
-        .filter(Boolean)
-        .join(' · ');
+    return (
+        <div className="grid gap-1.5">
+            {lines.map((line) => (
+                <div key={line.id} className="grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_3rem] items-center gap-2">
+                    <span className="min-w-0">
+                        {line.name}
+                        {line.id === 0 && <span className="text-muted-foreground block text-xs">por {promo.base_unit}</span>}
+                    </span>
+                    <span className="num text-muted-foreground text-right text-xs line-through">{line.price === null ? '—' : money(line.price)}</span>
+                    <span className="num text-right font-semibold text-emerald-700 dark:text-emerald-400">
+                        {line.price === null ? '—' : money(discounted(line.price, line.percent))}
+                    </span>
+                    <span className="text-right">
+                        <PromoBadge percent={line.percent} />
+                    </span>
+                </div>
+            ))}
+            {promo.below_cost && <p className="text-xs text-red-600">Bajo el costo de compra</p>}
+        </div>
+    );
 }
 
-function BatchCells({ row }: { row: BatchRow }) {
+/** Columnas del lote. withPrices: costo y precio de una unidad. */
+function BatchCells({ row, withPrices = true }: { row: BatchRow; withPrices?: boolean }) {
     return (
         <>
             <Td>
@@ -280,13 +301,19 @@ function BatchCells({ row }: { row: BatchRow }) {
             <Td align="right">
                 {row.stock.toLocaleString('es')} <span className="text-muted-foreground text-xs">{row.base_unit}</span>
             </Td>
-            <Td align="right">{money(row.unit_cost)}</Td>
-            <Td align="right">{row.unit_price === null ? '—' : money(row.unit_price)}</Td>
+            {withPrices && (
+                <>
+                    <Td align="right">{money(row.unit_cost)}</Td>
+                    <Td align="right">{row.unit_price === null ? '—' : money(row.unit_price)}</Td>
+                </>
+            )}
         </>
     );
 }
 
 function ApplyDialog({ row, onClose, canApproveBelowCost }: { row: ApplyingRow | null; onClose: () => void; canApproveBelowCost: boolean }) {
+    // A qué se le hace el descuento: todo el lote con un solo % o las presentaciones elegidas con su propio %
+    const [target, setTarget] = useState<'lote' | 'presentaciones'>('lote');
     const { data, setData, post, processing, errors, clearErrors } = useForm({
         batch_id: 0,
         discount_percent: '',
@@ -297,6 +324,7 @@ function ApplyDialog({ row, onClose, canApproveBelowCost }: { row: ApplyingRow |
     useEffect(() => {
         if (!row) return;
         clearErrors();
+        setTarget(row.presentation_discounts?.length ? 'presentaciones' : 'lote');
         setData({
             batch_id: row.batch_id,
             discount_percent: String(row.percent),
@@ -310,14 +338,18 @@ function ApplyDialog({ row, onClose, canApproveBelowCost }: { row: ApplyingRow |
     const presentations = row?.presentations ?? [];
     const canChoose = presentations.length > 1;
     const chosen = Object.values(data.presentation_discounts);
-    const wholeBatch = chosen.length === 0;
+    const wholeBatch = target === 'lote';
     const isChosen = (p: SellablePresentation) => data.presentation_discounts[p.id] !== undefined;
     /** % que lleva esa presentación. 0 = sin descuento */
     const percentOf = (p: SellablePresentation) => Number((wholeBatch ? data.discount_percent : data.presentation_discounts[p.id]) || 0);
     const isBelowCost = (p: SellablePresentation) =>
         row !== null && percentOf(p) > 0 && (p.sale_price / p.factor) * (1 - percentOf(p) / 100) < row.unit_cost;
     const belowCost = presentations.some(isBelowCost);
-    const missingPercent = wholeBatch ? !Number(data.discount_percent) : chosen.some((percent) => !Number(percent));
+    /** Cuántas de esa presentación alcanzan con el stock del lote (cajas completas, blísteres completos…) */
+    const availableOf = (p: SellablePresentation) => Math.floor((row?.stock ?? 0) / p.factor);
+    /** Lo que entra si se venden todas las de esa presentación, ya con su descuento */
+    const sellAllTotal = (p: SellablePresentation) => availableOf(p) * (discounted(p.sale_price, percentOf(p)) ?? 0);
+    const missingPercent = wholeBatch ? !Number(data.discount_percent) : chosen.length === 0 || chosen.some((percent) => !Number(percent));
     const firstError = Object.values(errors)[0];
 
     const setPresentationPercent = (id: number, percent: string) =>
@@ -328,6 +360,13 @@ function ApplyDialog({ row, onClose, canApproveBelowCost }: { row: ApplyingRow |
         setData('presentation_discounts', checked ? { ...others, [id]: data.discount_percent } : others);
     };
 
+    const changeTarget = (value: 'lote' | 'presentaciones') => {
+        setTarget(value);
+        if (value === 'lote') {
+            setData('presentation_discounts', {});
+        }
+    };
+
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         post(route('admin.promotions.apply'), { preserveScroll: true, onSuccess: () => onClose() });
@@ -335,81 +374,165 @@ function ApplyDialog({ row, onClose, canApproveBelowCost }: { row: ApplyingRow |
 
     return (
         <Dialog open={row !== null} onOpenChange={(value) => !value && onClose()}>
-            <DialogContent className="sm:max-w-md">
-                <form onSubmit={submit} className="grid gap-4">
-                    <DialogHeader>
-                        <DialogTitle>Promoción para el lote {row?.batch_number}</DialogTitle>
-                        <DialogDescription>
-                            {row?.product_name} · {row?.days_left != null ? `vence en ${row.days_left} días` : 'sin vencimiento'} · {row?.stock}{' '}
-                            {row?.base_unit}
-                        </DialogDescription>
+            <DialogContent className="bg-card w-[calc(100%-2rem)] gap-0 overflow-hidden rounded-xl p-0 sm:max-w-3xl sm:rounded-xl">
+                <div className="bg-primary h-1" />
+                <form onSubmit={submit}>
+                    <DialogHeader className="flex-row items-start gap-3.5 space-y-0 px-5 pt-5 pr-11 pb-4 text-left sm:text-left">
+                        <div className="bg-primary/10 text-primary ring-primary/15 flex size-10 shrink-0 items-center justify-center rounded-lg ring-1">
+                            <BadgePercent className="size-5" />
+                        </div>
+                        <div className="grid min-w-0 gap-1">
+                            <DialogTitle className="text-[15px] leading-snug font-bold">Promoción para el lote {row?.batch_number}</DialogTitle>
+                            <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+                                <span>{row?.product_name}</span>
+                                {row?.days_left != null && (
+                                    <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                                        Vence en {row.days_left} días
+                                    </span>
+                                )}
+                                <span className="bg-muted rounded-md px-1.5 py-0.5 text-xs font-medium">
+                                    {row?.stock} {row?.base_unit} en el lote
+                                </span>
+                            </DialogDescription>
+                        </div>
                     </DialogHeader>
-                    <div className="grid gap-2">
-                        <Label>Aplicar a</Label>
-                        <div className="divide-y rounded-lg border">
-                            <div className="flex min-h-12 items-center gap-2.5 px-3 py-2 text-sm">
-                                <label className="flex flex-1 cursor-pointer items-center gap-2.5">
-                                    {canChoose && <Checkbox checked={wholeBatch} onCheckedChange={() => setData('presentation_discounts', {})} />}
-                                    <span className="font-medium">Todo el lote</span>
-                                </label>
-                                {wholeBatch && (
+                    <div className="grid gap-3 px-5 pb-5">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            {canChoose ? (
+                                <SegmentedControl
+                                    label="A qué se le hace el descuento"
+                                    value={target}
+                                    onChange={changeTarget}
+                                    options={[
+                                        { value: 'lote', label: 'Todo el lote' },
+                                        { value: 'presentaciones', label: 'Por presentación' },
+                                    ]}
+                                />
+                            ) : (
+                                <p className="text-sm font-medium">Descuento del lote</p>
+                            )}
+                            {wholeBatch ? (
+                                <div className="flex items-center gap-2 text-[13px] font-medium">
+                                    Descuento
                                     <PercentInput
                                         label="Descuento de todo el lote"
                                         value={data.discount_percent}
                                         onChange={(value) => setData('discount_percent', value)}
                                         autoFocus
                                     />
-                                )}
-                            </div>
-                            {presentations.map((p) => (
-                                <div key={p.id} className="flex min-h-12 items-center gap-2.5 px-3 py-2 text-sm">
-                                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5">
-                                        {canChoose && (
-                                            <Checkbox
-                                                checked={isChosen(p)}
-                                                onCheckedChange={(checked) => togglePresentation(p.id, checked === true)}
-                                            />
-                                        )}
-                                        <span className="min-w-0">
-                                            {p.name}
-                                            <span className="text-muted-foreground block text-xs">
-                                                Costo {money((row?.unit_cost ?? 0) * p.factor)}
-                                            </span>
-                                        </span>
-                                    </label>
-                                    {isChosen(p) && (
-                                        <PercentInput
-                                            label={`Descuento de ${p.name}`}
-                                            value={data.presentation_discounts[p.id]}
-                                            onChange={(value) => setPresentationPercent(p.id, value)}
-                                        />
-                                    )}
-                                    <span className="num w-20 shrink-0 text-right">
-                                        {percentOf(p) > 0 ? (
-                                            <>
-                                                <span className="text-muted-foreground block text-xs line-through">{money(p.sale_price)}</span>
-                                                <span className={`font-semibold ${isBelowCost(p) ? 'text-red-600' : 'text-emerald-600'}`}>
-                                                    {money(discounted(p.sale_price, percentOf(p)))}
-                                                </span>
-                                            </>
-                                        ) : (
-                                            money(p.sale_price)
-                                        )}
-                                    </span>
                                 </div>
-                            ))}
+                            ) : (
+                                <p className="text-muted-foreground text-[13px]">Marca las presentaciones y ponle a cada una su %.</p>
+                            )}
+                        </div>
+                        <div className="overflow-hidden rounded-lg border">
+                            <div
+                                className={cn(
+                                    'bg-muted/50 text-muted-foreground hidden gap-3 border-b px-3 py-2 text-[11px] font-semibold tracking-wider uppercase md:grid',
+                                    PRICE_COLUMNS,
+                                )}
+                            >
+                                <span>Presentación</span>
+                                <span className="text-right">Costo de compra</span>
+                                <span className="text-right">Precio actual</span>
+                                <span className="text-right">Descuento</span>
+                                <span className="text-right">Precio promoción</span>
+                            </div>
+                            <div className="divide-y">
+                                {presentations.map((p) => {
+                                    const cost = (row?.unit_cost ?? 0) * p.factor;
+                                    const promotedPrice = discounted(p.sale_price, percentOf(p)) ?? p.sale_price;
+                                    const profit = promotedPrice - cost;
+
+                                    return (
+                                        <div
+                                            key={p.id}
+                                            className={cn(
+                                                'grid grid-cols-2 items-center gap-x-3 gap-y-2 px-3 py-2.5 text-sm transition-colors',
+                                                PRICE_COLUMNS,
+                                                percentOf(p) > 0 && 'bg-primary/5',
+                                            )}
+                                        >
+                                            <label
+                                                className={cn(
+                                                    'col-span-2 flex min-w-0 items-center gap-2.5 md:col-span-1',
+                                                    !wholeBatch && 'cursor-pointer',
+                                                )}
+                                            >
+                                                {!wholeBatch && (
+                                                    <Checkbox
+                                                        checked={isChosen(p)}
+                                                        onCheckedChange={(checked) => togglePresentation(p.id, checked === true)}
+                                                    />
+                                                )}
+                                                <span className="min-w-0">
+                                                    <span className="block leading-snug font-medium">{p.name}</span>
+                                                    <span className="text-muted-foreground block text-xs">
+                                                        Hay {availableOf(p)} · Vendiendo todo {money(sellAllTotal(p))}
+                                                    </span>
+                                                </span>
+                                            </label>
+                                            <PriceCell label="Costo de compra">{money(cost)}</PriceCell>
+                                            <PriceCell label="Precio actual">
+                                                <span className={cn(percentOf(p) > 0 && 'text-muted-foreground line-through')}>
+                                                    {money(p.sale_price)}
+                                                </span>
+                                            </PriceCell>
+                                            <PriceCell label="Descuento">
+                                                {isChosen(p) ? (
+                                                    <PercentInput
+                                                        label={`Descuento de ${p.name}`}
+                                                        value={data.presentation_discounts[p.id]}
+                                                        onChange={(value) => setPresentationPercent(p.id, value)}
+                                                    />
+                                                ) : percentOf(p) > 0 ? (
+                                                    <PromoBadge percent={percentOf(p)} />
+                                                ) : (
+                                                    <span className="text-muted-foreground">—</span>
+                                                )}
+                                            </PriceCell>
+                                            <PriceCell label="Precio promoción">
+                                                {percentOf(p) > 0 ? (
+                                                    <>
+                                                        <span
+                                                            className={cn(
+                                                                'inline-block rounded-md px-2 py-0.5 font-bold',
+                                                                isBelowCost(p)
+                                                                    ? 'bg-red-500/10 text-red-600 dark:text-red-400'
+                                                                    : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+                                                            )}
+                                                        >
+                                                            {money(promotedPrice)}
+                                                        </span>
+                                                        <span
+                                                            className={cn(
+                                                                'mt-0.5 block text-[11px]',
+                                                                profit < 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground',
+                                                            )}
+                                                        >
+                                                            {profit < 0 ? 'Pierdes' : 'Ganas'} {money(Math.abs(profit))}
+                                                        </span>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-muted-foreground">Sin promoción</span>
+                                                )}
+                                            </PriceCell>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                         <InputError message={firstError} />
+                        {belowCost && (
+                            <p className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                                {canApproveBelowCost
+                                    ? 'Se venderá por debajo del costo de compra.'
+                                    : 'Quedaría por debajo del costo de compra: necesitas el permiso para aprobarlo. Baja el descuento o pide a un administrador.'}
+                            </p>
+                        )}
                     </div>
-                    {belowCost && (
-                        <p className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-                            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
-                            {canApproveBelowCost
-                                ? 'Se venderá por debajo del costo. Quedará registrado que lo aprobaste.'
-                                : 'Quedaría por debajo del costo: necesitas el permiso para aprobarlo. Baja el descuento o pide a un administrador.'}
-                        </p>
-                    )}
-                    <DialogFooter>
+                    <DialogFooter className="bg-muted/40 gap-2 border-t px-5 py-3 sm:space-x-0">
                         <Button type="button" variant="outline" onClick={onClose}>
                             Cancelar
                         </Button>
@@ -421,6 +544,16 @@ function ApplyDialog({ row, onClose, canApproveBelowCost }: { row: ApplyingRow |
                 </form>
             </DialogContent>
         </Dialog>
+    );
+}
+
+/** Valor de una fila de precios. En el celular muestra su título; en la computadora lo da la cabecera de la tabla. */
+function PriceCell({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <div className="num flex flex-col items-end text-right">
+            <span className="text-muted-foreground text-[11px] md:hidden">{label}</span>
+            {children}
+        </div>
     );
 }
 
