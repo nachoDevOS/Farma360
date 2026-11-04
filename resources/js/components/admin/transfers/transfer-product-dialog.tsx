@@ -2,7 +2,8 @@
  * VENTANA PARA ELEGIR CUÁNTO DE UN PRODUCTO SE ENVÍA (pages/admin/transfers/create.tsx).
  *
  * Arriba se escribe el total y se reparte solo por lotes: salen primero los que vencen antes (FEFO) y los vencidos
- * no se usan solos. Con + Caja, + Blíster se suma de a un empaque. Abajo cada lote con − / + por si quieren otro reparto.
+ * no se usan solos. Con + Caja, + Blíster se suma de a un empaque. Lo que viaja es cada LOTE: abajo cada uno tiene su propio
+ * − / + por empaque (de un lote 1 caja + 1 blíster, de otro 3 cajas), su costo y lo que se envía de él.
  *
  *   <TransferProductDialog product={...} initial={{ [batchId]: unidades }} editing={false} onConfirm={...} onClose={...} />
  */
@@ -65,6 +66,28 @@ export function distribute(units: number, batches: BatchLookup[]): LotQuantities
     return quantities;
 }
 
+/** Empaques en que se puede contar una cantidad, del más grande al más chico (la unidad base siempre está). */
+function largestFirst(product: TransferProduct) {
+    return [...product.presentations].sort((a, b) => b.factor - a.factor);
+}
+
+/** Cuántos de cada empaque son esas unidades: 15 tabletas → { 10: 1, 1: 5 } (1 caja + 5 tabletas). */
+function countsOf(units: number, product: TransferProduct): Record<number, number> {
+    let rest = units;
+    return Object.fromEntries(
+        largestFirst(product).map((presentation) => {
+            const count = Math.floor(rest / presentation.factor);
+            rest -= count * presentation.factor;
+            return [presentation.factor, count];
+        }),
+    );
+}
+
+/** "1 caja + 5 tabletas"; si no llega a un empaque, "3 tabletas". */
+export function packagesText(units: number, product: Pick<TransferProduct, 'presentations' | 'base_unit'>): string {
+    return stockBreakdown(units, product.presentations, product.base_unit) ?? unitsText(units, product.base_unit);
+}
+
 const sumOf = (quantities: LotQuantities) => Object.values(quantities).reduce((sum, units) => sum + units, 0);
 
 export function TransferProductDialog({
@@ -89,7 +112,7 @@ export function TransferProductDialog({
     const overStock = Number(typed) > units;
     const canConfirm = (units > 0 || editing) && !overStock;
     const packages = product.presentations.filter((presentation) => presentation.factor > 1 && presentation.factor <= product.stock);
-    const breakdown = stockBreakdown(units, product.presentations, product.base_unit);
+    const chosenLots = product.batches.filter((batch) => (quantities[batch.id] ?? 0) > 0);
     const value = product.batches.reduce((sum, batch) => sum + (quantities[batch.id] ?? 0) * batch.unit_cost, 0);
 
     const typeUnits = (text: string) => {
@@ -112,7 +135,7 @@ export function TransferProductDialog({
     return (
         <Dialog open onOpenChange={(open) => !open && onClose()}>
             <DialogContent
-                className="bg-card w-[calc(100%-2rem)] max-w-xl gap-0 overflow-hidden rounded-xl p-0 sm:rounded-xl"
+                className="bg-card w-[calc(100%-2rem)] max-w-2xl gap-0 overflow-hidden rounded-xl p-0 sm:rounded-xl"
                 onOpenAutoFocus={(e) => {
                     e.preventDefault();
                     unitsInput.current?.focus();
@@ -190,58 +213,19 @@ export function TransferProductDialog({
 
                     <div className="grid gap-1.5">
                         <div className="flex items-baseline justify-between gap-3">
-                            <span className="text-sm font-semibold">Sale de estos lotes</span>
+                            <span className="text-sm font-semibold">Qué sale de cada lote</span>
                             <span className="text-muted-foreground text-xs">Cámbialo con − / +</span>
                         </div>
-                        <ul className="max-h-60 divide-y overflow-y-auto rounded-lg border">
-                            {product.batches.map((batch) => {
-                                const lotUnits = quantities[batch.id] ?? 0;
-                                return (
-                                    <li
-                                        key={batch.id}
-                                        className={cn('flex items-center gap-3 px-3 py-2.5 transition-colors', lotUnits > 0 && 'bg-primary/5')}
-                                    >
-                                        <div className="min-w-0 flex-1">
-                                            <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
-                                                Lote {batch.batch_number}
-                                                <ExpiryBadge date={batch.expires_at} emptyLabel="Sin vencimiento" />
-                                            </p>
-                                            <p className="text-muted-foreground num text-xs">Hay {unitsText(batch.stock, product.base_unit)}</p>
-                                        </div>
-                                        <div className="stepper" data-active={lotUnits > 0 ? 'true' : undefined}>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLot(batch, lotUnits - 1)}
-                                                disabled={lotUnits <= 0}
-                                                aria-label="Menos"
-                                            >
-                                                <Minus className="size-3.5" />
-                                            </button>
-                                            <input
-                                                type="number"
-                                                min={0}
-                                                max={batch.stock}
-                                                className="text-sm"
-                                                value={lotUnits}
-                                                step={1}
-                                                inputMode="numeric"
-                                                onKeyDown={blockFractionKeys}
-                                                onChange={(e) => setLot(batch, Math.floor(Number(e.target.value) || 0))}
-                                                onFocus={(e) => e.target.select()}
-                                                aria-label={`Cantidad del lote ${batch.batch_number}`}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setLot(batch, lotUnits + 1)}
-                                                disabled={lotUnits >= batch.stock}
-                                                aria-label="Más"
-                                            >
-                                                <Plus className="size-3.5" />
-                                            </button>
-                                        </div>
-                                    </li>
-                                );
-                            })}
+                        <ul className="max-h-80 divide-y overflow-y-auto rounded-lg border">
+                            {product.batches.map((batch) => (
+                                <LotRow
+                                    key={batch.id}
+                                    batch={batch}
+                                    product={product}
+                                    units={quantities[batch.id] ?? 0}
+                                    onChange={(lotUnits) => setLot(batch, lotUnits)}
+                                />
+                            ))}
                         </ul>
                     </div>
 
@@ -252,10 +236,13 @@ export function TransferProductDialog({
                     <div className="flex items-end justify-between gap-3">
                         <div className="min-w-0">
                             <p className="text-muted-foreground text-xs">Se envía</p>
-                            <p className="text-sm font-semibold">
-                                {units > 0 ? (breakdown ?? unitsText(units, product.base_unit)) : editing ? 'Se quita de la lista' : '—'}
-                            </p>
-                            {units > 0 && breakdown && <p className="text-muted-foreground num text-xs">{unitsText(units, product.base_unit)}</p>}
+                            {chosenLots.length === 0 && <p className="text-sm font-semibold">{editing ? 'Se quita de la lista' : '—'}</p>}
+                            {chosenLots.map((batch) => (
+                                <p key={batch.id} className="num text-sm">
+                                    <span className="text-muted-foreground">Lote {batch.batch_number}:</span>{' '}
+                                    <span className="font-semibold">{packagesText(quantities[batch.id], product)}</span>
+                                </p>
+                            ))}
                         </div>
                         <div className="shrink-0 text-right">
                             <p className="text-muted-foreground text-xs">Valor al costo</p>
@@ -279,5 +266,80 @@ export function TransferProductDialog({
                 </div>
             </DialogContent>
         </Dialog>
+    );
+}
+
+/** Un lote de la ventana: su vencimiento, lo que tiene, su costo y un − / + por cada empaque que le alcanza. */
+function LotRow({
+    batch,
+    product,
+    units,
+    onChange,
+}: {
+    batch: BatchLookup;
+    product: TransferProduct;
+    units: number;
+    onChange: (units: number) => void;
+}) {
+    const counts = countsOf(units, product);
+    const packages = largestFirst(product).filter((presentation) => presentation.factor <= batch.stock);
+    const isRepeated = (name: string) => packages.filter((other) => other.package === name).length > 1;
+
+    return (
+        <li className={cn('grid gap-2 px-3 py-2.5 transition-colors', units > 0 && 'bg-primary/5')}>
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold">
+                    Lote {batch.batch_number}
+                    <ExpiryBadge date={batch.expires_at} emptyLabel="Sin vencimiento" />
+                </p>
+                <p className="text-muted-foreground num text-xs">
+                    Hay {packagesText(batch.stock, product)} · Costo {money(batch.unit_cost)} c/{product.base_unit.toLowerCase()}
+                </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                {packages.map((presentation) => {
+                    const count = counts[presentation.factor] ?? 0;
+                    const withCount = (next: number) => onChange(units + (next - count) * presentation.factor);
+                    return (
+                        <div key={presentation.factor} className="flex items-center gap-2">
+                            <span className="text-[13px] capitalize" title={presentation.name}>
+                                {isRepeated(presentation.package) ? presentation.name : presentation.package}
+                            </span>
+                            <div className="stepper" data-active={count > 0 ? 'true' : undefined}>
+                                <button type="button" onClick={() => withCount(count - 1)} disabled={count <= 0} aria-label="Menos">
+                                    <Minus className="size-3.5" />
+                                </button>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    className="text-sm"
+                                    value={count}
+                                    step={1}
+                                    inputMode="numeric"
+                                    onKeyDown={blockFractionKeys}
+                                    onChange={(e) => withCount(Math.floor(Number(e.target.value) || 0))}
+                                    onFocus={(e) => e.target.select()}
+                                    aria-label={`${presentation.package} del lote ${batch.batch_number}`}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => withCount(count + 1)}
+                                    disabled={units + presentation.factor > batch.stock}
+                                    aria-label="Más"
+                                >
+                                    <Plus className="size-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })}
+                <div className="num ml-auto text-right">
+                    <p className={cn('text-sm', units > 0 ? 'font-semibold' : 'text-muted-foreground/50')}>
+                        {units > 0 ? money(units * batch.unit_cost) : '—'}
+                    </p>
+                    {units > 0 && <p className="text-muted-foreground text-[11px]">{unitsText(units, product.base_unit)}</p>}
+                </div>
+            </div>
+        </li>
     );
 }

@@ -16,8 +16,8 @@ import { SimpleSelect } from '@/components/admin/common/simple-select';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import { stockBreakdown } from '@/components/admin/products/presentation-levels';
 import {
-    distribute,
     groupByProduct,
+    packagesText,
     TransferProductDialog,
     unitsText,
     type LotQuantities,
@@ -29,7 +29,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AdminLayout from '@/layouts/admin/admin-layout';
 import { money } from '@/lib/format';
-import { cn } from '@/lib/utils';
 import { type BatchLookup, type Option } from '@/types/admin/pharmacy';
 import { Head, Link, useForm } from '@inertiajs/react';
 import {
@@ -51,9 +50,6 @@ import {
     Trash2,
 } from 'lucide-react';
 import { FormEventHandler, useRef, useState } from 'react';
-
-/** Columnas de la lista: producto, cantidad, costo y botones. */
-const LINE_COLUMNS = 'lg:grid-cols-[minmax(0,1fr)_8.5rem_8rem_4.75rem]';
 
 /** Una fila por lote. product y batch son solo para mostrar: Laravel lee batch_id y quantity. */
 type ItemRow = {
@@ -202,25 +198,15 @@ export default function TransferCreate({ fromBranches, toBranches }: { fromBranc
                                             <Trash2 className="size-3.5" /> Vaciar
                                         </Button>
                                     </div>
-                                    {/* Encabezado de columnas (mismas medidas que ProductLine) */}
-                                    <div
-                                        className={cn(
-                                            'text-muted-foreground hidden gap-4 border-b px-4 py-1.5 text-[11px] font-medium tracking-wide uppercase lg:grid',
-                                            LINE_COLUMNS,
-                                        )}
-                                    >
-                                        <span>Producto</span>
-                                        <span className="text-center">Cantidad</span>
-                                        <span className="text-right">Costo</span>
-                                        <span />
-                                    </div>
                                     <ul className="divide-y">
                                         {groups.map((rows, position) => (
                                             <ProductLine
                                                 key={rows[0].product.product_id}
                                                 position={position + 1}
                                                 rows={rows}
-                                                onUnits={(units) => saveQuantities(rows[0].product, distribute(units, rows[0].product.batches))}
+                                                onLotUnits={(batchId, units) =>
+                                                    saveQuantities(rows[0].product, { ...quantitiesOf(rows[0].product.product_id), [batchId]: units })
+                                                }
                                                 onEdit={() => setChoosing(rows[0].product)}
                                                 onRemove={() => removeProduct(rows[0].product.product_id)}
                                             />
@@ -426,33 +412,27 @@ function ProductResult({ product, inList, destinationChosen }: { product: Transf
     );
 }
 
-/**
- * Un producto de la lista, como una fila del carrito: número, foto, quién es y sus lotes; − cantidad + (se vuelve a repartir
- * por lotes, primero los que vencen antes), el costo total y el de cada unidad.
- */
+/** Un producto de la lista: quién es y su total; debajo, una fila por cada lote que sale, porque eso es lo que viaja. */
 function ProductLine({
     position,
     rows,
-    onUnits,
+    onLotUnits,
     onEdit,
     onRemove,
 }: {
     position: number;
     rows: ItemRow[];
-    onUnits: (units: number) => void;
+    onLotUnits: (batchId: number, units: number) => void;
     onEdit: () => void;
     onRemove: () => void;
 }) {
     const { product } = rows[0];
     const units = rows.reduce((sum, row) => sum + row.quantity, 0);
     const value = rows.reduce((sum, row) => sum + row.quantity * row.batch.unit_cost, 0);
-    const breakdown = stockBreakdown(units, product.presentations, product.base_unit);
-    const usable = product.batches.filter((batch) => !batch.expired).reduce((sum, batch) => sum + batch.stock, 0);
-    const changeUnits = (next: number) => onUnits(Math.min(usable, Math.max(0, next)));
 
     return (
-        <li className={cn('grid items-center gap-3 px-4 py-3 lg:gap-4', LINE_COLUMNS)}>
-            <div className="flex min-w-0 items-center gap-3">
+        <li className="grid gap-2.5 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-3">
                 <span className="text-muted-foreground num w-4 shrink-0 text-center text-xs">{position}</span>
                 <StoredImage
                     path={product.image}
@@ -460,52 +440,64 @@ function ProductLine({
                     fallback={<Pill className="size-4" />}
                     className="size-14 shrink-0 rounded-lg"
                 />
-                <div className="grid min-w-0 flex-1 gap-1">
+                <div className="grid min-w-48 flex-1 gap-1">
                     <ProductFacts product={product} />
-                    <div className="flex flex-wrap gap-1.5">
-                        {rows.map((row) => (
-                            <span key={row.batch_id} className="bg-muted num inline-flex items-center gap-1.5 rounded-md py-0.5 pr-1.5 pl-2 text-xs">
-                                Lote {row.batch.batch_number} · {row.quantity.toLocaleString('es')}
+                </div>
+                <div className="num ml-auto shrink-0 text-right">
+                    <p className="text-sm font-bold">{money(value)}</p>
+                    <p className="text-muted-foreground text-xs">{unitsText(units, product.base_unit)}</p>
+                </div>
+                <RowActions>
+                    <ActionButton icon={Pencil} label="Elegir lotes" onClick={onEdit} />
+                    <ActionButton icon={Trash2} label="Quitar" tone="danger" onClick={onRemove} />
+                </RowActions>
+            </div>
+            <ul className="divide-y rounded-lg border sm:ml-7">
+                {rows.map((row) => (
+                    <li key={row.batch_id} className="grid items-center gap-x-4 gap-y-2 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_8.5rem_9rem]">
+                        <div className="min-w-0">
+                            <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                                <Layers className="text-primary size-3.5 shrink-0" />
+                                Lote {row.batch.batch_number}
                                 <ExpiryBadge date={row.batch.expires_at} emptyLabel="Sin vencimiento" />
-                            </span>
-                        ))}
-                    </div>
-                </div>
-            </div>
-            <div className="grid justify-items-center gap-1">
-                <div className="stepper" data-active="true">
-                    <button type="button" onClick={() => changeUnits(units - 1)} aria-label="Menos">
-                        <Minus className="size-3.5" />
-                    </button>
-                    <input
-                        type="number"
-                        min={0}
-                        max={usable}
-                        className="text-sm"
-                        value={units}
-                        step={1}
-                        inputMode="numeric"
-                        onKeyDown={blockFractionKeys}
-                        onChange={(e) => changeUnits(Math.floor(Number(e.target.value) || 0))}
-                        onFocus={(e) => e.target.select()}
-                        aria-label={`Cantidad de ${product.product_name}`}
-                    />
-                    <button type="button" onClick={() => changeUnits(units + 1)} disabled={units >= usable} aria-label="Más">
-                        <Plus className="size-3.5" />
-                    </button>
-                </div>
-                <p className="text-muted-foreground num text-center text-[11px]">{breakdown ?? unitsText(units, product.base_unit)}</p>
-            </div>
-            <div className="num text-right">
-                <p className="text-sm font-bold">{money(value)}</p>
-                <p className="text-muted-foreground text-xs">
-                    {money(value / units)} c/{product.base_unit.toLowerCase()}
-                </p>
-            </div>
-            <RowActions>
-                <ActionButton icon={Pencil} label="Elegir lotes" onClick={onEdit} />
-                <ActionButton icon={Trash2} label="Quitar" tone="danger" onClick={onRemove} />
-            </RowActions>
+                            </p>
+                            <p className="num text-xs font-semibold">{packagesText(row.quantity, product)}</p>
+                        </div>
+                        <div className="stepper justify-self-start sm:justify-self-center" data-active="true">
+                            <button type="button" onClick={() => onLotUnits(row.batch_id, row.quantity - 1)} aria-label="Menos">
+                                <Minus className="size-3.5" />
+                            </button>
+                            <input
+                                type="number"
+                                min={0}
+                                max={row.batch.stock}
+                                className="text-sm"
+                                value={row.quantity}
+                                step={1}
+                                inputMode="numeric"
+                                onKeyDown={blockFractionKeys}
+                                onChange={(e) => onLotUnits(row.batch_id, Math.min(row.batch.stock, Math.floor(Number(e.target.value) || 0)))}
+                                onFocus={(e) => e.target.select()}
+                                aria-label={`Cantidad del lote ${row.batch.batch_number}`}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => onLotUnits(row.batch_id, row.quantity + 1)}
+                                disabled={row.quantity >= row.batch.stock}
+                                aria-label="Más"
+                            >
+                                <Plus className="size-3.5" />
+                            </button>
+                        </div>
+                        <div className="num text-right">
+                            <p className="text-sm font-semibold">{money(row.quantity * row.batch.unit_cost)}</p>
+                            <p className="text-muted-foreground text-xs">
+                                {money(row.batch.unit_cost)} c/{product.base_unit.toLowerCase()}
+                            </p>
+                        </div>
+                    </li>
+                ))}
+            </ul>
         </li>
     );
 }
