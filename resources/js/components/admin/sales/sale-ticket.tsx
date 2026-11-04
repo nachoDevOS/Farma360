@@ -1,13 +1,14 @@
 /*
- * TICKET de una venta, el que sale por la impresora: rollo de 80 mm, en negro y con letra de impresora térmica, como un
- * comprobante de banco. Arriba va el nombre del sistema (APP_NAME de .env, prop compartida "name") y abajo un QR con los
- * datos del comprobante, que se leen sin internet.
+ * TICKET de una venta, el que sale por la impresora: rollo de 80 mm, en negro y con letra de impresora térmica, ordenado como
+ * la factura de rollo de Bolivia. NO es una factura: el sistema no está conectado al SIAT, por eso dice que no tiene valor
+ * fiscal y no lleva CUF, NIT de la empresa ni las leyendas de la factura.
+ * Muestra el nombre del sistema (APP_NAME de .env, prop compartida "name") y un QR con los datos del comprobante, que se leen sin internet.
  * Queda fuera de la pantalla y no se ve (ver app.css → .print-only). Para imprimir: printTicket().
  * Justo antes de imprimir, TicketPrint mide el ticket y le da al papel ese largo exacto: sale en una hoja, sin espacio sobrante.
  */
 import { describeLevels, levelsOf } from '@/components/admin/common/package-chain';
 import { countOf } from '@/components/admin/products/presentation-levels';
-import { formatDate, formatDay, money } from '@/lib/format';
+import { amountInWords, formatDate, formatDay, money } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type SharedData } from '@/types';
 import { type Sale, type SaleItem } from '@/types/admin/pharmacy';
@@ -40,83 +41,92 @@ function SaleTicket({ sale, paymentMethods }: TicketProps) {
     return (
         <div className="font-ticket px-[4mm] py-[5mm] text-[12.5px] leading-[1.35] uppercase">
             <div className="text-center">
-                <p className="text-[18px] leading-tight normal-case">{appName}</p>
-                <p className="mt-0.5">{sale.branch.name}</p>
+                <p className="text-[15px] tracking-wide">Comprobante de venta</p>
+                <p className="mt-1.5 text-[18px] leading-tight normal-case">{appName}</p>
+                <p>{sale.branch.name}</p>
                 {sale.branch.address && <p>{sale.branch.address}</p>}
                 {sale.branch.phone && <p>Tel. {sale.branch.phone}</p>}
             </div>
             <TicketDivider />
             <div className="text-center">
-                <p>Comprobante de venta</p>
-                <p className="text-[15px] tracking-wider">{sale.number}</p>
-                {sale.status === 'anulada' && <p className="mt-1.5 border py-0.5 tracking-widest">Venta anulada</p>}
+                <p>Comprobante N°</p>
+                <p className="text-[15px]">{sale.number}</p>
+                {sale.status === 'anulada' && <p className="mt-1 border py-0.5 tracking-widest">Venta anulada</p>}
             </div>
             <TicketDivider />
-            <TicketRow label="Fecha">{date}</TicketRow>
-            <TicketRow label="Cliente">{sale.customer_name}</TicketRow>
-            {sale.customer_document && <TicketRow label="CI/NIT">{sale.customer_document}</TicketRow>}
+            <p>Nombre/Razón social: {sale.customer_name}</p>
+            {sale.customer_document && <p>NIT/CI/CEX: {sale.customer_document}</p>}
             {sale.prescription_number && (
-                <TicketRow label="Receta">
-                    {sale.prescription_number} · {sale.prescription_doctor}
-                </TicketRow>
+                <p>
+                    Receta: {sale.prescription_number} · {sale.prescription_doctor}
+                </p>
             )}
-            <TicketRow label="Atendió">{sale.registered_by?.name}</TicketRow>
+            <p>Fecha de emisión: {date}</p>
+            <p>Atendió: {sale.registered_by?.name}</p>
             <TicketDivider />
-            <TicketRow label="Detalle" className="mb-1.5">
-                Importe
-            </TicketRow>
+            <p className="mb-1.5 text-center">Detalle</p>
             <ul className="grid gap-2">
                 {sale.items?.map((item) => (
                     <li key={item.id}>
                         <p>
                             {item.product.name} {item.product.concentration}
                         </p>
+                        <TicketLevels item={item} />
+                        <p className="text-[11px]">
+                            Lote {item.batch.batch_number} · {item.batch.expires_at ? `vence ${formatDay(item.batch.expires_at)}` : 'sin vencimiento'}
+                        </p>
+                        {/* Como en la factura de rollo: cantidad X precio - descuento = importe de la línea */}
                         <TicketRow
                             label={
                                 <>
                                     {item.presentation?.package
                                         ? countOf(item.units / item.factor, item.presentation.package)
                                         : `${item.units / item.factor} ${item.presentation?.name ?? ''}`}{' '}
-                                    x {money(item.list_price, false)}
+                                    X {money(item.list_price, false)} - {money(item.discount_amount, false)}
                                 </>
                             }
                         >
-                            {money(item.subtotal, false)}
+                            {money(item.total, false)}
                         </TicketRow>
-                        {Number(item.discount_amount) > 0 && (
-                            <TicketRow label={`Dcto. vencimiento ${Number(item.discount_percent)}%`}>-{money(item.discount_amount, false)}</TicketRow>
-                        )}
-                        <TicketLevels item={item} />
-                        <p className="text-[11px]">
-                            Lote {item.batch.batch_number} · {item.batch.expires_at ? `vence ${formatDay(item.batch.expires_at)}` : 'sin vencimiento'}
-                        </p>
                     </li>
                 ))}
             </ul>
             <TicketDivider />
-            <TicketRow label="Subtotal">{money(sale.subtotal, false)}</TicketRow>
-            <TicketRow label={`Descuento${sale.discount_reason ? ` (${sale.discount_reason})` : ''}`}>
-                {Number(sale.discount) > 0 ? `-${money(sale.discount, false)}` : money(0, false)}
-            </TicketRow>
-            <TicketRow label="Total" className="mt-1 text-[15px]">
-                <span className="normal-case">{money(sale.total)}</span>
-            </TicketRow>
-            <TicketDivider />
+            <TicketTotal label="Subtotal">{sale.subtotal}</TicketTotal>
+            <TicketTotal label={`Descuento${sale.discount_reason ? ` (${sale.discount_reason})` : ''}`}>{sale.discount}</TicketTotal>
+            <TicketTotal label="Total" className="text-[15px]">
+                {sale.total}
+            </TicketTotal>
             {sale.payments.map((p) => (
-                <TicketRow key={p.id} label={`${paymentMethods[p.method] ?? p.method}${p.reference ? ` (${p.reference})` : ''}`}>
-                    {money(p.method === 'efectivo' ? sale.cash_received : p.amount, false)}
-                </TicketRow>
+                <TicketTotal key={p.id} label={`${paymentMethods[p.method] ?? p.method}${p.reference ? ` (${p.reference})` : ''}`}>
+                    {p.method === 'efectivo' ? sale.cash_received : p.amount}
+                </TicketTotal>
             ))}
-            {Number(sale.change) > 0 && <TicketRow label="Cambio">{money(sale.change, false)}</TicketRow>}
+            {Number(sale.change) > 0 && <TicketTotal label="Cambio">{sale.change}</TicketTotal>}
+            <p className="mt-2">Son: {amountInWords(sale.total)}</p>
             <TicketDivider />
-            <QRCodeSVG value={qrText} size={96} level="M" marginSize={0} fgColor="#000" bgColor="#fff" className="mx-auto mt-3" />
-            <p className="mt-3 text-center">Gracias por su compra</p>
+            <p className="text-center text-[11px]">Este comprobante no es una factura y no es válido para crédito fiscal</p>
+            <QRCodeSVG value={qrText} size={96} level="M" marginSize={0} fgColor="#000" bgColor="#fff" className="mx-auto mt-2.5" />
+            <p className="mt-2.5 text-center">Gracias por su compra</p>
+            <p className="mt-2 text-center text-[9px] tracking-wide normal-case">soluciondigital.dev</p>
         </div>
     );
 }
 
 function TicketDivider() {
     return <div className="my-2 border-t border-dashed" />;
+}
+
+/** Fila de totales alineada a la derecha, como en la factura de rollo: "SUBTOTAL Bs 9,90". */
+function TicketTotal({ label, className, children }: { label: string; className?: string; children: string | null | undefined }) {
+    return (
+        <div className={cn('flex justify-end gap-3', className)}>
+            <span>
+                {label} <span className="normal-case">Bs</span>
+            </span>
+            <span className="min-w-[62px] text-right">{money(children, false)}</span>
+        </div>
+    );
 }
 
 /** Fila del ticket: dato a la izquierda y valor o importe a la derecha. */

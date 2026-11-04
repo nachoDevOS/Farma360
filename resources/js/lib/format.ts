@@ -56,3 +56,76 @@ export function relativeTime(date: string | null): string {
     }
     return 'Justo ahora';
 }
+
+const BELOW_THIRTY = [
+    '',
+    'un',
+    'dos',
+    'tres',
+    'cuatro',
+    'cinco',
+    'seis',
+    'siete',
+    'ocho',
+    'nueve',
+    'diez',
+    'once',
+    'doce',
+    'trece',
+    'catorce',
+    'quince',
+    'dieciséis',
+    'diecisiete',
+    'dieciocho',
+    'diecinueve',
+    'veinte',
+    'veintiún',
+    'veintidós',
+    'veintitrés',
+    'veinticuatro',
+    'veinticinco',
+    'veintiséis',
+    'veintisiete',
+    'veintiocho',
+    'veintinueve',
+];
+const TENS = ['', '', '', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+const HUNDREDS = [
+    '',
+    'ciento',
+    'doscientos',
+    'trescientos',
+    'cuatrocientos',
+    'quinientos',
+    'seiscientos',
+    'setecientos',
+    'ochocientos',
+    'novecientos',
+];
+
+function wordsBelowThousand(value: number): string {
+    if (value === 100) return 'cien';
+    const rest = value % 100;
+    const lastTwo = rest < 30 ? BELOW_THIRTY[rest] : `${TENS[Math.floor(rest / 10)]}${rest % 10 ? ` y ${BELOW_THIRTY[rest % 10]}` : ''}`;
+    return [HUNDREDS[Math.floor(value / 100)], lastTwo].filter(Boolean).join(' ');
+}
+
+/** Monto en letras como en los comprobantes de Bolivia: amountInWords(9.9) → "Nueve 90/100 Bolivianos". */
+export function amountInWords(value: number | string | null | undefined): string {
+    const [integer, cents] = Number(value ?? 0)
+        .toFixed(2)
+        .split('.');
+    const whole = Number(integer);
+    const millions = Math.floor(whole / 1_000_000);
+    const thousands = Math.floor(whole / 1000) % 1000;
+    const units = whole % 1000;
+    const words =
+        [
+            millions > 0 && (millions === 1 ? 'un millón' : `${wordsBelowThousand(millions)} millones`),
+            thousands > 0 && (thousands === 1 ? 'mil' : `${wordsBelowThousand(thousands)} mil`),
+            units > 0 && wordsBelowThousand(units),
+        ]
+            .filter(Boolean)
+            .join(' ') || 'cero';
+    return `${words.charAt(0).toUpperCase()}${words.slice(1)} ${cents}/100 Bolivianos`;
+}
