@@ -1,12 +1,21 @@
 /*
- * TICKET de una venta, el que sale por la impresora.
- * Queda afuera de la página y no se ve en pantalla: basta con window.print() (ver app.css → .print-only).
+ * TICKET de una venta, el que sale por la impresora: rollo de 80 mm, todo en negro porque la térmica no imprime grises.
+ * Arriba va el nombre del sistema (APP_NAME de .env, prop compartida "name") y debajo los datos de la sucursal.
+ * Queda fuera de la pantalla y no se ve: basta con window.print() (ver app.css → .print-only).
+ * TicketPrint mide el ticket y le da al papel ese largo exacto, así sale en una sola hoja sin espacio sobrante.
  */
 import { describeLevels, levelsOf } from '@/components/admin/common/package-chain';
 import { countOf } from '@/components/admin/products/presentation-levels';
 import { formatDate, formatDay, money } from '@/lib/format';
+import { cn } from '@/lib/utils';
+import { type SharedData } from '@/types';
 import { type Sale, type SaleItem } from '@/types/admin/pharmacy';
+import { usePage } from '@inertiajs/react';
+import { useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+
+const TICKET_WIDTH_MM = 80;
+const MM_PER_PX = 25.4 / 96;
 
 interface TicketProps {
     sale: Sale;
@@ -14,94 +23,116 @@ interface TicketProps {
 }
 
 function SaleTicket({ sale, paymentMethods }: TicketProps) {
+    const { name: appName } = usePage<SharedData>().props;
+
     return (
-        <div className="surface mx-auto w-full max-w-md rounded-xl p-6 font-mono text-sm print:border-0 print:shadow-none">
+        <div className="px-[4mm] py-[5mm] font-sans text-[12px] leading-snug">
             <div className="text-center">
-                <p className="font-sans text-base font-semibold">{sale.branch.name}</p>
-                {sale.branch.address && <p className="text-muted-foreground text-xs">{sale.branch.address}</p>}
-                {sale.branch.phone && <p className="text-muted-foreground text-xs">Tel. {sale.branch.phone}</p>}
-                <p className="mt-3 font-semibold">COMPROBANTE {sale.number}</p>
-                {sale.status === 'anulada' && <p className="font-semibold text-red-600 dark:text-red-400">VENTA ANULADA</p>}
-                <p className="text-muted-foreground text-xs">{formatDate(sale.created_at, { dateStyle: 'short', timeStyle: 'short' })}</p>
+                <p className="text-[19px] leading-tight font-bold tracking-tight">{appName}</p>
+                <p className="mt-0.5 font-semibold">{sale.branch.name}</p>
+                {sale.branch.address && <p className="text-[11px]">{sale.branch.address}</p>}
+                {sale.branch.phone && <p className="text-[11px]">Tel. {sale.branch.phone}</p>}
             </div>
-            <div className="my-3 border-t border-dashed" />
-            <p>Cliente: {sale.customer_name}</p>
-            {sale.customer_document && <p>CI/NIT: {sale.customer_document}</p>}
-            {sale.prescription_number && (
-                <p>
-                    Receta: {sale.prescription_number} · {sale.prescription_doctor}
-                </p>
-            )}
-            <div className="my-3 border-t border-dashed" />
-            <ul className="grid gap-2">
+            {sale.status === 'anulada' && <p className="mt-2.5 border-2 py-1 text-center text-[13px] font-bold tracking-widest">VENTA ANULADA</p>}
+            <TicketDivider />
+            <div className="grid gap-0.5">
+                <TicketRow label="Comprobante" className="font-bold">
+                    {sale.number}
+                </TicketRow>
+                <TicketRow label="Fecha">{formatDate(sale.created_at, { dateStyle: 'short', timeStyle: 'short' })}</TicketRow>
+                <TicketRow label="Cliente">{sale.customer_name}</TicketRow>
+                {sale.customer_document && <TicketRow label="CI/NIT">{sale.customer_document}</TicketRow>}
+                {sale.prescription_number && (
+                    <TicketRow label="Receta">
+                        {sale.prescription_number} · {sale.prescription_doctor}
+                    </TicketRow>
+                )}
+                <TicketRow label="Atendió">{sale.registered_by?.name}</TicketRow>
+            </div>
+            <TicketDivider />
+            <TicketRow label="Detalle" className="border-b pb-1 text-[10px] font-bold tracking-wider uppercase">
+                Importe
+            </TicketRow>
+            <ul className="mt-2 grid gap-2.5">
                 {sale.items?.map((item) => (
                     <li key={item.id}>
-                        <p className="font-sans font-medium">
+                        <p className="font-bold">
                             {item.product.name} {item.product.concentration}
                         </p>
-                        <div className="text-muted-foreground flex justify-between text-xs">
-                            <span>
-                                {item.presentation?.package
-                                    ? countOf(item.units / item.factor, item.presentation.package)
-                                    : `${item.units / item.factor} ${item.presentation?.name ?? ''}`}{' '}
-                                × {money(item.list_price, false)}
-                            </span>
-                            {/* Como en una factura: cantidad × precio − descuento = subtotal de la línea */}
-                            <span className="text-foreground">{money(item.total, false)}</span>
-                        </div>
+                        <TicketRow
+                            label={
+                                <>
+                                    {item.presentation?.package
+                                        ? countOf(item.units / item.factor, item.presentation.package)
+                                        : `${item.units / item.factor} ${item.presentation?.name ?? ''}`}{' '}
+                                    × {money(item.list_price, false)}
+                                </>
+                            }
+                        >
+                            {money(item.subtotal, false)}
+                        </TicketRow>
                         {Number(item.discount_amount) > 0 && (
-                            <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                                Descuento por vencimiento {Number(item.discount_percent)}%: {money(item.discount_amount, false)}
-                            </p>
+                            <TicketRow label={`Dcto. vencimiento ${Number(item.discount_percent)}%`}>−{money(item.discount_amount, false)}</TicketRow>
                         )}
                         <TicketLevels item={item} />
-                        <p className="text-muted-foreground text-[11px]">
+                        <p className="text-[10px]">
                             Lote {item.batch.batch_number} · {item.batch.expires_at ? `vence ${formatDay(item.batch.expires_at)}` : 'sin vencimiento'}
                         </p>
                     </li>
                 ))}
             </ul>
-            <div className="my-3 border-t border-dashed" />
-            <div className="flex justify-between text-xs">
-                <span>Subtotal</span>
-                <span>{money(sale.subtotal, false)}</span>
+            <TicketDivider />
+            <div className="grid gap-0.5">
+                <TicketRow label="Subtotal">{money(sale.subtotal, false)}</TicketRow>
+                <TicketRow label={`Descuento${sale.discount_reason ? ` (${sale.discount_reason})` : ''}`}>
+                    {Number(sale.discount) > 0 ? `−${money(sale.discount, false)}` : money(0, false)}
+                </TicketRow>
             </div>
-            {Number(sale.discount) > 0 && (
-                <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400">
-                    <span>Descuento{sale.discount_reason && ` (${sale.discount_reason})`}</span>
-                    <span>{money(sale.discount, false)}</span>
-                </div>
-            )}
-            <div className="flex justify-between text-base font-semibold">
-                <span>TOTAL</span>
-                <span>{money(sale.total)}</span>
+            <TicketRow label="TOTAL" className="my-2 items-baseline border-y-2 py-1.5 text-[16px] font-bold">
+                {money(sale.total)}
+            </TicketRow>
+            <div className="grid gap-0.5">
+                {sale.payments.map((p) => (
+                    <TicketRow key={p.id} label={`${paymentMethods[p.method] ?? p.method}${p.reference ? ` (${p.reference})` : ''}`}>
+                        {money(p.method === 'efectivo' ? sale.cash_received : p.amount, false)}
+                    </TicketRow>
+                ))}
+                {Number(sale.change) > 0 && <TicketRow label="Cambio">{money(sale.change, false)}</TicketRow>}
             </div>
-            {sale.payments.map((p) => (
-                <div key={p.id} className="text-muted-foreground flex justify-between text-xs">
-                    <span>
-                        {paymentMethods[p.method] ?? p.method}
-                        {p.reference && ` (${p.reference})`}
-                    </span>
-                    <span>{money(p.method === 'efectivo' ? sale.cash_received : p.amount, false)}</span>
-                </div>
-            ))}
-            {Number(sale.change) > 0 && (
-                <div className="flex justify-between text-xs">
-                    <span>Cambio</span>
-                    <span>{money(sale.change, false)}</span>
-                </div>
-            )}
-            <div className="my-3 border-t border-dashed" />
-            <p className="text-muted-foreground text-center text-xs">Atendió: {sale.registered_by?.name}</p>
-            <p className="text-muted-foreground text-center text-xs">¡Gracias por su compra!</p>
+            <p className="mt-4 text-center font-semibold">¡Gracias por su compra!</p>
+        </div>
+    );
+}
+
+function TicketDivider() {
+    return <div className="my-2.5 border-t border-dashed" />;
+}
+
+/** Fila del ticket: dato a la izquierda y valor o importe a la derecha. */
+function TicketRow({ label, className, children }: { label: React.ReactNode; className?: string; children: React.ReactNode }) {
+    return (
+        <div className={cn('flex justify-between gap-3', className)}>
+            <span>{label}</span>
+            <span className="text-right tabular-nums">{children}</span>
         </div>
     );
 }
 
 /** El ticket listo para window.print(): no se ve en pantalla. */
 export function TicketPrint({ sale, paymentMethods }: TicketProps) {
+    const ticket = useRef<HTMLDivElement>(null);
+
+    useLayoutEffect(() => {
+        const heightInMm = Math.ceil((ticket.current?.offsetHeight ?? 0) * MM_PER_PX) + 2;
+        const paper = document.createElement('style');
+        paper.textContent = `@page { size: ${TICKET_WIDTH_MM}mm ${heightInMm}mm; margin: 0; }`;
+        document.head.append(paper);
+
+        return () => paper.remove();
+    }, [sale]);
+
     return createPortal(
-        <div className="print-only">
+        <div ref={ticket} className="print-only" style={{ width: `${TICKET_WIDTH_MM}mm` }}>
             <SaleTicket sale={sale} paymentMethods={paymentMethods} />
         </div>,
         document.body,
@@ -111,5 +142,5 @@ export function TicketPrint({ sale, paymentMethods }: TicketProps) {
 /** Línea del ticket con lo que trae el empaque vendido: "Cada caja contiene 3 blísteres y cada blíster contiene 10 tabletas (30 tabletas en total)". */
 function TicketLevels({ item }: { item: SaleItem }) {
     const text = describeLevels(levelsOf(item.product.presentations ?? [], item.presentation?.id));
-    return text ? <p className="text-muted-foreground text-[11px]">{text}</p> : null;
+    return text ? <p className="text-[10px]">{text}</p> : null;
 }

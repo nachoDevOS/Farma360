@@ -858,14 +858,21 @@
     }
 }
 
-/* ===== IMPRESIÓN (ver TicketPrint): en el papel sale solo .print-only, en negro para que se lea también en modo oscuro ===== */
+/* ===== IMPRESIÓN (ver TicketPrint): en el papel sale solo .print-only, en negro y sobre blanco también en modo oscuro.
+   En pantalla queda fuera de la vista, no con display: none, para poder medir su alto y dárselo al papel (@page). ===== */
 .print-only {
-    display: none;
+    position: fixed;
+    top: 0;
+    left: -100vw;
+    visibility: hidden;
+    pointer-events: none;
 }
 
 @media print {
-    @page {
-        margin: 12mm;
+    html:has(body > .print-only),
+    body:has(> .print-only) {
+        min-height: 0 !important;
+        background: #fff !important;
     }
 
     body:has(> .print-only) > :not(.print-only) {
@@ -873,17 +880,15 @@
     }
 
     body > .print-only {
-        display: block;
+        position: static;
+        visibility: visible;
     }
 
     .print-only,
     .print-only * {
         color: #000 !important;
         background: transparent !important;
+        border-color: #000 !important;
         box-shadow: none !important;
-    }
-
-    .print-only .text-muted-foreground {
-        color: #555 !important;
     }
 }
