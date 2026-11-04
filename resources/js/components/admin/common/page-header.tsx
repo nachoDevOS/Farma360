@@ -22,12 +22,12 @@ export function PageHeader({ title, description, actions, icon: Icon, media, cla
             <div className="flex min-w-0 items-center gap-4">
                 {media ? <div className="hidden shrink-0 sm:block">{media}</div> : null}
                 {!media && Icon && (
-                    <div className="bg-primary/10 text-primary ring-primary/15 hidden size-12 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset sm:flex">
-                        <Icon className="size-6" />
+                    <div className="bg-primary/10 text-primary ring-primary/15 hidden size-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset sm:flex">
+                        <Icon className="size-5" />
                     </div>
                 )}
                 <div className="min-w-0 space-y-1">
-                    <h1 className="font-display text-2xl leading-tight font-bold text-balance">{title}</h1>
+                    <h1 className="font-display text-xl leading-tight font-bold text-balance">{title}</h1>
                     {description && <div className="text-muted-foreground text-sm">{description}</div>}
                 </div>
             </div>

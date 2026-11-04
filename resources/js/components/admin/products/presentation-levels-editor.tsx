@@ -5,8 +5,10 @@
  * (Caja contiene 10 blísteres). Debajo: botones rápidos para agregar empaques y un resumen en palabras
  * ("1 Caja = 10 blísteres = 100 tabletas") para confirmar que quedó bien.
  * La lógica (factores, nombres, precios sugeridos) está en presentation-levels.ts.
+ * locked: el producto ya tiene stock, compras o ventas. Lo guardado no cambia de nombre ni de cantidad y no se quita
+ * (el historial se calculó con eso); sí se editan precio, código, si se vende o se compra, y se agregan empaques nuevos.
  *
- *   <PresentationLevelsEditor rows={...} baseUnit={...} errors={...} onRowsChange={...} onBaseUnitChange={...} />
+ *   <PresentationLevelsEditor rows={...} baseUnit={...} locked={...} errors={...} onRowsChange={...} onBaseUnitChange={...} />
  */
 import { ActionButton } from '@/components/admin/common/row-actions';
 import { SimpleSelect } from '@/components/admin/common/simple-select';
@@ -29,12 +31,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { money } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { CornerDownRight, Plus, ShoppingCart, Store, Trash2 } from 'lucide-react';
+import { CornerDownRight, Lock, Plus, ShoppingCart, Store, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface Props {
     rows: LevelRow[];
     baseUnit: string;
+    /** Ya tiene movimientos: lo guardado queda fijo */
+    locked?: boolean;
     errors: Record<string, string | undefined>;
     /** Recibe las filas nuevas (el formulario recalcula los precios sugeridos) */
     onRowsChange: (rows: LevelRow[]) => void;
@@ -44,9 +48,12 @@ interface Props {
 /** Empaques que se agregan con un clic. */
 const QUICK_PACKAGES = ['Blíster', 'Caja', 'Frasco', 'Sobre'];
 
+/** Campo fijo (producto con movimientos): se lee normal, solo con el fondo gris. */
+const FIXED_FIELD = 'disabled:bg-muted/50 disabled:text-foreground disabled:opacity-100';
+
 const COLUMNS = 'lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_minmax(0,1.1fr)_4.5rem_4.5rem_minmax(0,1fr)_2.25rem]';
 
-export function PresentationLevelsEditor({ rows, baseUnit, errors, onRowsChange, onBaseUnitChange }: Props) {
+export function PresentationLevelsEditor({ rows, baseUnit, locked = false, errors, onRowsChange, onBaseUnitChange }: Props) {
     const factors = factorsOf(rows);
     const units = plural(baseUnit) || 'unidades';
 
@@ -89,6 +96,12 @@ export function PresentationLevelsEditor({ rows, baseUnit, errors, onRowsChange,
 
     return (
         <div className="grid gap-4">
+            {locked && (
+                <p className="bg-primary/5 border-primary/20 flex items-start gap-2 rounded-lg border p-3 text-[13px]">
+                    <Lock className="text-primary mt-0.5 size-4 shrink-0" />
+                    Este producto ya tiene stock, compras o ventas: sus presentaciones no se pueden quitar ni cambiar de nombre o cantidad.
+                </p>
+            )}
             <div className="overflow-hidden rounded-lg border">
                 {/* Encabezado (solo en pantallas grandes; en el celular cada campo trae su etiqueta) */}
                 <div
@@ -108,6 +121,7 @@ export function PresentationLevelsEditor({ rows, baseUnit, errors, onRowsChange,
 
                 {rows.map((r, i) => {
                     const isBase = i === 0;
+                    const isFixed = locked && r.id !== undefined;
                     const price = Number(r.sale_price);
                     const suggested = suggestedPrice(rows, i);
                     const differs = !r.auto && suggested !== null && price > 0 && Math.abs(suggested - price) >= 0.01;
@@ -138,6 +152,8 @@ export function PresentationLevelsEditor({ rows, baseUnit, errors, onRowsChange,
                                             onChange={(e) => onBaseUnitChange(upperFirst(e.target.value))}
                                             placeholder="Tableta"
                                             aria-label="Unidad base"
+                                            disabled={isFixed}
+                                            className={FIXED_FIELD}
                                         />
                                         <div className="flex items-center gap-2">
                                             <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-semibold">
@@ -162,8 +178,9 @@ export function PresentationLevelsEditor({ rows, baseUnit, errors, onRowsChange,
                                                 onChange={(e) => setRow(i, { package: upperFirst(e.target.value) })}
                                                 placeholder="Caja"
                                                 aria-label="Empaque"
+                                                disabled={isFixed}
                                                 aria-invalid={!!packageError}
-                                                className={cn(packageError && 'border-destructive')}
+                                                className={cn(FIXED_FIELD, packageError && 'border-destructive')}
                                             />
                                         </div>
                                         <p className="text-muted-foreground truncate pl-5.5 text-xs">{levelName(rows, i, baseUnit)}</p>
@@ -186,8 +203,9 @@ export function PresentationLevelsEditor({ rows, baseUnit, errors, onRowsChange,
                                                 value={r.contains}
                                                 onChange={(e) => setRow(i, { contains: e.target.value })}
                                                 placeholder="Cant."
-                                                className="w-20 shrink-0"
+                                                className={cn('w-20 shrink-0', FIXED_FIELD)}
                                                 aria-label="Cuántas trae"
+                                                disabled={isFixed}
                                             />
                                             {i === 1 ? (
                                                 <span className="text-sm">{innerLabel(0)}</span>
@@ -196,7 +214,8 @@ export function PresentationLevelsEditor({ rows, baseUnit, errors, onRowsChange,
                                                     options={rows.slice(0, i).map((_, j) => ({ id: j, name: innerLabel(j) }))}
                                                     value={r.parent}
                                                     onChange={(v) => setRow(i, { parent: Number(v) })}
-                                                    className="h-9 min-w-0 flex-1"
+                                                    className={cn('h-9 min-w-0 flex-1', FIXED_FIELD)}
+                                                    disabled={isFixed}
                                                 />
                                             )}
                                         </div>
@@ -271,8 +290,8 @@ export function PresentationLevelsEditor({ rows, baseUnit, errors, onRowsChange,
                                         icon={Trash2}
                                         label="Quitar empaque"
                                         tone="danger"
-                                        disabled={hasOuter}
-                                        disabledReason="Primero quita el empaque que lo contiene"
+                                        disabled={hasOuter || isFixed}
+                                        disabledReason={isFixed ? 'Ya tiene stock, compras o ventas' : 'Primero quita el empaque que lo contiene'}
                                         onClick={() => removeLevel(i)}
                                     />
                                 )}

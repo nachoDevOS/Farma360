@@ -12,6 +12,7 @@
  *   />
  *
  * shape: "square" (producto, logo) o "round" (avatar). Acepta JPG, PNG, WEBP, GIF, AVIF hasta 5 MB.
+ * stacked: la foto grande ocupa todo el ancho y debajo van los botones (para una columna al costado del formulario).
  */
 import InputError from '@/components/shared/input-error';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ export function ImageUpload({
     onRemove,
     error,
     shape = 'square',
+    stacked = false,
     hint = 'JPG, PNG, WEBP o AVIF · hasta 5 MB',
     className,
 }: {
@@ -41,6 +43,7 @@ export function ImageUpload({
     onRemove: () => void;
     error?: string;
     shape?: 'square' | 'round';
+    stacked?: boolean;
     hint?: string;
     className?: string;
 }) {
@@ -78,7 +81,7 @@ export function ImageUpload({
     };
 
     return (
-        <div className={cn('flex items-center gap-4', className)}>
+        <div className={cn(stacked ? 'grid gap-2' : 'flex items-center gap-4', className)}>
             <button
                 type="button"
                 onClick={() => input.current?.click()}
@@ -94,7 +97,8 @@ export function ImageUpload({
                 }}
                 aria-label={shown ? 'Cambiar imagen' : 'Elegir imagen'}
                 className={cn(
-                    'group bg-muted/40 relative flex size-24 shrink-0 items-center justify-center overflow-hidden border-2 border-dashed transition-colors',
+                    'group bg-muted/40 relative flex shrink-0 items-center justify-center overflow-hidden border-2 border-dashed transition-colors',
+                    stacked ? 'aspect-square w-full flex-col gap-2' : 'size-24',
                     shape === 'round' ? 'rounded-full' : 'rounded-xl',
                     dragging ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50',
                     shown && 'border-solid',
@@ -108,11 +112,14 @@ export function ImageUpload({
                         </span>
                     </>
                 ) : (
-                    <ImagePlus className="text-muted-foreground group-hover:text-primary size-7 transition-colors" />
+                    <>
+                        <ImagePlus className="text-muted-foreground group-hover:text-primary size-7 transition-colors" />
+                        {stacked && <span className="text-muted-foreground group-hover:text-primary text-[13px] font-medium">Agregar foto</span>}
+                    </>
                 )}
             </button>
-            <div className="grid gap-1.5">
-                <div className="flex flex-wrap gap-2">
+            <div className={cn('grid gap-1.5', stacked && 'justify-items-center text-center')}>
+                <div className={cn('flex flex-wrap gap-2', stacked && !shown && 'hidden')}>
                     <Button type="button" variant="outline" size="sm" onClick={() => input.current?.click()}>
                         <ImagePlus /> {shown ? 'Cambiar' : 'Elegir imagen'}
                     </Button>

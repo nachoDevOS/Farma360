@@ -41,6 +41,8 @@ import { FormEventHandler } from 'react';
 
 interface Props {
     product: Product | null;
+    /** Ya tiene stock, compras o ventas: sus presentaciones quedan fijas. Ver ProductController@update */
+    hasMovements?: boolean;
     categories: Option[];
     laboratories: Option[];
     /** Genéricos ya usados en otros productos (se sugieren al escribir) */
@@ -51,7 +53,7 @@ interface Props {
 
 const NONE = 'all';
 
-export default function ProductForm({ product, categories, laboratories, genericNames, indications }: Props) {
+export default function ProductForm({ product, hasMovements = false, categories, laboratories, genericNames, indications }: Props) {
     const isEdit = product !== null;
     const { data, setData, transform, post, put, processing, errors } = useForm({
         name: product?.name ?? '',
@@ -112,95 +114,96 @@ export default function ProductForm({ product, categories, laboratories, generic
 
                 <Panel>
                     <PanelHeader title="Datos del producto" />
-                    <div className="border-b px-5 py-4">
+                    <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_13rem]">
+                        <div className="grid content-start gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                            <Field label="Nombre comercial" error={err.name}>
+                                <Input value={data.name} onChange={(e) => setData('name', e.target.value)} placeholder="Dolofen" autoFocus />
+                            </Field>
+                            <Field label="Nombre genérico" error={err.generic_name}>
+                                <Input
+                                    list="generic-names"
+                                    value={data.generic_name}
+                                    onChange={(e) => setData('generic_name', e.target.value)}
+                                    placeholder="Paracetamol"
+                                />
+                                <datalist id="generic-names">
+                                    {genericNames.map((name) => (
+                                        <option key={name} value={name} />
+                                    ))}
+                                </datalist>
+                            </Field>
+                            <Field label="Concentración" error={err.concentration}>
+                                <Input value={data.concentration} onChange={(e) => setData('concentration', e.target.value)} placeholder="500 mg" />
+                            </Field>
+                            <Field label="Forma farmacéutica" error={err.pharmaceutical_form}>
+                                <Input
+                                    list="pharmaceutical-forms"
+                                    value={data.pharmaceutical_form}
+                                    onChange={(e) => setData('pharmaceutical_form', e.target.value)}
+                                    placeholder="Tableta, Jarabe, Cápsula…"
+                                />
+                                <datalist id="pharmaceutical-forms">
+                                    {PHARMACEUTICAL_FORMS.map((form) => (
+                                        <option key={form} value={form} />
+                                    ))}
+                                </datalist>
+                            </Field>
+                            <Field label="Laboratorio" error={err.laboratory_id}>
+                                <SimpleSelect
+                                    options={laboratories}
+                                    value={data.laboratory_id}
+                                    allLabel="— Ninguno —"
+                                    onChange={(v) => setData('laboratory_id', optional(v))}
+                                    className="h-10"
+                                />
+                            </Field>
+                            <Field label="Categoría" error={err.category_id}>
+                                <SimpleSelect
+                                    options={categories}
+                                    value={data.category_id}
+                                    allLabel="— Ninguna —"
+                                    onChange={(v) => setData('category_id', optional(v))}
+                                    className="h-10"
+                                />
+                            </Field>
+                            <Field label="Código de barras" error={err.barcode}>
+                                <Input value={data.barcode} onChange={(e) => setData('barcode', e.target.value)} />
+                            </Field>
+                            <Field label="Registro sanitario" error={err.health_registry}>
+                                <Input value={data.health_registry} onChange={(e) => setData('health_registry', e.target.value)} />
+                            </Field>
+                            <Field label={`Stock mínimo (en ${plural(data.base_unit) || 'unidades'})`} error={err.min_stock}>
+                                <Input type="number" min={0} value={data.min_stock} onChange={(e) => setData('min_stock', e.target.value)} />
+                            </Field>
+                            <div className="flex flex-col gap-2 md:col-span-full">
+                                <Label>Control</Label>
+                                <div className="flex flex-wrap gap-x-6 gap-y-2">
+                                    <Flag
+                                        checked={data.requires_prescription}
+                                        onChange={(v) => setData('requires_prescription', v)}
+                                        label="Venta con receta"
+                                    />
+                                    <Flag
+                                        checked={data.is_controlled}
+                                        onChange={(v) =>
+                                            setData((d) => ({ ...d, is_controlled: v, requires_prescription: v || d.requires_prescription }))
+                                        }
+                                        label="Controlado (psicotrópico / estupefaciente)"
+                                    />
+                                    <Flag checked={data.is_active} onChange={(v) => setData('is_active', v)} label="Activo" />
+                                </div>
+                            </div>
+                        </div>
                         <ImageUpload
+                            stacked
                             current={product?.image}
                             file={data.image}
                             removed={data.remove_image}
                             onChange={(file) => setData((d) => ({ ...d, image: file, remove_image: false }))}
                             onRemove={() => setData((d) => ({ ...d, image: null, remove_image: true }))}
                             error={err.image}
-                            hint="Foto del producto o de la caja · JPG, PNG, WEBP o AVIF · hasta 5 MB"
+                            className="order-first mx-auto w-44 lg:order-last lg:w-full"
                         />
-                    </div>
-                    <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
-                        <Field label="Nombre comercial" hint="La marca. Ej: Dolofen, Panadol" error={err.name}>
-                            <Input value={data.name} onChange={(e) => setData('name', e.target.value)} placeholder="Dolofen" autoFocus />
-                        </Field>
-                        <Field label="Nombre genérico" hint="La sustancia. Ej: Paracetamol" error={err.generic_name}>
-                            <Input
-                                list="generic-names"
-                                value={data.generic_name}
-                                onChange={(e) => setData('generic_name', e.target.value)}
-                                placeholder="Paracetamol"
-                            />
-                            <datalist id="generic-names">
-                                {genericNames.map((name) => (
-                                    <option key={name} value={name} />
-                                ))}
-                            </datalist>
-                        </Field>
-                        <Field label="Concentración" error={err.concentration}>
-                            <Input value={data.concentration} onChange={(e) => setData('concentration', e.target.value)} placeholder="500 mg" />
-                        </Field>
-                        <Field label="Forma farmacéutica" error={err.pharmaceutical_form}>
-                            <Input
-                                list="pharmaceutical-forms"
-                                value={data.pharmaceutical_form}
-                                onChange={(e) => setData('pharmaceutical_form', e.target.value)}
-                                placeholder="Tableta, Jarabe, Cápsula…"
-                            />
-                            <datalist id="pharmaceutical-forms">
-                                {PHARMACEUTICAL_FORMS.map((form) => (
-                                    <option key={form} value={form} />
-                                ))}
-                            </datalist>
-                        </Field>
-                        <Field label="Laboratorio" error={err.laboratory_id}>
-                            <SimpleSelect
-                                options={laboratories}
-                                value={data.laboratory_id}
-                                allLabel="— Ninguno —"
-                                onChange={(v) => setData('laboratory_id', optional(v))}
-                                className="h-10"
-                            />
-                        </Field>
-                        <Field label="Categoría" error={err.category_id}>
-                            <SimpleSelect
-                                options={categories}
-                                value={data.category_id}
-                                allLabel="— Ninguna —"
-                                onChange={(v) => setData('category_id', optional(v))}
-                                className="h-10"
-                            />
-                        </Field>
-                        <Field label="Código de barras" error={err.barcode}>
-                            <Input value={data.barcode} onChange={(e) => setData('barcode', e.target.value)} />
-                        </Field>
-                        <Field label="Registro sanitario" error={err.health_registry}>
-                            <Input value={data.health_registry} onChange={(e) => setData('health_registry', e.target.value)} />
-                        </Field>
-                        <Field label={`Stock mínimo (en ${plural(data.base_unit) || 'unidades'})`} error={err.min_stock}>
-                            <Input type="number" min={0} value={data.min_stock} onChange={(e) => setData('min_stock', e.target.value)} />
-                        </Field>
-                        <div className="flex flex-col gap-2 md:col-span-2">
-                            <Label>Control</Label>
-                            <div className="flex flex-wrap gap-2">
-                                <Flag
-                                    checked={data.requires_prescription}
-                                    onChange={(v) => setData('requires_prescription', v)}
-                                    label="Venta con receta"
-                                />
-                                <Flag
-                                    checked={data.is_controlled}
-                                    onChange={(v) =>
-                                        setData((d) => ({ ...d, is_controlled: v, requires_prescription: v || d.requires_prescription }))
-                                    }
-                                    label="Controlado (psicotrópico / estupefaciente)"
-                                />
-                                <Flag checked={data.is_active} onChange={(v) => setData('is_active', v)} label="Activo" />
-                            </div>
-                        </div>
                     </div>
                 </Panel>
 
@@ -243,6 +246,7 @@ export default function ProductForm({ product, categories, laboratories, generic
                         <PresentationLevelsEditor
                             rows={data.presentations}
                             baseUnit={data.base_unit}
+                            locked={hasMovements}
                             errors={err}
                             onRowsChange={updateRows}
                             onBaseUnitChange={(value) => setData('base_unit', value)}
@@ -292,7 +296,7 @@ function Field({
 
 function Flag({ checked, onChange, label }: { checked: boolean; onChange: (value: boolean) => void; label: string }) {
     return (
-        <label className="flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2">
+        <label className="flex cursor-pointer items-center gap-2">
             <Checkbox checked={checked} onCheckedChange={(value) => onChange(value === true)} />
             <span className="text-sm">{label}</span>
         </label>

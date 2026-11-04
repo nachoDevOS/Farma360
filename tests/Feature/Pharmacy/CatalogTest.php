@@ -118,6 +118,75 @@ class CatalogTest extends TestCase
         $this->assertSame('Caja x3 blísteres (36 tabletas)', $product->presentations()->get()->last()->name);
     }
 
+    /** Lo que manda el formulario para el producto de prueba (unidad + Caja x100), con cambios en la caja. */
+    private function productForm($product, array $box = []): array
+    {
+        return [
+            'name' => $product->name, 'base_unit' => $product->base_unit, 'min_stock' => 0,
+            'presentations' => [
+                ['id' => $this->presentation($product)->id, 'sale_price' => 2, 'is_sellable' => true, 'is_purchasable' => true],
+                $box + ['id' => $this->presentation($product, 100)->id, 'parent_index' => 0, 'package' => 'Caja', 'contains' => 100, 'sale_price' => 150, 'is_sellable' => false, 'is_purchasable' => true],
+            ],
+        ];
+    }
+
+    public function test_a_product_with_movements_keeps_its_presentations_but_can_change_prices_and_add_packages()
+    {
+        $admin = $this->userWithRole('Administrador');
+        $product = $this->product(1.0);
+        $box = $this->presentation($product, 100);
+        $this->batch($product, $this->branch(), 10);
+
+        $form = $this->productForm($product);
+        $form['presentations'][] = ['parent_index' => 1, 'package' => 'Bulto', 'contains' => 5, 'sale_price' => 700, 'is_sellable' => true, 'is_purchasable' => false];
+
+        $this->actingAs($admin)->put("/admin/products/{$product->id}", $form)->assertRedirect('/admin/products')->assertSessionHas('success');
+
+        $this->assertEquals(2, $this->presentation($product)->fresh()->sale_price);
+        $this->assertEquals(150, $box->fresh()->sale_price);
+        $this->assertFalse($box->fresh()->is_sellable);
+        $this->assertSame([1, 100, 500], $product->presentations()->pluck('factor')->all());
+    }
+
+    public function test_a_product_with_movements_cannot_change_or_remove_its_presentations()
+    {
+        $admin = $this->userWithRole('Administrador');
+        $product = $this->product(1.0);
+        $this->batch($product, $this->branch(), 10);
+        $form = $this->productForm($product);
+        $update = fn (array $data) => $this->actingAs($admin)->from('/admin/products')->put("/admin/products/{$product->id}", $data)->assertSessionHas('error');
+
+        $update($this->productForm($product, ['package' => 'Frasco']));
+        $update($this->productForm($product, ['contains' => 50]));
+        $update(['base_unit' => 'Cápsula'] + $form);
+        $update(['presentations' => [$form['presentations'][0]]] + $form);
+
+        $this->assertSame(['Caja x100'], $product->presentations()->where('factor', 100)->pluck('name')->all());
+        $this->assertSame([1, 100], $product->presentations()->pluck('factor')->all());
+        $this->assertSame($product->base_unit, $product->fresh()->base_unit);
+    }
+
+    public function test_an_emptied_or_cancelled_batch_still_counts_as_movements()
+    {
+        $product = $this->product(1.0);
+        $batch = $this->batch($product, $this->branch(), 0);
+        $this->assertTrue($product->hasMovements());
+
+        $batch->delete();
+        $this->assertTrue($product->hasMovements());
+    }
+
+    public function test_the_edit_form_says_when_presentations_are_locked()
+    {
+        $admin = $this->userWithRole('Administrador');
+        $product = $this->product(1.0);
+
+        $this->actingAs($admin)->get("/admin/products/{$product->id}/edit")->assertInertia(fn ($page) => $page->where('hasMovements', false));
+
+        $this->batch($product, $this->branch(), 10);
+        $this->actingAs($admin)->get("/admin/products/{$product->id}/edit")->assertInertia(fn ($page) => $page->where('hasMovements', true));
+    }
+
     public function test_presentation_levels_are_validated()
     {
         $admin = $this->userWithRole('Administrador');

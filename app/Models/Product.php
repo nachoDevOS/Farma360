@@ -61,6 +61,15 @@ class Product extends Model
     }
 
     /**
+     * ¿Ya tiene stock, compras o ventas? Todo eso pasa por un lote, aunque hoy esté vacío o anulado.
+     * Con movimientos, sus presentaciones no se pueden quitar ni cambiar: el historial se calculó con esos factores.
+     */
+    public function hasMovements(): bool
+    {
+        return $this->batches()->withTrashed()->exists();
+    }
+
+    /**
      * BUSCADOR DE PRODUCTOS (catálogo, punto de venta, inventario, compras…).
      * Encuentra por nombre comercial, nombre genérico, código de barras del producto o de una
      * presentación, uso / síntoma ("dolor de cabeza") o el texto de para qué sirve.

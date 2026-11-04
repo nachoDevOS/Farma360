@@ -277,12 +277,17 @@ class ProductController extends Controller
                 // El formulario escribe los usos como texto
                 'indication_names' => $product->indications->pluck('name'),
             ],
+            'hasMovements' => $product->hasMovements(),
             ...$this->options(),
         ]);
     }
 
     public function update(ProductRequest $request, Product $product): RedirectResponse
     {
+        if ($product->hasMovements()) {
+            $this->ensurePresentationsStayTheSame($product, $request->validated('base_unit'), $request->validated('presentations'));
+        }
+
         $image = $this->storeImage($request, 'image', 'products', $product->image);
         DB::transaction(function () use ($request, $product, $image) {
             $product->update($this->productData($request) + ['image' => $image]);
@@ -363,6 +368,37 @@ class ProductController extends Controller
             ...$request->safe()->except(['presentations', 'indications', 'generic_name', 'image', 'remove_image']),
             'generic_name' => $generic === '' ? null : ($existing ?? mb_strtoupper(mb_substr($generic, 0, 1)).mb_substr($generic, 1)),
         ];
+    }
+
+    /**
+     * Con movimientos no se quita ninguna presentación ni se cambia su nombre, lo que contiene o cuánto trae.
+     * Precio, código de barras, si se vende o se compra y los empaques nuevos sí se pueden cambiar.
+     *
+     * @param  list<array{id?: ?int, parent_index?: ?int, package?: ?string, contains?: ?int}>  $rows
+     */
+    private function ensurePresentationsStayTheSame(Product $product, string $baseUnit, array $rows): void
+    {
+        ksort($rows);
+        $rows = collect($rows)->values();
+
+        $unchanged = ProductPresentation::sameName($baseUnit, $product->base_unit)
+            && $product->presentations->every(function (ProductPresentation $presentation) use ($rows) {
+                $row = $rows->firstWhere('id', $presentation->id);
+                if ($row === null) {
+                    return false;
+                }
+                if ($presentation->parent_id === null) {
+                    return empty($row['parent_index']);
+                }
+
+                return ProductPresentation::sameName((string) ($row['package'] ?? ''), $presentation->package)
+                    && (int) ($row['contains'] ?? 0) === $presentation->contains
+                    && ($rows[(int) $row['parent_index']]['id'] ?? null) === $presentation->parent_id;
+            });
+
+        if (! $unchanged) {
+            throw new BusinessException("{$product->name} ya tiene stock, compras o ventas: sus presentaciones no se pueden quitar ni cambiar de nombre o cantidad.");
+        }
     }
 
     /**
