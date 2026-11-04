@@ -66,7 +66,8 @@ class PromotionController extends Controller
     {
         $data = $request->validate([
             'batch_id' => ['required', 'integer'],
-            'discount_percent' => [Rule::requiredIf(! $request->filled('presentation_discounts')), 'nullable', 'numeric', 'gt:0', 'lt:100'],
+            // Con % por presentación, el general no cuenta
+            'discount_percent' => [Rule::excludeIf($request->filled('presentation_discounts')), 'required', 'numeric', 'gt:0', 'lt:100'],
             'presentation_discounts' => ['array'],
             'presentation_discounts.*' => ['required', 'numeric', 'gt:0', 'lt:100'],
         ], [], ['discount_percent' => 'descuento', 'presentation_discounts.*' => 'descuento']);

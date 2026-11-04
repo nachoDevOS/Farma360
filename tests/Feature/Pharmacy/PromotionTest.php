@@ -174,6 +174,21 @@ class PromotionTest extends TestCase
         $this->assertNull($batch->fresh()->activePromotion);
     }
 
+    public function test_the_general_percent_is_ignored_when_each_presentation_has_its_own()
+    {
+        $product = $this->product();
+        $batch = $this->batch($product, $this->branch(), 500, '+20 days');
+        $box = $this->presentation($product, 100);
+
+        $this->actingAs($this->userWithRole('Administrador'))->post('/admin/promotions/apply', [
+            'batch_id' => $batch->id,
+            'discount_percent' => 150,
+            'presentation_discounts' => [$box->id => 15],
+        ])->assertSessionHas('success');
+
+        $this->assertSame(15.0, $batch->fresh()->activePromotion->discountFor($box));
+    }
+
     public function test_expired_batches_cannot_get_a_promotion()
     {
         $batch = $this->batch($this->product(), $this->branch(), 10, '-1 day');
