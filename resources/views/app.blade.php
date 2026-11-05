@@ -4,7 +4,9 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        <title inertia>{{ config('seo.title') }}</title>
+
+        @include('partials.seo')
 
         {{-- Aplica el modo oscuro ANTES de que cargue React, para evitar un parpadeo blanco --}}
         <script>
