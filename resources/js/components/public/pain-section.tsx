@@ -49,54 +49,54 @@ const comparisons = [
 
 export function PainSection({ name }: { name: string }) {
     return (
-        <section id="por-que" className="scroll-mt-20 bg-white px-6 pt-20 pb-16">
+        <section id="por-que" className="pub-section scroll-mt-20 bg-white px-4 py-10 sm:px-6 lg:py-12">
             <div className="pub-reveal mx-auto max-w-3xl text-center">
-                <h2 className="font-display text-3xl leading-tight font-semibold tracking-[-0.02em] text-balance text-slate-900 sm:text-[2.5rem]">
+                <h2 className="font-display text-2xl leading-tight font-semibold tracking-[-0.02em] text-balance text-slate-900 sm:text-[2rem]">
                     ¿Te cansaste de llevar tu farmacia en <span className="pub-mark">cuaderno y Excel</span>?
                 </h2>
-                <p className="mt-4 text-lg leading-relaxed text-slate-600">
+                <p className="mt-2 leading-relaxed text-slate-600">
                     Cada remedio que vence, cada venta sin anotar y cada boliviano que no cuadra es dinero que se va. Y sin datos, ni te enteras.
                 </p>
             </div>
 
-            <div className="mx-auto mt-12 max-w-[84rem] overflow-hidden rounded-3xl shadow-xl shadow-slate-900/10">
-                <div aria-hidden="true" className="hidden grid-cols-[13rem_minmax(0,4fr)_minmax(0,6fr)] lg:grid">
+            <div className="mx-auto mt-6 max-w-[76rem] overflow-hidden rounded-2xl shadow-xl shadow-slate-900/10">
+                <div aria-hidden="true" className="hidden grid-cols-[10rem_minmax(0,4fr)_minmax(0,6fr)] lg:grid">
                     <span className="bg-[#f4f6f9]" />
-                    <span className="font-display bg-[#f4f6f9] p-5 text-lg font-semibold text-slate-500">Con cuaderno o Excel</span>
-                    <span className="font-display bg-brand-navy p-5 text-lg font-semibold text-white">Con {name}</span>
+                    <span className="font-display bg-[#f4f6f9] px-4 py-2.5 font-semibold text-slate-500">Con cuaderno o Excel</span>
+                    <span className="font-display bg-brand-navy px-4 py-2.5 font-semibold text-white">Con {name}</span>
                 </div>
 
                 <ul>
                     {comparisons.map(({ icon: Icon, topic, manual, system, advantage }, index) => (
                         <li
                             key={topic}
-                            className="grid border-t border-slate-200 lg:grid-cols-[13rem_minmax(0,4fr)_minmax(0,6fr)] lg:border-slate-200/70"
+                            className="grid border-t border-slate-200 lg:grid-cols-[10rem_minmax(0,4fr)_minmax(0,6fr)] lg:border-slate-200/70"
                         >
-                            <div className="flex items-center gap-3 bg-[#f4f6f9] px-5 pt-5 lg:pb-5">
-                                <span className="text-primary flex size-10 shrink-0 items-center justify-center rounded-xl bg-white">
-                                    <Icon className="size-5" />
+                            <div className="flex items-center gap-2.5 bg-[#f4f6f9] px-4 pt-3 lg:py-2">
+                                <span className="text-primary flex size-8 shrink-0 items-center justify-center rounded-lg bg-white">
+                                    <Icon className="size-4" />
                                 </span>
-                                <h3 className="font-display text-lg font-semibold text-slate-900">{topic}</h3>
+                                <h3 className="font-display font-semibold text-slate-900">{topic}</h3>
                             </div>
-                            <p className="bg-[#f4f6f9] px-5 pt-3 pb-5 leading-relaxed text-slate-600 lg:flex lg:items-center lg:py-5">
+                            <p className="bg-[#f4f6f9] px-4 pt-1.5 pb-3 text-sm leading-snug text-slate-600 lg:flex lg:items-center lg:py-2">
                                 <span>
-                                    <span className="block text-sm font-semibold text-slate-500 lg:hidden">Con cuaderno o Excel</span>
+                                    <span className="block text-xs font-semibold text-slate-500 lg:hidden">Con cuaderno o Excel</span>
                                     {manual}
                                 </span>
                             </p>
-                            <div className="bg-brand-navy flex items-start gap-3 p-5 text-white">
+                            <div className="bg-brand-navy flex items-center gap-3 px-4 py-2.5 text-white lg:py-2">
                                 <span
                                     style={stagger(index)}
-                                    className="pub-pop bg-primary mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full"
+                                    className="pub-pop bg-primary flex size-6 shrink-0 items-center justify-center rounded-full"
                                 >
-                                    <Check className="size-4" strokeWidth={3} />
+                                    <Check className="size-3.5" strokeWidth={3} />
                                 </span>
                                 <span className="grid w-full gap-x-6 gap-y-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-center">
-                                    <span className="leading-relaxed text-white/90">
-                                        <span className="block text-sm font-semibold text-white/70 lg:hidden">Con {name}</span>
+                                    <span className="text-sm leading-snug text-white/90">
+                                        <span className="block text-xs font-semibold text-white/70 lg:hidden">Con {name}</span>
                                         {system}
                                     </span>
-                                    <strong className="font-display font-semibold">{advantage}</strong>
+                                    <strong className="font-display text-sm font-semibold">{advantage}</strong>
                                 </span>
                             </div>
                         </li>

@@ -25,16 +25,16 @@ const questions = [
 
 export function FrequentQuestions() {
     return (
-        <section id="preguntas" className="scroll-mt-20 bg-[#f4f6f9] px-6 py-20">
+        <section id="preguntas" className="pub-section scroll-mt-20 bg-[#f4f6f9] px-4 py-10 sm:px-6 lg:py-12">
             <SectionHeading title="Preguntas frecuentes" text="Lo que suelen preguntar antes de empezar." />
-            <div className="mx-auto mt-10 max-w-3xl space-y-3">
+            <div className="mx-auto mt-6 grid max-w-5xl items-start gap-2 lg:grid-cols-2">
                 {questions.map(({ question, answer }) => (
-                    <details key={question} className="group rounded-xl bg-white px-5 shadow-sm shadow-slate-900/5">
-                        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-lg font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
+                    <details key={question} className="group rounded-xl bg-white px-4 shadow-sm shadow-slate-900/5">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-3 font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
                             {question}
                             <Plus className="text-primary size-5 shrink-0 transition-transform duration-200 group-open:rotate-45" />
                         </summary>
-                        <p className="pb-4 leading-relaxed text-slate-600">{answer}</p>
+                        <p className="pb-3 text-sm leading-relaxed text-slate-600">{answer}</p>
                     </details>
                 ))}
             </div>

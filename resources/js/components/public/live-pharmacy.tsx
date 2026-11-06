@@ -64,19 +64,19 @@ export function LivePharmacy() {
     const lastStock = stockAfter(salesCount, lastProductIndex);
 
     return (
-        <section className="bg-white px-6 pb-20">
+        <section className="pub-section bg-white px-4 pb-10 sm:px-6 lg:pb-12">
             <SectionHeading title="Así se ve tu farmacia funcionando" text="Cada venta actualiza la caja y el stock al instante, sin anotar nada." />
 
             <div
                 ref={panel}
-                className="pub-reveal bg-brand-navy mx-auto mt-10 grid max-w-[76rem] gap-4 rounded-3xl p-5 text-white sm:p-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
+                className="pub-reveal bg-brand-navy mx-auto mt-6 grid max-w-[76rem] gap-3 rounded-2xl p-3 text-white sm:p-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
             >
-                <div className="rounded-2xl bg-white/[0.07] p-5">
+                <div className="rounded-xl bg-white/[0.07] p-4">
                     <h3 className="font-display flex items-center gap-2 font-semibold">
                         <Receipt className="size-5" /> Ventas de hoy
                         <span aria-hidden="true" className="pub-live ml-auto size-2.5 rounded-full bg-white" />
                     </h3>
-                    <ul className="mt-4 space-y-2" aria-live="off">
+                    <ul className="mt-3 space-y-1.5" aria-live="off">
                         {recentSales.map((count, index) => {
                             const { product, pack, amount } = saleAt(count);
 
@@ -84,7 +84,7 @@ export function LivePharmacy() {
                                 <li
                                     key={count}
                                     className={cn(
-                                        'flex items-center justify-between gap-3 rounded-lg bg-white/[0.07] px-4 py-2.5',
+                                        'flex items-center justify-between gap-3 rounded-lg bg-white/[0.07] px-3 py-1.5',
                                         index === 0 && 'pub-new-sale',
                                     )}
                                 >
@@ -101,12 +101,12 @@ export function LivePharmacy() {
                     </ul>
                 </div>
 
-                <div className="grid gap-4">
-                    <div className="rounded-2xl bg-white/[0.07] p-5">
+                <div className="grid gap-3">
+                    <div className="rounded-xl bg-white/[0.07] p-4">
                         <h3 className="font-display flex items-center gap-2 font-semibold">
                             <Wallet className="size-5" /> Debe haber en caja
                         </h3>
-                        <p key={salesCount} className="pub-bump font-display mt-2 text-4xl font-bold tabular-nums">
+                        <p key={salesCount} className="pub-bump font-display mt-1 text-3xl font-bold tabular-nums">
                             {money(OPENING_CASH + collected)}
                         </p>
                         <p className="mt-1 text-sm text-white/75">
@@ -114,12 +114,12 @@ export function LivePharmacy() {
                         </p>
                     </div>
 
-                    <div className="rounded-2xl bg-white/[0.07] p-5">
+                    <div className="rounded-xl bg-white/[0.07] p-4">
                         <h3 className="font-display flex items-center gap-2 font-semibold">
                             <Package className="size-5" /> Stock actualizado
                         </h3>
                         <p className="mt-2 truncate font-semibold">{lastProduct.product}</p>
-                        <p key={salesCount} className="pub-bump font-display text-3xl font-bold tabular-nums">
+                        <p key={salesCount} className="pub-bump font-display text-2xl font-bold tabular-nums">
                             {lastStock} <span className="text-base font-medium text-white/75">{lastProduct.unit}</span>
                         </p>
                         <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/15">
@@ -131,7 +131,7 @@ export function LivePharmacy() {
                     </div>
                 </div>
             </div>
-            <p className="mt-3 text-center text-sm text-slate-500">Simulación con datos de ejemplo.</p>
+            <p className="mt-2 text-center text-xs text-slate-500">Simulación con datos de ejemplo.</p>
         </section>
     );
 }

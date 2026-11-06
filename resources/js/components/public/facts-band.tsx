@@ -11,17 +11,21 @@ const facts = [
 
 export function FactsBand() {
     return (
-        <section className="bg-brand-navy px-6 py-14 text-white">
-            <dl className="mx-auto grid max-w-[88rem] gap-8 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="pub-section bg-brand-navy px-4 py-8 text-white sm:px-6">
+            <dl className="mx-auto grid max-w-[88rem] grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4">
                 {facts.map(({ icon: Icon, value, label }, index) => (
-                    <div key={label} style={stagger(index)} className="pub-reveal text-center">
-                        <span className="mx-auto flex size-11 items-center justify-center rounded-xl bg-white/10">
+                    <div
+                        key={label}
+                        style={stagger(index)}
+                        className="pub-reveal flex flex-col items-center gap-1 text-center lg:flex-row lg:gap-3 lg:text-left"
+                    >
+                        <span className="hidden size-10 shrink-0 items-center justify-center rounded-xl bg-white/10 lg:flex">
                             <Icon className="size-5" />
                         </span>
-                        <dd className="font-display mt-3 text-5xl font-bold tabular-nums">
+                        <dd className="font-display text-3xl font-bold tabular-nums lg:text-4xl">
                             <CountUp value={value} />
                         </dd>
-                        <dt className="mt-1 text-white/80">{label}</dt>
+                        <dt className="text-sm leading-snug text-white/80">{label}</dt>
                     </div>
                 ))}
             </dl>

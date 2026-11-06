@@ -11,25 +11,25 @@ const steps = [
 
 export function StartSteps() {
     return (
-        <section className="bg-white px-6 py-20">
+        <section className="pub-section bg-white px-4 pb-10 sm:px-6 lg:pb-12">
             <SectionHeading title="Empezar es simple" text="Sin instalar programas: es un sistema web." />
-            <ol className="mx-auto mt-12 grid max-w-[76rem] gap-8 md:grid-cols-3">
+            <ol className="mx-auto mt-6 grid max-w-[76rem] gap-3 md:grid-cols-3">
                 {steps.map(({ icon: Icon, title, text }, index) => (
                     <li
                         key={title}
                         style={stagger(index)}
-                        className="pub-reveal pub-spot pub-lift group rounded-2xl border border-slate-200 bg-white p-6"
+                        className="pub-reveal pub-spot pub-lift group flex gap-3 rounded-xl border border-slate-200 bg-white p-4"
                     >
-                        <div className="flex items-center justify-between">
-                            <span className="pub-icon bg-primary/10 text-primary flex size-12 items-center justify-center rounded-xl">
-                                <Icon className="size-6" />
-                            </span>
-                            <span aria-hidden="true" className="font-display text-4xl font-semibold text-slate-200">
-                                {index + 1}
-                            </span>
+                        <span className="pub-icon bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
+                            <Icon className="size-5" />
+                        </span>
+                        <div className="flex-1">
+                            <h3 className="font-display font-semibold text-slate-900">{title}</h3>
+                            <p className="mt-0.5 text-sm leading-snug text-slate-600">{text}</p>
                         </div>
-                        <h3 className="font-display mt-4 text-xl font-semibold text-slate-900">{title}</h3>
-                        <p className="mt-2 leading-relaxed text-slate-600">{text}</p>
+                        <span aria-hidden="true" className="font-display text-3xl font-semibold text-slate-200">
+                            {index + 1}
+                        </span>
                     </li>
                 ))}
             </ol>

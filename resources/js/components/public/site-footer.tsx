@@ -37,28 +37,28 @@ export function SiteFooter({ name, description, phone, whatsappUrl }: FooterProp
                 <HygieiaSeal className="h-[34rem]" />
             </div>
 
-            <div className="relative mx-auto max-w-[100rem] px-6 pt-14 pb-8 lg:px-12">
+            <div className="relative mx-auto max-w-[100rem] px-4 pt-8 pb-5 sm:px-6 lg:px-12">
                 {whatsappUrl && (
-                    <div className="flex flex-col items-start justify-between gap-5 border-b border-white/15 pb-10 md:flex-row md:items-center">
+                    <div className="flex flex-col items-start justify-between gap-4 border-b border-white/15 pb-6 md:flex-row md:items-center">
                         <div>
-                            <h2 className="font-display text-3xl leading-tight font-semibold tracking-[-0.02em] text-balance">
+                            <h2 className="font-display text-2xl leading-tight font-semibold tracking-[-0.02em] text-balance">
                                 ¿Tienes una farmacia? Hablemos
                             </h2>
-                            <p className="mt-2 text-lg text-white/80">Escríbenos y te mostramos cómo funcionaría en tu negocio.</p>
+                            <p className="mt-1 text-white/80">Escríbenos y te mostramos cómo funcionaría en tu negocio.</p>
                         </div>
                         <a
                             href={whatsappUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="pub-lift inline-flex h-13 shrink-0 items-center gap-2 rounded-md bg-white px-7 text-base font-semibold text-slate-900"
+                            className="pub-lift inline-flex h-11 shrink-0 items-center gap-2 rounded-md bg-white px-7 text-base font-semibold text-slate-900"
                         >
                             <MessageCircle className="size-5" /> Escribir por WhatsApp
                         </a>
                     </div>
                 )}
 
-                <div className="grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.5fr)]">
-                    <div>
+                <div className="grid grid-cols-2 gap-6 py-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.5fr)]">
+                    <div className="col-span-2 lg:col-span-1">
                         <span className="flex items-center gap-3">
                             <AppLogoMark className="size-11" />
                             <span className="font-display text-2xl font-bold">{name}</span>
@@ -90,7 +90,7 @@ export function SiteFooter({ name, description, phone, whatsappUrl }: FooterProp
                         </nav>
                     ))}
 
-                    <div>
+                    <div className="col-span-2 lg:col-span-1">
                         <h2 className="font-display text-lg font-bold">Contacto</h2>
                         <ul className="mt-4 space-y-3">
                             {whatsappUrl && phone && (
@@ -132,7 +132,7 @@ export function SiteFooter({ name, description, phone, whatsappUrl }: FooterProp
                     </div>
                 </div>
 
-                <p className="flex flex-wrap justify-between gap-2 border-t border-white/15 pt-6 pr-16 text-sm text-white/70">
+                <p className="flex flex-wrap justify-between gap-2 border-t border-white/15 pt-4 pr-16 text-sm text-white/70">
                     <span>
                         © {new Date().getFullYear()} {name}. Todos los derechos reservados.
                     </span>

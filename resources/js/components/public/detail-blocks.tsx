@@ -197,14 +197,14 @@ export function DetailBlocks() {
     const { icon: ActiveIcon, title, text, items } = blocks[activeIndex];
 
     return (
-        <section id="funciones" className="scroll-mt-20 bg-[#f4f6f9] px-6 py-16">
+        <section id="funciones" className="pub-section scroll-mt-20 bg-[#f4f6f9] px-4 py-10 sm:px-6 lg:py-12">
             <SectionHeading title="Todas las funciones de tu farmacia" text="Elige una y mira cómo se ve en el sistema." />
 
-            <div className="pub-reveal mx-auto mt-8 max-w-[88rem]">
+            <div className="pub-reveal mx-auto mt-5 max-w-[76rem]">
                 <div
                     role="tablist"
                     aria-label="Funciones"
-                    className="flex gap-2 overflow-x-auto pb-2 lg:flex-wrap lg:justify-center lg:overflow-visible"
+                    className="flex gap-1.5 overflow-x-auto pb-1.5 lg:flex-wrap lg:justify-center lg:overflow-visible"
                 >
                     {blocks.map(({ icon: Icon, tab }, index) => (
                         <button
@@ -216,7 +216,7 @@ export function DetailBlocks() {
                             aria-controls="funcion-panel"
                             onClick={() => setActiveIndex(index)}
                             className={cn(
-                                'flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors duration-200',
+                                'flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors duration-200',
                                 activeIndex === index ? 'bg-brand-navy text-white' : 'bg-white text-slate-700 hover:bg-slate-200',
                             )}
                         >
@@ -230,20 +230,20 @@ export function DetailBlocks() {
                     id="funcion-panel"
                     role="tabpanel"
                     aria-labelledby={`funcion-${activeIndex}`}
-                    className="mt-3 grid items-center gap-6 rounded-3xl bg-white p-5 shadow-sm shadow-slate-900/5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-10 lg:p-8"
+                    className="mt-2 grid items-center gap-4 rounded-2xl bg-white p-4 shadow-sm shadow-slate-900/5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-6 lg:p-5"
                 >
                     <div key={activeIndex} className="pub-swap">
-                        <span className="bg-primary flex size-11 items-center justify-center rounded-xl text-white">
-                            <ActiveIcon className="size-5" />
+                        <span className="bg-primary flex size-9 items-center justify-center rounded-lg text-white">
+                            <ActiveIcon className="size-4" />
                         </span>
-                        <h3 className="font-display mt-4 text-2xl leading-tight font-bold tracking-[-0.02em] text-balance text-slate-900 sm:text-3xl">
+                        <h3 className="font-display mt-2.5 text-xl leading-tight font-bold tracking-[-0.02em] text-balance text-slate-900 sm:text-2xl">
                             {title}
                         </h3>
-                        <p className="mt-2 leading-relaxed text-slate-600">{text}</p>
-                        <ul className="mt-5 grid gap-x-5 gap-y-3 sm:grid-cols-2">
+                        <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{text}</p>
+                        <ul className="mt-3 grid gap-x-4 gap-y-2 sm:grid-cols-2">
                             {items.map(([name, detail]) => (
                                 <li key={name} className="border-l-2 border-slate-200 pl-3">
-                                    <span className="block font-semibold text-slate-900">{name}</span>
+                                    <span className="block text-sm font-semibold text-slate-900">{name}</span>
                                     <span className="text-sm text-slate-600">{detail}</span>
                                 </li>
                             ))}

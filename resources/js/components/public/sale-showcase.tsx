@@ -41,44 +41,46 @@ const features = [
 
 export function SaleShowcase() {
     return (
-        <section id="venta" className="scroll-mt-20 bg-white px-6 py-20">
+        <section id="venta" className="pub-section scroll-mt-20 bg-white px-4 py-10 sm:px-6 lg:py-12">
             <SectionHeading
                 title="Una venta en segundos"
                 text="Míralo de principio a fin: una venta real en la demostración, con datos de ejemplo."
             />
 
-            <div className="pub-reveal mx-auto mt-12 grid max-w-[88rem] items-center gap-8 rounded-3xl bg-[#f4f6f9] p-5 sm:p-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <div className="pub-reveal mx-auto mt-6 grid max-w-[72rem] items-center gap-5 rounded-2xl bg-[#f4f6f9] p-3 sm:p-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                 <SaleVideo />
-                <ol className="space-y-5">
+                <ol className="space-y-3">
                     {steps.map(({ title, text }, index) => (
-                        <li key={title} className="flex gap-4">
-                            <span className="bg-primary flex size-9 shrink-0 items-center justify-center rounded-full font-bold text-white">
+                        <li key={title} className="flex gap-3">
+                            <span className="bg-primary flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white">
                                 {index + 1}
                             </span>
                             <span>
-                                <span className="font-display block text-lg font-bold text-slate-900">{title}</span>
-                                <span className="text-slate-600">{text}</span>
+                                <span className="font-display block font-bold text-slate-900">{title}</span>
+                                <span className="block text-sm leading-snug text-slate-600">{text}</span>
                             </span>
                         </li>
                     ))}
                 </ol>
             </div>
 
-            <div className="mx-auto mt-8 grid max-w-[88rem] gap-5 md:grid-cols-2 lg:grid-cols-3">
+            <div className="mx-auto mt-3 grid max-w-[72rem] gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {features.map(({ icon: Icon, tag, title, text }, index) => (
                     <article
                         key={title}
                         style={stagger(index % 3)}
-                        className="pub-reveal pub-spot pub-lift group rounded-2xl border border-slate-200 bg-white p-6"
+                        className="pub-reveal pub-spot pub-lift group flex gap-3 rounded-xl border border-slate-200 bg-white p-4"
                     >
-                        <div className="flex items-center justify-between">
-                            <span className="pub-icon bg-primary/10 text-primary flex size-11 items-center justify-center rounded-xl">
-                                <Icon className="size-5" />
-                            </span>
-                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{tag}</span>
+                        <span className="pub-icon bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
+                            <Icon className="size-5" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                                <h3 className="font-display font-bold text-slate-900">{title}</h3>
+                                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{tag}</span>
+                            </div>
+                            <p className="mt-0.5 text-sm leading-snug text-slate-600">{text}</p>
                         </div>
-                        <h3 className="font-display mt-4 text-lg font-bold text-slate-900">{title}</h3>
-                        <p className="mt-2 leading-relaxed text-slate-600">{text}</p>
                     </article>
                 ))}
             </div>

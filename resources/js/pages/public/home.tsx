@@ -33,7 +33,7 @@ interface Props {
 const SYSTEM_DESCRIPTION = 'Sistema de Inventario y Ventas de Farmacia';
 
 function PrimaryAction({ demoEnabled, whatsappUrl, large = false }: Omit<Props, 'testimonials' | 'phone'> & { large?: boolean }) {
-    const size = large ? 'pub-cta h-13 px-7 text-base' : 'h-10 px-4';
+    const size = large ? 'pub-cta h-11 px-6' : 'h-10 px-4';
 
     if (demoEnabled) {
         return (
@@ -89,17 +89,17 @@ export default function Home({ demoEnabled, whatsappUrl, phone, testimonials }: 
             <StartSteps />
             <FrequentQuestions />
 
-            <section className="bg-white px-6 py-20">
-                <div className="pub-reveal bg-brand-navy relative mx-auto flex max-w-5xl flex-col items-center gap-6 overflow-hidden rounded-3xl px-6 py-14 text-center text-white">
+            <section className="pub-section bg-white px-4 py-10 sm:px-6 lg:py-12">
+                <div className="pub-reveal bg-brand-navy relative mx-auto flex max-w-5xl flex-col items-center gap-3 overflow-hidden rounded-2xl px-6 py-8 text-center text-white">
                     <div
                         aria-hidden="true"
                         className="pub-drift absolute top-full left-1/2 size-[50rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
                         style={{ background: 'radial-gradient(closest-side, color-mix(in oklab, var(--primary) 55%, transparent), transparent)' }}
                     />
-                    <h2 className="font-display relative text-3xl leading-tight font-semibold tracking-[-0.02em] text-balance sm:text-[2.5rem]">
+                    <h2 className="font-display relative text-2xl leading-tight font-semibold tracking-[-0.02em] text-balance sm:text-[2rem]">
                         Deja el cuaderno. Tu farmacia merece un sistema
                     </h2>
-                    <p className="relative max-w-xl text-lg text-white/90">Menos papeles, menos pérdidas y más tiempo para atender a tus clientes.</p>
+                    <p className="relative max-w-xl text-white/90">Menos papeles, menos pérdidas y más tiempo para atender a tus clientes.</p>
                     <PrimaryAction {...actionProps} large />
                 </div>
             </section>

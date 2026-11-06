@@ -20,20 +20,22 @@ const modules = [
 
 export function ModuleGrid() {
     return (
-        <section id="modulos" className="scroll-mt-20 bg-[#f4f6f9] px-6 py-20">
+        <section id="modulos" className="pub-section scroll-mt-20 bg-[#f4f6f9] px-4 py-10 sm:px-6 lg:py-12">
             <SectionHeading title="Módulos del sistema" text="Todo lo que necesita una farmacia para vender, controlar su stock y cerrar el día." />
-            <div className="mx-auto mt-12 grid max-w-[100rem] gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mx-auto mt-6 grid max-w-[88rem] gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {modules.map(({ icon: Icon, title, text }, index) => (
                     <article
                         key={title}
                         style={stagger(index % 4)}
-                        className="pub-reveal pub-spot pub-lift group rounded-2xl bg-white p-6 shadow-sm shadow-slate-900/5"
+                        className="pub-reveal pub-spot pub-lift group flex gap-3 rounded-xl bg-white p-4 shadow-sm shadow-slate-900/5"
                     >
-                        <span className="pub-icon bg-primary/10 text-primary flex size-12 items-center justify-center rounded-xl">
-                            <Icon className="size-6" />
+                        <span className="pub-icon bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
+                            <Icon className="size-5" />
                         </span>
-                        <h3 className="font-display mt-4 text-lg font-bold text-slate-900">{title}</h3>
-                        <p className="mt-2 leading-relaxed text-slate-600">{text}</p>
+                        <div>
+                            <h3 className="font-display font-bold text-slate-900">{title}</h3>
+                            <p className="mt-0.5 text-sm leading-snug text-slate-600">{text}</p>
+                        </div>
                     </article>
                 ))}
             </div>
