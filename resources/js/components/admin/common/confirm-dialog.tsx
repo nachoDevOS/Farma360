@@ -105,10 +105,7 @@ export function ReasonDialog({ open, onClose, title, url, action = 'anular' }: R
 
     return (
         <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
-            <DialogContent
-                onInteractOutside={(e) => e.preventDefault()}
-                className="bg-card w-[calc(100%-2rem)] gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[440px] sm:rounded-xl"
-            >
+            <DialogContent className="bg-card w-[calc(100%-2rem)] gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[440px] sm:rounded-xl">
                 <div className="bg-destructive h-1" />
                 <form onSubmit={send}>
                     <DialogHeader className="flex-row items-start gap-3.5 space-y-0 px-5 pt-5 pr-11 pb-4 text-left sm:text-left">

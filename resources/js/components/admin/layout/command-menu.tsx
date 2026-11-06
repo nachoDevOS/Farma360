@@ -151,7 +151,10 @@ export function CommandMenu() {
             </button>
 
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="top-[20%] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-lg [&>button:last-child]:hidden">
+                <DialogContent
+                    closeOnOutsideClick
+                    className="top-[20%] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-lg [&>button:last-child]:hidden"
+                >
                     <DialogTitle className="sr-only">Buscador</DialogTitle>
                     <DialogDescription className="sr-only">Escribe para ir a una pantalla o buscar usuarios</DialogDescription>
                     <div className="flex items-center gap-2 border-b px-4">
