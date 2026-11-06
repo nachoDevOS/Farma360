@@ -738,7 +738,7 @@
     }
 }
 
-/* ===== EMBLEMA DEL LOGIN =====  (hygieia-seal.tsx): se dibujan las líneas, la copa se llena de color, sube la serpiente y sale una onda de luz */
+/* ===== EMBLEMA DEL LOGIN =====  (hygieia-seal.tsx): se dibujan las líneas y la copa se llena de color; la víbora trepa desde React y al llegar saca la lengua y sale una onda de luz */
 .seal-line {
     stroke-dasharray: 1;
     animation: seal-draw 1.1s cubic-bezier(0.45, 0, 0.2, 1) backwards;
@@ -746,19 +746,15 @@
 .seal-fill {
     animation: seal-appear 0.8s ease-out 0.8s backwards;
 }
-.seal-snake {
-    stroke-dasharray: 1;
-    animation: seal-draw 1.7s cubic-bezier(0.45, 0, 0.2, 1) 0.9s backwards;
-}
-.seal-head {
+.seal-tongue {
     transform-box: fill-box;
-    transform-origin: center;
-    animation: seal-head 0.45s cubic-bezier(0.16, 1, 0.3, 1) 2.45s backwards;
+    transform-origin: top;
+    animation: seal-tongue 0.5s ease-in-out 3.5s 3;
 }
 .seal-ripple {
     transform-box: fill-box;
     transform-origin: center;
-    animation: seal-ripple 1.4s cubic-bezier(0.16, 1, 0.3, 1) 2.6s;
+    animation: seal-ripple 1.4s cubic-bezier(0.16, 1, 0.3, 1) 3.4s;
 }
 @keyframes seal-draw {
     from {
@@ -773,10 +769,9 @@
         opacity: 0;
     }
 }
-@keyframes seal-head {
-    from {
-        opacity: 0;
-        transform: scale(0.6);
+@keyframes seal-tongue {
+    50% {
+        transform: scaleY(0.2);
     }
 }
 @keyframes seal-ripple {
@@ -792,8 +787,7 @@
 @media (prefers-reduced-motion: reduce) {
     .seal-line,
     .seal-fill,
-    .seal-snake,
-    .seal-head,
+    .seal-tongue,
     .seal-ripple {
         animation: none;
     }
