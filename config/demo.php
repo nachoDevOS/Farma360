@@ -2,8 +2,8 @@
 
 /*
 | SITIO PÚBLICO Y MODO DEMO
-| El modo demo es para un despliegue aparte, con su propia base de datos: su base se borra cada hora.
-| Nunca actives DEMO_MODE en la base de un cliente. Por seguridad, demo:reset se niega si la base no lleva "demo" en el nombre.
+| El modo demo es para un despliegue aparte, con su propia base de datos. Nada se borra: lo que hagan los visitantes queda guardado.
+| Nunca actives DEMO_MODE en la base de un cliente: el botón "Probar sistema" entra sin contraseña.
 */
 return [
 

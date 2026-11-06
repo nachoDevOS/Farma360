@@ -28,7 +28,7 @@ export default function AdminLayout({ children, breadcrumbs = [] }: { children: 
                 <AdminHeader breadcrumbs={breadcrumbs} />
                 {isDemoAccount && (
                     <p data-demo-notice className="bg-primary/10 text-foreground px-6 py-2 text-center text-sm">
-                        Estás en la demostración: los datos son de ejemplo y se reinician cada hora.
+                        Estás en la demostración: los datos son de ejemplo.
                     </p>
                 )}
                 {/* Aquí se dibuja la página actual (dashboard, usuarios…) */}

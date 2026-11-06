@@ -2,8 +2,12 @@
 
 namespace Tests\Feature\Public;
 
+use App\Models\Product;
 use App\Models\User;
+use Database\Seeders\DemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
@@ -62,20 +66,44 @@ class PublicSiteTest extends TestCase
         $this->assertAuthenticatedAs($demoUser);
     }
 
-    public function test_demo_reset_refuses_with_demo_mode_off(): void
+    public function test_no_command_erases_the_demo_database(): void
     {
-        config(['database.connections.'.config('database.default').'.database' => 'sivefarma_demo']);
-
-        $this->artisan('demo:reset')->assertFailed();
+        $this->assertArrayNotHasKey('demo:reset', Artisan::all());
     }
 
-    public function test_demo_reset_refuses_a_database_without_demo_in_its_name(): void
+    public function test_demo_seeder_replaces_default_passwords_in_production_and_keeps_changed_ones(): void
     {
-        config(['demo.enabled' => true, 'database.connections.'.config('database.default').'.database' => 'farmacia_real']);
-        $user = User::factory()->create();
+        $this->app['env'] = 'production';
+        $changed = User::factory()->create(['password' => 'clave-ya-cambiada']);
+        $default = User::factory()->create(['password' => 'password']);
 
-        $this->artisan('demo:reset')->assertFailed();
-        $this->assertModelExists($user);
+        $this->app->make(DemoSeeder::class)->setContainer($this->app)->run();
+
+        $this->assertTrue(Hash::check('clave-ya-cambiada', $changed->fresh()->password));
+        $this->assertFalse(Hash::check('password', $default->fresh()->password));
+        $this->assertFalse(Hash::check('password', User::where('email', 'admin@admin.com')->sole()->password));
+    }
+
+    public function test_demo_seeder_keeps_default_passwords_outside_production(): void
+    {
+        $user = User::factory()->create(['password' => 'password']);
+
+        $this->seed(DemoSeeder::class);
+
+        $this->assertTrue(Hash::check('password', $user->fresh()->password));
+        $this->assertTrue(User::where('email', config('demo.user_email'))->exists());
+    }
+
+    public function test_demo_seeder_runs_again_without_losing_or_duplicating_data(): void
+    {
+        $this->seed(DemoSeeder::class);
+        $users = User::count();
+        $products = Product::count();
+
+        $this->seed(DemoSeeder::class);
+
+        $this->assertSame($users, User::count());
+        $this->assertSame($products, Product::count());
     }
 
     public function test_demo_account_cannot_change_its_password_or_profile(): void

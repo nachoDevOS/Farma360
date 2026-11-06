@@ -16,7 +16,6 @@
 #
 # Opciones (variables de entorno):
 #   ALLOW_REGISTER=1       Permite el registro público. Por defecto se bloquea.
-#   ALLOW_DEMO=1           Solo despliegue de demo: base propia con "demo" en el nombre.
 #   ALLOW_INSECURE_HTTP=1  Permite APP_URL con http. Solo para pruebas internas.
 #   ASSUME_YES=1           No pregunta antes de empezar (para deploys automáticos).
 #
@@ -46,7 +45,6 @@ DEPLOY_USER="${2:-}"
 APP_USER="${3:-}"
 NGINX_CONF="${4:-}"
 ALLOW_REGISTER="${ALLOW_REGISTER:-0}"
-ALLOW_DEMO="${ALLOW_DEMO:-0}"
 ALLOW_INSECURE_HTTP="${ALLOW_INSECURE_HTTP:-0}"
 ASSUME_YES="${ASSUME_YES:-0}"
 
@@ -188,10 +186,6 @@ fi
 
 DB_CONNECTION="$(env_value DB_CONNECTION)"
 DB_DATABASE="$(env_value DB_DATABASE)"
-DEMO_MODE="$(env_value DEMO_MODE)"
-if [ "$ALLOW_DEMO" = "1" ]; then
-    [[ "${DB_DATABASE,,}" == *demo* ]] || die "ALLOW_DEMO=1 exige una base con 'demo' en el nombre. Nunca actives la demo en la base de un cliente."
-fi
 
 NGINX_PATH="/etc/nginx/sites-available/$NGINX_CONF"
 if [ ! -f "$NGINX_PATH" ]; then
@@ -261,7 +255,6 @@ echo "  Deploy:    $DEPLOY_USER (dueño del código)"
 echo "  PHP corre: $APP_USER (pool $POOL, PHP $PHP_V)"
 echo "  Nginx:     $NGINX_PATH"
 echo "  Registro:  $([ "$ALLOW_REGISTER" = "1" ] && echo 'permitido' || echo 'BLOQUEADO')"
-echo "  Demo:      $([ "$ALLOW_DEMO" = "1" ] && echo 'permitida' || echo 'DESACTIVADA')"
 echo ""
 if [ "$ASSUME_YES" != "1" ]; then
     read -rp "  ¿Continuar? [s/N]: " CONFIRM
@@ -377,6 +370,11 @@ client_header_timeout 30s;
 send_timeout 60s;
 fastcgi_hide_header X-Powered-By;
 
+# El punto de venta manda cabeceras Link grandes: con el búfer por defecto Nginx responde 502
+fastcgi_buffer_size 32k;
+fastcgi_buffers 16 32k;
+fastcgi_busy_buffers_size 64k;
+
 add_header X-Content-Type-Options "nosniff" always;
 add_header X-Frame-Options "SAMEORIGIN" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;
@@ -407,7 +405,7 @@ chmod 644 "$SNIPPET_FILE"
 
 # Lo que ya define el snippet se comenta, porque Nginx rechaza directivas duplicadas
 sed -Ei \
-    -e 's/^([[:space:]]*)(server_tokens|autoindex|client_max_body_size|client_body_timeout|client_header_timeout|send_timeout)([[:space:]])/\1# hardening: \2\3/' \
+    -e 's/^([[:space:]]*)(server_tokens|autoindex|client_max_body_size|client_body_timeout|client_header_timeout|send_timeout|fastcgi_buffer_size|fastcgi_buffers|fastcgi_busy_buffers_size)([[:space:]])/\1# hardening: \2\3/' \
     -e "s/^([[:space:]]*)(add_header[[:space:]]+[\"']?(X-Frame-Options|X-Content-Type-Options|X-XSS-Protection|Referrer-Policy|Permissions-Policy|Strict-Transport-Security|Content-Security-Policy))/\1# hardening: \2/" \
     "$NGINX_PATH"
 
@@ -465,13 +463,6 @@ set_env LOG_LEVEL warning
 set_env SESSION_ENCRYPT true
 if [ "$URL_SCHEME" = "https" ]; then
     set_env SESSION_SECURE_COOKIE true
-fi
-
-# El login de la demo entra sin contraseña: en la base de un cliente sería acceso libre
-if [ "$ALLOW_DEMO" != "1" ]; then
-    set_env DEMO_MODE false
-elif [ "${DEMO_MODE,,}" = "true" ]; then
-    warn "Demo activa. Para que se reinicie cada hora, agrega al cron de $APP_USER: * * * * * cd $PROJECT && $PHP_BIN artisan schedule:run"
 fi
 
 [ -n "$(env_value DB_PASSWORD)" ] || warn "DB_PASSWORD está vacío."

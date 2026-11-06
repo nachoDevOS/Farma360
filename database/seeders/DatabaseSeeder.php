@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Support\PermissionCatalog;
+use Faker\Factory as FakerFactory;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Artisan;
 
@@ -43,11 +44,12 @@ class DatabaseSeeder extends Seeder
 
     /**
      * 48 usuarios de prueba repartidos en los últimos 12 meses, para que el dashboard tenga datos.
+     * Faker es de desarrollo: con composer install --no-dev estos usuarios no se crean.
      */
     private function createDemoUsers(): void
     {
         // Si ya hay más usuarios, no volvemos a crear los de prueba
-        if (User::count() > 1) {
+        if (User::count() > 1 || ! class_exists(FakerFactory::class)) {
             return;
         }
 
