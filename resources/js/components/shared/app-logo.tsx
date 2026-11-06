@@ -2,7 +2,7 @@
  * LOGO del panel. Para usar tu propio logo, guarda la imagen en public/images/logo.png
  * (cuadrada, ideal 256×256 px, PNG con fondo transparente). Si no existe, se muestra el ícono por defecto.
  */
-import { Code2 } from 'lucide-react';
+import { Pill } from 'lucide-react';
 import { useState } from 'react';
 
 // Ruta del logo. Cámbiala si usas otro nombre o formato (ej: '/images/logo.svg')
@@ -25,7 +25,7 @@ export function AppLogoMark({ className = '' }: { className?: string }) {
 
     return (
         <div className={`logo-mark flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg text-white ${className}`}>
-            <Code2 className="size-[58%]" strokeWidth={2.25} />
+            <Pill className="size-[58%]" strokeWidth={2.25} />
         </div>
     );
 }

@@ -1,9 +1,9 @@
 <laravel-boost-guidelines>
 === .ai/borrado-logico rules ===
 
-# Farma360 — Regla del sistema: eliminación lógica y auditoría de registro
+# SIVEFARMA — Regla del sistema: eliminación lógica y auditoría de registro
 
-Nothing is ever physically deleted from the Farma360 database. Every delete is a soft delete (`deleted_at`).
+Nothing is ever physically deleted from the SIVEFARMA database. Every delete is a soft delete (`deleted_at`).
 
 ## Required on every table
 

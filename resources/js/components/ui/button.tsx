@@ -5,7 +5,7 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 /*
- * BOTONES DEL SISTEMA (personalizados para Farma360; el resto de components/ui/ es shadcn sin cambios).
+ * BOTONES DEL SISTEMA (personalizados para SIVEFARMA; el resto de components/ui/ es shadcn sin cambios).
  * Compactos y planos: 32 px de alto, texto de 13 px y esquinas de 6 px.
  * Los botones con relleno usan la clase .btn-solid de resources/css/app.css; el color sale de --btn-bg / --btn-fg,
  * así cada variante solo cambia esas dos variables.

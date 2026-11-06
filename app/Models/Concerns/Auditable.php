@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use LogicException;
 
 /**
- * REGLA DEL SISTEMA: en Farma360 NADA se borra de la base de datos. Todo es ELIMINACIÓN LÓGICA.
+ * REGLA DEL SISTEMA: en SIVEFARMA NADA se borra de la base de datos. Todo es ELIMINACIÓN LÓGICA.
  *
  * Todo modelo del sistema usa este trait. Las columnas las crea $table->auditable() en la migración
  * (ver AppServiceProvider::registerAuditableColumns):
@@ -56,7 +56,7 @@ trait Auditable
 
         // Borrado físico prohibido en todo el sistema
         static::forceDeleting(function (self $model) {
-            throw new LogicException('Farma360 no permite borrar registros de la base de datos ('.$model::class.'). Usa delete(): la eliminación es lógica.');
+            throw new LogicException('SIVEFARMA no permite borrar registros de la base de datos ('.$model::class.'). Usa delete(): la eliminación es lógica.');
         });
     }
 

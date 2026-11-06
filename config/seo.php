@@ -11,17 +11,17 @@
 
 return [
 
-    'name' => 'Farma360',
+    'name' => 'SIVEFARMA',
 
     // Título de Google y de la vista previa: hasta unos 60 caracteres
-    'title' => 'Farma360 | Gestión de farmacia: ventas, caja e inventario',
+    'title' => 'SIVEFARMA | Sistema de Inventario y Ventas de Farmacia',
 
     // Descripción de Google y de la vista previa: hasta unos 160 caracteres
     'description' => 'Sistema de gestión para farmacias: punto de venta, caja, inventario por lotes, compras, transferencias entre sucursales y reportes.',
 
     'image' => 'images/og-image.jpg',
 
-    'image_alt' => 'Farma360: logo y nombre del sistema',
+    'image_alt' => 'SIVEFARMA: logo y nombre del sistema',
 
     // Color de la barra del navegador en el celular
     'theme_color' => '#0B1B33',

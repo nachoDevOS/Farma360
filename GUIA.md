@@ -334,7 +334,7 @@ Gate::inspect('delete', $user)->message(); // el motivo si no puede
 ```
 
 ### REGLA DEL SISTEMA: nada se borra → eliminación lógica + quién registró / quién eliminó
-En Farma360 **ningún dato se borra de la base de datos**. "Eliminar" solo marca el registro con `deleted_at`.
+En SIVEFARMA **ningún dato se borra de la base de datos**. "Eliminar" solo marca el registro con `deleted_at`.
 Además, **toda tabla** tiene estas columnas, que se llenan solas:
 
 | Columna | Qué guarda |
@@ -445,7 +445,7 @@ Sucursales, proveedores, clientes, categorías, laboratorios, principios activos
 ### Datos de prueba
 `php artisan migrate:fresh --seed` crea la farmacia de ejemplo (`database/seeders/PharmacySeeder.php`): 3 sucursales,
 11 productos, compras, lotes por vencer y uno vencido, promociones, una transferencia en camino y una caja abierta con ventas.
-Usuarios (contraseña `password`): `admin@admin.com` (Super Admin), `regente@farma360.test`, `cajero@farma360.test`, `almacenero@farma360.test`.
+Usuarios (contraseña `password`): `admin@admin.com` (Super Admin), `regente@sivefarma.test`, `cajero@sivefarma.test`, `almacenero@sivefarma.test`.
 
 ---
 

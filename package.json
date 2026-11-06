@@ -1,4 +1,5 @@
 {
+    "name": "sivefarma",
     "private": true,
     "type": "module",
     "scripts": {

@@ -45,7 +45,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
     };
 
     return (
-        <AuthLayout title="Bienvenido de nuevo" description="Ingresa tu correo y contraseña para acceder al panel">
+        <AuthLayout title="Inicia sesión" description="Ingresa con tu correo para atender tu farmacia">
             <Head title="Iniciar sesión" />
 
             {status && (
@@ -122,12 +122,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                     </Button>
                 </div>
 
-                <div className="text-muted-foreground text-center text-sm">
-                    ¿No tienes cuenta?{' '}
-                    <TextLink href={route('register')} tabIndex={5}>
-                        Regístrate
-                    </TextLink>
-                </div>
+                <p className="text-muted-foreground text-center text-sm">¿No tienes cuenta? Pídela al administrador de tu farmacia.</p>
             </form>
         </AuthLayout>
     );

@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\Auth;
  * promociones, una transferencia en camino, un turno de caja abierto con ventas, y usuarios de cada rol.
  * Lo llama DatabaseSeeder. Si ya hay sucursales no hace nada.
  *
- * Usuarios (contraseña: password): regente@farma360.test · cajero@farma360.test · almacenero@farma360.test
+ * Usuarios (contraseña: password): regente@sivefarma.test · cajero@sivefarma.test · almacenero@sivefarma.test
  */
 class PharmacySeeder extends Seeder
 {
@@ -78,7 +78,7 @@ class PharmacySeeder extends Seeder
     {
         $make = function (string $key, string $name, string $role, Branch $branch) {
             $user = User::firstOrCreate(
-                ['email' => "{$key}@farma360.test"],
+                ['email' => "{$key}@sivefarma.test"],
                 ['name' => $name, 'password' => 'password', 'email_verified_at' => now(), 'branch_id' => $branch->id],
             );
             $user->syncRoles([$role]);
