@@ -42,7 +42,7 @@ import {
     UserRound,
     Wallet,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const dateTime: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
 
@@ -65,6 +65,18 @@ export default function SaleShow({ sale, paymentMethods }: Props) {
     const canCancel = can('ventas.anular') && sale.status === 'completada' && sale.cash_session?.status === 'abierta';
     const items = sale.items ?? [];
     const promotions = items.reduce((sum, item) => sum + Number(item.discount_amount), 0);
+
+    // Botón "Imprimir" de la franja del POS: se quita ?imprimir de la dirección para que recargar o volver no imprima otra vez
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has('imprimir')) {
+            return;
+        }
+
+        url.searchParams.delete('imprimir');
+        window.history.replaceState(window.history.state, '', url);
+        printTicket();
+    }, []);
 
     return (
         <AdminLayout

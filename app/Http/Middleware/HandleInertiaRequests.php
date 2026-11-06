@@ -62,6 +62,8 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
                 // Aviso informativo (no es un error): ej. "Abre tu caja antes de vender"
                 'info' => fn () => $request->session()->get('info'),
+                // Venta recién cobrada: la muestra la franja "Venta realizada" del POS (sale-done-banner.tsx)
+                'sale' => fn () => $request->session()->get('sale'),
             ],
             // Turno de caja abierto del usuario, para el botón flotante "Mi caja" (cash-widget.tsx). null = no tiene.
             'cash' => fn () => $this->openCash($request->user()),

@@ -140,9 +140,10 @@ class PosTest extends TestCase
             'customer_document' => '4455667',
             'prescription_number' => '',
             'prescription_doctor' => '',
-        ])->assertRedirect()->assertSessionHas('success');
+        ])->assertRedirect('/admin/pos');
 
         $sale = Sale::with('payments')->firstOrFail();
+        $this->assertSame([...$sale->only('id', 'number', 'total', 'change'), 'customer_name' => 'Ana Rojas', 'payment_labels' => ['QR', 'Efectivo']], session('sale'));
         $this->assertEquals(235, $sale->total);
         $this->assertEquals(15, $sale->change);
         $this->assertSame('Ana Rojas', $sale->customer_name);

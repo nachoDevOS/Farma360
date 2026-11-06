@@ -167,7 +167,12 @@ class SaleController extends Controller
 
         $sale = $this->sales->create($session, $request->user(), $data);
 
-        return to_route('admin.sales.show', $sale)->with('success', "Venta {$sale->number} registrada. Cambio: ".number_format((float) $sale->change, 2));
+        return to_route('admin.pos')->with('sale', [
+            ...$sale->only('id', 'number', 'total', 'change'),
+            'customer_name' => $sale->customer_name === 'S/N' ? null : $sale->customer_name,
+            'payment_labels' => $sale->payments()->where('amount', '>', 0)->pluck('method')
+                ->map(fn (string $method) => config("farmacia.payment_methods.{$method}"))->all(),
+        ]);
     }
 
     public function show(Request $request, Sale $sale): Response

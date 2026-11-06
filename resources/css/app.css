@@ -738,6 +738,161 @@
     }
 }
 
+/* ===== FRANJA "VENTA REALIZADA" =====  (sale-done-banner.tsx)
+   Entra por la derecha con un leve rebote, un brillo la cruza una vez, el check se dibuja y la barra de abajo marca el tiempo. */
+.sale-banner {
+    animation: sale-banner-in 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+.sale-banner::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--color-emerald-500);
+}
+.sale-banner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 35%, rgb(16 185 129 / 0.14) 50%, transparent 65%);
+    transform: translateX(-120%);
+    animation: sale-banner-sheen 1s ease-out 0.35s;
+    pointer-events: none;
+}
+.sale-banner-out {
+    animation: sale-banner-out 0.22s ease-in both;
+}
+.sale-rise {
+    animation: sale-rise 0.35s ease-out both;
+}
+@keyframes sale-rise {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+}
+/* Lo que hay que entregar se enciende una vez, cuando el monto termina de subir */
+.sale-change-glow {
+    animation: sale-change-glow 1s ease-out 0.8s;
+}
+@keyframes sale-change-glow {
+    0% {
+        box-shadow: 0 0 0 0 rgb(16 185 129 / 0.45);
+    }
+    100% {
+        box-shadow: 0 0 0 8px rgb(16 185 129 / 0);
+    }
+}
+@keyframes sale-banner-in {
+    from {
+        transform: translateX(100%);
+    }
+}
+@keyframes sale-banner-out {
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+}
+@keyframes sale-banner-sheen {
+    to {
+        transform: translateX(120%);
+    }
+}
+
+.sale-check {
+    animation: sale-check-pop 0.4s cubic-bezier(0.22, 1.2, 0.36, 1) 0.25s both;
+}
+/* Onda que sale del check cuando termina de dibujarse */
+.sale-check::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 2px solid currentColor;
+    border-radius: 9999px;
+    opacity: 0;
+    animation: sale-check-ripple 0.7s ease-out 0.75s;
+}
+@keyframes sale-check-ripple {
+    from {
+        opacity: 0.5;
+        transform: scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: scale(1.5);
+    }
+}
+.sale-check-circle,
+.sale-check-mark {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 1;
+    animation: sale-check-draw 0.4s ease-out 0.2s both;
+}
+.sale-check-mark {
+    stroke-width: 3;
+    animation-delay: 0.5s;
+}
+@keyframes sale-check-pop {
+    from {
+        transform: scale(0.7);
+    }
+}
+@keyframes sale-check-draw {
+    from {
+        stroke-dashoffset: 1;
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.sale-banner-timer {
+    height: 3px;
+    background: var(--color-emerald-500);
+    transform-origin: left;
+    animation: sale-banner-timer 8s linear both;
+}
+.sale-banner:hover .sale-banner-timer,
+.sale-banner:focus-within .sale-banner-timer {
+    animation-play-state: paused;
+}
+@keyframes sale-banner-timer {
+    to {
+        transform: scaleX(0);
+    }
+}
+
+/* Sin movimiento: la franja solo aparece y desaparece. La barra de tiempo sigue: de ella depende que se cierre sola. */
+@media (prefers-reduced-motion: reduce) {
+    .sale-banner,
+    .sale-banner-out {
+        animation-name: sale-banner-fade;
+        animation-timing-function: ease;
+    }
+    .sale-banner-out {
+        animation-direction: reverse;
+    }
+    .sale-banner::after,
+    .sale-rise,
+    .sale-change-glow,
+    .sale-check,
+    .sale-check::after,
+    .sale-check-circle,
+    .sale-check-mark {
+        animation: none;
+    }
+}
+@keyframes sale-banner-fade {
+    from {
+        opacity: 0;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .nav-item,
     .nav-item::before,

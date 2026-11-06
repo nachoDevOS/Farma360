@@ -16,6 +16,7 @@ import { blockFractionKeys } from '@/components/admin/common/quantity-input';
 import { SearchPicker } from '@/components/admin/common/search-picker';
 import { Panel, PanelHeader } from '@/components/admin/dashboard/panel';
 import { countOf, plural } from '@/components/admin/products/presentation-levels';
+import { SaleDoneBanner } from '@/components/admin/sales/sale-done-banner';
 import InputError from '@/components/shared/input-error';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -375,9 +376,11 @@ export default function Pos({ session, paymentMethods, discountLimit }: Props) {
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         post(route('admin.sales.store'), {
+            preserveState: true,
             onSuccess: () => {
                 reset();
                 setShowCustomer(false);
+                search.current?.focus();
             },
         });
     };
@@ -398,6 +401,7 @@ export default function Pos({ session, paymentMethods, discountLimit }: Props) {
     return (
         <AdminLayout breadcrumbs={[{ title: 'Punto de venta', href: route('admin.pos') }]}>
             <Head title="Punto de venta" />
+            <SaleDoneBanner />
             <form onSubmit={submit} className="grid w-full flex-1 items-start gap-6 p-4 md:p-6 xl:grid-cols-[1fr_25rem]">
                 {/* IZQUIERDA: búsqueda + carrito */}
                 <div className="flex min-w-0 flex-col gap-4">

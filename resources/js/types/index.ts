@@ -30,12 +30,26 @@ export interface NavItem {
     permission?: string;
 }
 
+/** Venta recién cobrada, para la franja "Venta realizada" del Punto de venta. Laravel manda los decimales como texto. */
+export interface SaleDone {
+    id: number;
+    number: string;
+    total: number | string;
+    change: number | string;
+    /** Null si la venta salió sin cliente (S/N) */
+    customer_name: string | null;
+    /** Medios de pago usados: ["QR", "Efectivo"] */
+    payment_labels: string[];
+}
+
 /** Avisos temporales de éxito / error que manda Laravel con ->with(). */
 export interface Flash {
     success?: string | null;
     error?: string | null;
     /** Aviso informativo (azul verdoso), no es un error */
     info?: string | null;
+    /** Venta recién cobrada (franja del Punto de venta) */
+    sale?: SaleDone | null;
 }
 
 /** Datos que reciben TODAS las páginas. Uso: const { auth } = usePage<SharedData>().props; */
