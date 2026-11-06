@@ -31,7 +31,7 @@ export function printTicket(): void {
     document.fonts.load('12px "Share Tech Mono"').then(print, print);
 }
 
-function SaleTicket({ sale, paymentMethods }: TicketProps) {
+export function SaleTicket({ sale, paymentMethods }: TicketProps) {
     const { name: appName } = usePage<SharedData>().props;
     const date = formatDate(sale.created_at, { dateStyle: 'short', timeStyle: 'short' });
     const qrText = [appName, `Comprobante ${sale.number}`, `Fecha ${date}`, `Total ${money(sale.total)}`, sale.status === 'anulada' && 'ANULADA']

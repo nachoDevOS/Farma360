@@ -7,10 +7,12 @@ import { AdminSidebar } from '@/components/admin/layout/admin-sidebar';
 import { DevelopedBy } from '@/components/shared/developed-by';
 import { FlashToast } from '@/components/shared/flash-toast';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type SharedData } from '@/types';
+import { usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
 export default function AdminLayout({ children, breadcrumbs = [] }: { children: React.ReactNode; breadcrumbs?: BreadcrumbItem[] }) {
+    const { isDemoAccount } = usePage<SharedData>().props;
     // Menú abierto / plegado. Se recuerda en el navegador entre visitas
     const [open, setOpen] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('sidebar') !== 'false' : true));
 
@@ -24,6 +26,11 @@ export default function AdminLayout({ children, breadcrumbs = [] }: { children: 
             <AdminSidebar />
             <SidebarInset className="relative isolate min-w-0 md:border">
                 <AdminHeader breadcrumbs={breadcrumbs} />
+                {isDemoAccount && (
+                    <p data-demo-notice className="bg-primary/10 text-foreground px-6 py-2 text-center text-sm">
+                        Estás en la demostración: los datos son de ejemplo y se reinician cada hora.
+                    </p>
+                )}
                 {/* Aquí se dibuja la página actual (dashboard, usuarios…) */}
                 {children}
                 <footer className="mt-auto px-6 py-4">

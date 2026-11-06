@@ -65,6 +65,8 @@ class HandleInertiaRequests extends Middleware
                 // Venta recién cobrada: la muestra la franja "Venta realizada" del POS (sale-done-banner.tsx)
                 'sale' => fn () => $request->session()->get('sale'),
             ],
+            // true solo en la cuenta de demostración: muestra el aviso de arriba (admin-layout.tsx)
+            'isDemoAccount' => fn () => $request->user()?->email === config('demo.user_email'),
             // Turno de caja abierto del usuario, para el botón flotante "Mi caja" (cash-widget.tsx). null = no tiene.
             'cash' => fn () => $this->openCash($request->user()),
         ]);

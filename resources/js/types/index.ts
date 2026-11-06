@@ -58,6 +58,7 @@ export interface SharedData {
     quote: { message: string; author: string };
     auth: Auth;
     flash: Flash;
+    isDemoAccount: boolean;
     /** Dirección pública del bucket S3 (AWS_URL): las imágenes son aws_url/ruta. Ver lib/storage.ts */
     aws_url?: string | null;
     /** Mi turno de caja abierto (botón flotante "Mi caja"). null = no tengo caja abierta */

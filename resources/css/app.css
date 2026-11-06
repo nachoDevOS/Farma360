@@ -793,6 +793,413 @@
     }
 }
 
+/* ===== SITIO PÚBLICO =====  (pages/public, components/public, efectos con JavaScript en components/public/effects.tsx)
+   Portada: título por palabras, capas que siguen al mouse y tarjetas que llegan cuando la víbora termina de subir y luego flotan.
+   Al bajar: las piezas entran escalonadas (--i = su posición), según lo permita el navegador; si no, se ven quietas y completas. */
+html:has(.pub-header) {
+    scroll-behavior: smooth;
+}
+
+.pub-word {
+    animation: pub-word 0.8s cubic-bezier(0.16, 1, 0.3, 1) calc(0.15s + var(--i, 0) * 70ms) backwards;
+}
+@keyframes pub-word {
+    from {
+        transform: translateY(105%);
+    }
+}
+.pub-fade {
+    animation: pub-fade 0.9s ease-out 0.7s backwards;
+}
+@keyframes pub-fade {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+}
+.pub-pillar {
+    animation: pub-fade 0.8s cubic-bezier(0.16, 1, 0.3, 1) calc(1s + var(--i, 0) * 140ms) backwards;
+}
+
+.pub-card {
+    animation: pub-card 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.pub-card-first {
+    animation-delay: 3.4s;
+}
+.pub-card-second {
+    animation-delay: 3.6s;
+}
+.pub-card-third {
+    animation-delay: 3.8s;
+}
+@keyframes pub-card {
+    from {
+        opacity: 0;
+        transform: translateY(18px) scale(0.94);
+    }
+}
+.pub-float {
+    animation-name: pub-card, pub-float;
+    animation-duration: 0.6s, 5s;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1), ease-in-out;
+    animation-iteration-count: 1, infinite;
+    animation-direction: normal, alternate;
+    animation-fill-mode: backwards, none;
+}
+.pub-card-first.pub-float {
+    animation-delay: 3.4s, 4.2s;
+}
+.pub-card-second.pub-float {
+    animation-delay: 3.6s, 4.6s;
+}
+.pub-card-third.pub-float {
+    animation-delay: 3.8s, 5s;
+}
+@keyframes pub-float {
+    to {
+        transform: translateY(-9px);
+    }
+}
+.pub-layer {
+    translate: calc(var(--px, 0) * var(--depth, 22px)) calc(var(--py, 0) * var(--depth, 22px));
+    transition: translate 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pub-ticket {
+    transition:
+        translate 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+        rotate 0.3s ease,
+        scale 0.3s ease;
+}
+.pub-ticket:hover {
+    rotate: 0deg;
+    scale: 1.05;
+}
+.pub-drift {
+    animation: pub-drift 14s ease-in-out infinite alternate;
+}
+@keyframes pub-drift {
+    to {
+        opacity: 0.65;
+        scale: 1.2;
+    }
+}
+
+.pub-cta {
+    position: relative;
+    overflow: hidden;
+    animation: pub-pulse 2.6s ease-out infinite;
+}
+.pub-cta::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 35%, rgb(255 255 255 / 0.35) 50%, transparent 65%);
+    transform: translateX(-120%);
+    animation: pub-shine 4.5s ease-in-out infinite;
+    pointer-events: none;
+}
+.pub-pulse {
+    animation: pub-pulse 2.2s ease-out infinite;
+}
+@keyframes pub-pulse {
+    0% {
+        box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 55%, transparent);
+    }
+    100% {
+        box-shadow: 0 0 0 18px color-mix(in oklab, var(--primary) 0%, transparent);
+    }
+}
+@keyframes pub-shine {
+    0%,
+    70% {
+        transform: translateX(-120%);
+    }
+    100% {
+        transform: translateX(120%);
+    }
+}
+
+.pub-lift {
+    transition:
+        translate 0.25s ease,
+        box-shadow 0.25s ease;
+}
+.pub-lift:hover {
+    translate: 0 -6px;
+    box-shadow: 0 20px 36px -18px rgb(11 27 51 / 0.35);
+}
+.pub-spot {
+    position: relative;
+    overflow: hidden;
+}
+.pub-spot::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(220px circle at var(--spot-x, 50%) var(--spot-y, 50%), color-mix(in oklab, var(--primary) 14%, transparent), transparent);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+}
+.pub-spot:hover::before {
+    opacity: 1;
+}
+.pub-spot > * {
+    position: relative;
+}
+.pub-icon {
+    transition:
+        background-color 0.25s ease,
+        color 0.25s ease,
+        rotate 0.25s ease,
+        scale 0.25s ease;
+}
+.group:hover .pub-icon {
+    background-color: var(--primary);
+    color: #ffffff;
+    rotate: -6deg;
+    scale: 1.08;
+}
+.pub-zoom img {
+    transition: scale 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pub-zoom:hover img {
+    scale: 1.03;
+}
+.pub-step {
+    animation: pub-pulse 1.5s ease-out calc(var(--i, 0) * 1.5s + 0.2s) infinite;
+    animation-duration: 4.5s;
+}
+.pub-link {
+    background: linear-gradient(currentColor, currentColor) left bottom / 0 2px no-repeat;
+    padding-bottom: 3px;
+    transition:
+        background-size 0.25s ease,
+        color 0.2s ease;
+}
+.pub-link:hover {
+    background-size: 100% 2px;
+}
+.pub-progress {
+    display: none;
+}
+#preguntas details {
+    interpolate-size: allow-keywords;
+}
+#preguntas details::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition:
+        block-size 0.3s ease,
+        content-visibility 0.3s allow-discrete;
+}
+#preguntas details[open]::details-content {
+    block-size: auto;
+}
+
+.pub-swap {
+    animation: pub-fade 0.35s ease-out;
+}
+.pub-mark {
+    background: linear-gradient(color-mix(in oklab, var(--primary) 28%, transparent), color-mix(in oklab, var(--primary) 28%, transparent)) left 88% / 100% 34%
+        no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+.pub-new-sale {
+    animation: pub-new-sale 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+@keyframes pub-new-sale {
+    from {
+        opacity: 0;
+        transform: translateY(-16px) scale(0.97);
+        background-color: color-mix(in oklab, var(--primary) 60%, transparent);
+    }
+}
+.pub-bump {
+    animation: pub-bump 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes pub-bump {
+    from {
+        opacity: 0.45;
+        transform: translateY(8px);
+    }
+}
+.pub-live {
+    animation: pub-live 1.4s ease-in-out infinite;
+}
+@keyframes pub-live {
+    50% {
+        opacity: 0.25;
+    }
+}
+.pub-paper {
+    --tooth: 8px;
+    clip-path: polygon(
+        0 0,
+        100% 0,
+        100% calc(100% - var(--tooth)),
+        93.75% 100%,
+        87.5% calc(100% - var(--tooth)),
+        81.25% 100%,
+        75% calc(100% - var(--tooth)),
+        68.75% 100%,
+        62.5% calc(100% - var(--tooth)),
+        56.25% 100%,
+        50% calc(100% - var(--tooth)),
+        43.75% 100%,
+        37.5% calc(100% - var(--tooth)),
+        31.25% 100%,
+        25% calc(100% - var(--tooth)),
+        18.75% 100%,
+        12.5% calc(100% - var(--tooth)),
+        6.25% 100%,
+        0 calc(100% - var(--tooth))
+    );
+}
+
+@supports (animation-timeline: view()) {
+    .pub-reveal,
+    .pub-from-left,
+    .pub-from-right {
+        animation: pub-reveal linear both;
+        animation-timeline: view();
+        animation-range: entry calc(8% + var(--i, 0) * 7%) entry calc(70% + var(--i, 0) * 7%);
+    }
+    .pub-from-left {
+        animation-name: pub-from-left;
+    }
+    .pub-from-right {
+        animation-name: pub-from-right;
+    }
+    .pub-print {
+        animation: pub-print linear both;
+        animation-timeline: view();
+        animation-range: entry 15% cover 50%;
+    }
+    .pub-mark {
+        animation: pub-mark linear both;
+        animation-timeline: view();
+        animation-range: entry 70% cover 40%;
+    }
+    .pub-pop {
+        animation: pub-pop linear both;
+        animation-timeline: view();
+        animation-range: entry calc(30% + var(--i, 0) * 7%) entry calc(80% + var(--i, 0) * 7%);
+    }
+    .pub-hero-exit {
+        animation: pub-hero-exit linear both;
+        animation-timeline: view();
+        animation-range: exit 10% exit 90%;
+    }
+    .pub-progress {
+        display: block;
+        position: absolute;
+        inset: auto 0 -1px;
+        height: 3px;
+        background: var(--primary);
+        transform-origin: left;
+        animation: pub-progress linear both;
+        animation-timeline: scroll(root);
+    }
+    .pub-header {
+        animation: pub-header linear both;
+        animation-timeline: scroll(root);
+        animation-range: 0 120px;
+    }
+}
+@keyframes pub-reveal {
+    from {
+        opacity: 0;
+        transform: translateY(36px);
+    }
+}
+@keyframes pub-from-left {
+    from {
+        opacity: 0;
+        transform: translateX(-70px) scale(0.97);
+    }
+}
+@keyframes pub-from-right {
+    from {
+        opacity: 0;
+        transform: translateX(70px) scale(0.97);
+    }
+}
+@keyframes pub-mark {
+    from {
+        background-size: 0 34%;
+    }
+}
+@keyframes pub-pop {
+    from {
+        scale: 0;
+    }
+    70% {
+        scale: 1.25;
+    }
+}
+@keyframes pub-hero-exit {
+    to {
+        opacity: 0.25;
+        transform: translateY(70px) scale(0.97);
+    }
+}
+@keyframes pub-print {
+    from {
+        transform: translateY(-92%);
+    }
+}
+@keyframes pub-progress {
+    from {
+        transform: scaleX(0);
+    }
+}
+@keyframes pub-header {
+    to {
+        box-shadow: 0 10px 30px -18px rgb(11 27 51 / 0.35);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html:has(.pub-header) {
+        scroll-behavior: auto;
+    }
+    .pub-word,
+    .pub-swap,
+    .pub-fade,
+    .pub-pillar,
+    .pub-card,
+    .pub-float,
+    .pub-drift,
+    .pub-cta,
+    .pub-cta::after,
+    .pub-pulse,
+    .pub-step,
+    .pub-new-sale,
+    .pub-bump,
+    .pub-live,
+    .pub-mark,
+    .pub-pop,
+    .pub-hero-exit,
+    .pub-print,
+    .pub-reveal,
+    .pub-from-left,
+    .pub-from-right,
+    .pub-progress,
+    .pub-header {
+        animation: none;
+    }
+    .pub-layer,
+    .pub-ticket,
+    .pub-lift,
+    .pub-icon,
+    .pub-zoom img {
+        transition: none;
+    }
+}
+
 /* ===== FRANJA "VENTA REALIZADA" =====  (sale-done-banner.tsx)
    Entra por la derecha con un leve rebote, un brillo la cruza una vez, el check se dibuja y la barra de abajo marca el tiempo. */
 .sale-banner {

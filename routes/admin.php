@@ -21,6 +21,7 @@ use App\Http\Controllers\Admin\Settings\ProfileController;
 use App\Http\Controllers\Admin\SupplierController;
 use App\Http\Controllers\Admin\TransferController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Middleware\BlockDemoAccountChanges;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -37,9 +38,9 @@ Route::middleware('auth')->group(function () {
     // Mis ajustes (cada usuario): perfil, contraseña y apariencia
     Route::redirect('settings', 'settings/profile');
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update')->middleware(BlockDemoAccountChanges::class);
     Route::get('settings/password', [PasswordController::class, 'edit'])->name('password.edit');
-    Route::put('settings/password', [PasswordController::class, 'update'])->name('password.update');
+    Route::put('settings/password', [PasswordController::class, 'update'])->name('password.update')->middleware(BlockDemoAccountChanges::class);
     Route::get('settings/appearance', fn () => Inertia::render('admin/settings/appearance'))->name('appearance');
 
     // Gestión del sistema. Cada ruta pide un PERMISO del catálogo (config/roles.php):

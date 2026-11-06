@@ -2,6 +2,8 @@
  * LOGO del panel. Para usar tu propio logo, guarda la imagen en public/images/logo.png
  * (cuadrada, ideal 256×256 px, PNG con fondo transparente). Si no existe, se muestra el ícono por defecto.
  */
+import { type SharedData } from '@/types';
+import { usePage } from '@inertiajs/react';
 import { Pill } from 'lucide-react';
 import { useState } from 'react';
 
@@ -30,13 +32,15 @@ export function AppLogoMark({ className = '' }: { className?: string }) {
     );
 }
 
-/** Logo + nombre "Panel Admin" (arriba del menú lateral). */
+/** Logo + nombre del sistema (arriba del menú lateral). */
 export default function AppLogo() {
+    const { name } = usePage<SharedData>().props;
+
     return (
         <>
             <AppLogoMark />
             <div className="ml-1 grid flex-1 text-left text-sm">
-                <span className="font-display mb-0.5 truncate leading-none font-semibold">Panel Admin</span>
+                <span className="font-display mb-0.5 truncate leading-none font-semibold">{name}</span>
                 <span className="text-sidebar-foreground/60 truncate text-xs">Sistema de gestión</span>
             </div>
         </>
