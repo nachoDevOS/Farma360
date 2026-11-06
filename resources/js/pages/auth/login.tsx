@@ -68,6 +68,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             value={data.email}
                             onChange={(e) => setData('email', e.target.value)}
                             placeholder="correo@ejemplo.com"
+                            className="h-11"
                         />
                         <InputError message={errors.email} />
                     </div>
@@ -91,7 +92,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                 value={data.password}
                                 onChange={(e) => setData('password', e.target.value)}
                                 placeholder="••••••••"
-                                className="pr-10"
+                                className="h-11 pr-10"
                             />
                             <button
                                 type="button"
@@ -116,7 +117,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         <Label htmlFor="remember">Mantener sesión iniciada</Label>
                     </div>
 
-                    <Button type="submit" className="btn-brand h-10 w-full" tabIndex={4} disabled={processing}>
+                    <Button type="submit" className="btn-brand h-11 w-full text-base" tabIndex={4} disabled={processing}>
                         {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
                         Iniciar sesión
                     </Button>
